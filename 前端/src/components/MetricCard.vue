@@ -8,7 +8,10 @@ const value = computed(() => props.loading ? '读取中…' : props.error ? '接
 const isRatio = computed(() => props.item?.metadata.unit?.startsWith('比例'))
 const change = computed(() => {
   const raw = props.item?.latest.change
-  return raw == null ? '未提供' : isRatio.value ? signed(raw * 100) + ' 个百分点' : signed(raw) + ' ' + props.item.metadata.unit
+  if (raw == null) return '暂不可计算'
+  if (isRatio.value) return signed(raw * 100) + ' 个百分点'
+  const absolute = signed(raw) + ' ' + props.item.metadata.unit
+  return props.price ? absolute + '（' + (props.item.latest.change_pct == null ? '涨跌幅暂不可计算' : signed(props.item.latest.change_pct) + '%') + '）' : absolute
 })
 </script>
 <template>

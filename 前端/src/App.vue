@@ -6,11 +6,13 @@ import StatusBadge from './components/StatusBadge.vue'
 import RankingChart from './components/RankingChart.vue'
 import FlowHeatmap from './components/FlowHeatmap.vue'
 import ComexInventory from './components/ComexInventory.vue'
+import VolatilityCard from './components/VolatilityCard.vue'
 import { useDashboard, isStatic, categoryNames, format, localTime, regions, regionColors, palette, numeric, sortHealthSources } from './data.js'
 
 const { blocks, meta, all, item, refreshing, reloadError, clientRefreshedAt, notice, loadAll, refresh, loadBlock } = useDashboard()
 const navigation = [
   { id: 'overview', name: '核心指标' },
+  { id: 'gold-price', name: '黄金现价' },
   { id: 'central-bank', name: '央行购金' },
   { id: 'au-td', name: 'Au(T+D)' },
   { id: 'futures', name: '黄金期货' },
@@ -24,7 +26,8 @@ const navigation = [
   { id: 'health', name: '数据健康度' },
 ]
 const coreCards = [
-  { id: 'gold_price_anchor', category: 'etf', label: '黄金价格锚点', price: true },
+  { id: 'gold_price_anchor', category: 'price', label: '上金所Au99.99收盘价', price: true },
+  { id: 'gold-volatility', category: 'price', volatility: true },
   { id: 'domestic_etf_total_assets', category: 'etf', label: '境内黄金 ETF 总资产规模' },
   { id: 'spdr_gold_holdings', category: 'etf', label: 'SPDR 黄金持仓' },
   { id: 'cftc_net_long', category: 'cftc', label: 'CFTC 非商业净多头' },
@@ -47,6 +50,9 @@ const pending = computed(() => Object.values(blocks).some(b => b.loading))
 const countStatus = s => allMetadata.value.filter(m => m.status === s || m.statuses?.includes(s)).length
 const missingCount = computed(() => countStatus('数据缺失'))
 function line(id, name, color, rest = {}) { return { item: item(id), name, color, ...rest } }
+const priceItems = computed(() => ['gold_price_anchor', 'gold_hv20', 'gold_hv60'].map(id => item(id)))
+const priceWithheld = computed(() => priceItems.value.some(i => i?.metadata.publication_withheld))
+const priceNote = computed(() => priceWithheld.value ? '数据暂缺：新增来源公开使用尚未确认，静态版不发布价格及派生波动率。' : '非连续全史：上游未取得2003-04-16至2008-08-10历史；空值保留断点，不补零、不平滑补点。')
 
 const etfTab = ref('weekly'), selectedFunds = ref([]), selectedRegions = ref(regions.map(r => r.id)), flowUnit = ref('tonnes')
 const funds = computed(() => (blocks.etf.data?.indicators || []).filter(i => /^domestic_\d+_assets$/.test(i.metadata.indicator_id)))
@@ -95,7 +101,19 @@ onMounted(loadAll)
       <div v-if="reloadError" class="alert error" role="alert">{{ reloadError }}</div><div v-else-if="notice" class="alert success" role="status">{{ notice }}</div>
       <div v-for="[key, block] in failures" :key="key" class="alert error" role="alert"><span>{{ categoryNames[key] }}{{ isStatic ? '展示数据读取失败' : '接口失败' }}：{{ block.error }}。其他区域可继续查看。</span><button class="text-button" :disabled="block.loading" @click="loadBlock(key)">{{ isStatic ? '重试此区域' : '重试此接口' }}</button></div>
 
-      <section id="overview" class="section"><div class="section-heading"><div><span class="section-number">概览</span><h2>核心指标</h2></div><span>不同观察频率独立显示</span></div><div class="metric-grid core-grid"><MetricCard v-for="card in coreCards" :key="card.id" :item="item(card.id)" :label="card.label" :price="card.price" :loading="blocks[card.category].loading" :error="blocks[card.category].error" /></div><p class="section-footnote">金价锚点与全球央行总量口径待确认，不以其他指标替代。卡片日期为各指标观察日期，刷新时间不代表数据发布日期。</p></section>
+      <section id="overview" class="section"><div class="section-heading"><div><span class="section-number">概览</span><h2>核心指标</h2></div><span>不同观察频率独立显示</span></div><div class="metric-grid core-grid"><template v-for="card in coreCards" :key="card.id"><VolatilityCard v-if="card.volatility" :items="[item('gold_hv20'), item('gold_hv60')]" :loading="blocks.price.loading" :error="blocks.price.error" /><MetricCard v-else :item="item(card.id)" :label="card.label" :price="card.price" :loading="blocks[card.category].loading" :error="blocks[card.category].error" /></template></div><p class="section-footnote">全球央行总量口径待确认，不以其他指标替代。卡片日期为各指标观察日期，刷新时间不代表数据发布日期。</p></section>
+
+      <section id="gold-price" class="section">
+        <div class="section-heading"><div><span class="section-number">现价</span><h2>黄金价格与波动率</h2></div><span>上金所Au99.99 · 日度</span></div>
+        <p class="section-footnote">历史波动率反映过去价格波动程度，不代表未来涨跌方向。</p>
+        <p class="section-footnote">{{ priceNote }}</p>
+        <div class="chart-grid">
+          <ChartPanel title="上金所Au99.99收盘价（元/克）" description="上金所交易日期收盘价；人民币元/克" :series="[line('gold_price_anchor', 'Au99.99收盘价', '#287985')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="priceWithheld ? priceNote : ''" :note="priceNote" />
+          <ChartPanel title="20日与60日年化历史波动率（%）" description="上游计算结果；切换区间不重新计算波动率" :series="[line('gold_hv20', '20日年化历史波动率', '#287985'), line('gold_hv60', '60日年化历史波动率', '#ad945b')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="priceWithheld ? priceNote : ''" note="缺值或收益窗口不足时显示数据不足；不按零处理，不前值填充" />
+        </div>
+        <p class="section-footnote">方法：日对数收益率、20/60个交易观测收益率、样本标准差（ddof=1）、252日年化；只读取上游结果。窗口不足或源值缺失时保持数据暂缺。</p>
+        <p v-if="!priceWithheld" class="section-footnote">来源：黄金现货价格.xlsx / 黄金现货价格 · 文件更新 {{ localTime(item('gold_price_anchor')?.metadata.updated_at) }} · 缓存加载 {{ localTime(blocks.price.data?.loaded_at) }} · 发布日期未知（null）。</p>
+      </section>
 
       <section id="central-bank" class="section">
         <div class="section-heading"><div><span class="section-number">01</span><h2>央行购金</h2></div><span>月度储备 · 机构未确认</span></div>

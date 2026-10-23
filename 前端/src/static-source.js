@@ -1,7 +1,7 @@
 export const isStatic = true
 let snapshotPromise
 
-function expandSnapshot(snapshot) {
+export function expandSnapshot(snapshot) {
   if (snapshot.schema_version !== 1 || !snapshot.generated_at || !snapshot.groups) throw new Error('展示数据格式不受支持，请重新生成并发布')
   const groups = Object.fromEntries(Object.entries(snapshot.groups).map(([category, items]) => [category, {
     indicators: items.map(item => {
@@ -9,8 +9,10 @@ function expandSnapshot(snapshot) {
       const latest = history.at(-1) || { observation_date: null, value: null, release_date: null }
       const previous = history.at(-2)
       const change = typeof latest.value === 'number' && typeof previous?.value === 'number' ? latest.value - previous.value : null
-      return { metadata: item.metadata, history, latest: { ...latest, change }, warnings: item.notes }
+      const change_pct = item.metadata.change_kind === 'absolute_and_percent' && change != null && previous.value !== 0 ? change / previous.value * 100 : null
+      return { metadata: item.metadata, history, latest: { ...latest, change, change_pct, change_unit: item.metadata.change_unit }, warnings: item.notes }
     }),
+    loaded_at: snapshot.generated_at,
     ...(category === 'inventory' ? { comex: snapshot.comex } : {}),
   }]))
   return { ...groups, meta: { loaded_at: snapshot.generated_at, generated_at: snapshot.generated_at, files: snapshot.files,

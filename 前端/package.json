@@ -11,6 +11,7 @@
     "preview:pages": "vite preview --mode pages --host 127.0.0.1 --port 4173 --strictPort --base=/pages-preview/",
     "check:pages": "node checks/pages-check.mjs",
     "check:axes": "node checks/axis-check.mjs",
+    "check:price": "node checks/price-check.mjs",
     "check:ui": "node checks/ui-check.mjs"
   },
   "dependencies": {

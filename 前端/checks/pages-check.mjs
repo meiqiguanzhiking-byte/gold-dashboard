@@ -63,7 +63,7 @@ try {
   const generatedDate = snapshot.generated_at.slice(0, 10).split('-').map(Number).join('/')
   assert.ok((await page.locator('.data-summary').textContent()).includes(generatedDate))
   assert.equal(await page.getByRole('button', { name: '刷新真实数据', exact: true }).count(), 0)
-  assert.equal(await page.locator('main > section.section').count(), 12)
+  assert.equal(await page.locator('main > section.section').count(), 13)
   for (const id of ['au-td', 'futures', 'domestic-etf', 'positions', 'spdr', 'london', 'comex', 'global-etf', 'central-bank']) {
     await page.locator('#' + id + ' canvas').first().waitFor()
     assert.ok(await chartInk('#' + id + ' canvas') > 15, id + ' 图表应包含真实绘制内容')

@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "publication_status": "用户已于2026-10-23确认本次真实数值、历史序列和页面品牌完全公开",
+  "publication_status": "原有来源已确认公开；新增黄金现货价格及派生波动率公开授权未确认，数值不导出",
   "indicator_ids": [
-    "gold_price_anchor", "domestic_etf_total_assets", "spdr_gold_holdings",
+    "gold_price_anchor", "gold_hv20", "gold_hv60", "domestic_etf_total_assets", "spdr_gold_holdings",
     "global_central_bank_net_purchases", "central_bank_reserves",
     "au_td_volume", "au_td_open_interest", "au_td_delivery_direction",
     "futures_volume", "futures_open_interest", "futures_main_contract",
@@ -26,6 +26,7 @@
   "include_existing_country_rankings": true,
   "excluded_country_columns": ["Euro Area", "Turkey*", "State Oil Fund of the Republic of Azerbaijan (SOFAZ)"],
   "latest_only": ["futures_main_contract", "au_td_delivery_direction", "cftc_net_long_ratio"],
-  "withheld_sources": [],
+  "source_permissions": { "黄金现货价格.xlsx": "pending" },
+  "withheld_sources": ["黄金现货价格.xlsx"],
   "withheld_indicators": {}
 }

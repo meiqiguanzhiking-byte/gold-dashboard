@@ -14,6 +14,7 @@ assert.ok(!forbidden.test(JSON.stringify(snapshot)), '快照不得包含本机�
 assert.deepEqual(Object.keys(snapshot).sort(), ['comex', 'files', 'generated_at', 'groups', 'publication', 'schema_version'])
 assert.equal(snapshot.publication.indicator_count, Object.values(snapshot.groups).reduce((n, rows) => n + rows.length, 0))
 const ids = new Set()
+const policy = JSON.parse(await readFile(path.join(project, '展示版/公开范围.json'), 'utf8'))
 for (const rows of Object.values(snapshot.groups)) for (const item of rows) {
   assert.deepEqual(Object.keys(item).sort(), ['metadata', 'notes', 'points'])
   assert.ok(!ids.has(item.metadata.indicator_id))
@@ -22,7 +23,16 @@ for (const rows of Object.values(snapshot.groups)) for (const item of rows) {
   assert.deepEqual(item.points.map(p => p[0]), item.points.map(p => p[0]).sort())
   assert.ok(item.points.every(p => p.length === 2 && (p[1] === null || typeof p[1] === 'string' || Number.isFinite(p[1]))))
   assert.ok(!('source_column' in item.metadata) && !('component_columns' in item.metadata))
+  if (item.metadata.source === '黄金现货价格.xlsx' && policy.source_permissions?.[item.metadata.source] !== 'approved') {
+    assert.equal(item.points.length, 0, '未获准的价格及派生波动率不得导出历史或数值')
+    assert.equal(item.metadata.publication_withheld, true)
+    assert.equal(item.metadata.coverage_start, null)
+    assert.equal(item.metadata.coverage_end, null)
+    assert.equal(item.metadata.valid_count, 0)
+    assert.equal(item.metadata.updated_at, null)
+  }
 }
+for (const id of ['gold_price_anchor', 'gold_hv20', 'gold_hv60']) assert.ok(ids.has(id), '静态版应保留新指标或明确的缺失占位')
 assert.ok(!ids.has('spdr_close') && !ids.has('spdr_volume') && !ids.has('cftc_trading_volume'))
 assert.ok([...ids].filter(id => /^domestic_/.test(id)).every(id => !id.endsWith('_nav')))
 if (!snapshotOnly) {
