@@ -48,14 +48,9 @@ export function comexView(items, summary, metal = 'gold', range = '30') {
   const registeredEnd = indexed.findLast(row => validNumber(row.registeredIndex))
   const eligibleEnd = indexed.findLast(row => validNumber(row.eligibleIndex))
   const endChange = { registered: registeredEnd ? registeredEnd.registeredIndex - 100 : null, eligible: eligibleEnd ? eligibleEnd.eligibleIndex - 100 : null }
-  const indexValues = indexed.flatMap(row => [row.registeredIndex, row.eligibleIndex]).filter(validNumber)
-  const low = Math.min(100, ...indexValues), high = Math.max(100, ...indexValues)
-  // 至少 10 个指数点宽度，避免把近乎不变的库存放大成剧烈波动。
-  const padding = Math.max(2, (high - low) * .15)
-  const indexMin = Math.floor(Math.min(95, low - padding)), indexMax = Math.ceil(Math.max(105, high + padding))
   return { metal, confirmed, kinds, rows, visible, indexed, lastDate, latest, primary, start, days, target, base,
     comparisonLabel: targetBase ? `较近${days}日基准变化` : '较样本起点变化', delta, change,
-    commonBase, totalsAgree, pledgeComplete, missingFields, endChange, indexMin, indexMax,
+    commonBase, totalsAgree, pledgeComplete, missingFields, endChange,
     validCount: visible.filter(row => kinds.every(kind => validStock(row[kind]))).length,
     historyStatus: dates.length === 0 ? '数据缺失' : dates.length === 1 ? '仅最新值' : dates.length < 90 ? '短历史' : '正常',
   }
