@@ -11,7 +11,8 @@ const metal = ref('gold'), range = ref('30'), structureEl = ref(null), indexEl =
 const view = computed(() => comexView(props.items, props.summary, metal.value, range.value))
 const label = computed(() => metal.value === 'gold' ? '黄金' : '白银')
 const primaryName = computed(() => label.value + (view.value.confirmed ? '未质押注册库存' : '注册库存'))
-const structureTitle = computed(() => metal.value === 'silver' ? '白银库存结构（吨）' : view.value.confirmed ? '黄金注册库存内部结构（吨）' : '黄金注册库存与已质押库存（吨）')
+const structureTitle = computed(() => view.value.pledgeComplete ? '黄金注册库存内部结构（吨）' : label.value + '库存结构（吨）')
+const structureDescription = computed(() => view.value.pledgeComplete ? '未质押注册＋已质押注册堆叠为注册库存；不插值、不平滑' : view.value.totalsAgree ? '注册＋合格堆叠为总库存；不插值、不平滑' : '注册＋合格与总库存未完成核验，暂用独立序列显示真实值')
 const state = computed(() => props.loading ? '加载中' : props.error ? '接口失败' : !view.value.latest ? '数据缺失' : view.value.missingFields.length || props.summary?.metals?.[metal.value]?.total_check_status === '不一致' ? '数据异常' : view.value.historyStatus)
 const empty = computed(() => props.loading ? '正在读取 COMEX 真实数据…' : props.error ? 'COMEX 接口请求失败：' + props.error : !view.value.visible.length ? '该区间无 COMEX 记录，数据暂缺' : '')
 const indexEmpty = computed(() => empty.value || (!view.value.commonBase ? '缺少注册与合格库存的共同有效观察日，暂不可计算' : !view.value.indexed.some(row => validNumber(row.registeredIndex) || validNumber(row.eligibleIndex)) ? '共同基准库存为零，指数暂不可计算' : ''))
@@ -53,9 +54,9 @@ function indexTooltip(params) {
   }
   return html + footer()
 }
-function inventorySeries(name, key, color, stack, bar) {
-  return { name, type: bar ? 'bar' : 'line', stack, barMaxWidth: 44, smooth: false, showSymbol: true, symbolSize: view.value.visible.length < 16 ? 5 : 3, connectNulls: false,
-    itemStyle: { color }, lineStyle: { width: 2 }, ...(stack && !bar ? { areaStyle: { color, opacity: .4 } } : {}),
+function inventorySeries(name, key, color, stack) {
+  return { name, type: 'line', stack, smooth: false, showSymbol: true, symbolSize: view.value.visible.length < 16 ? 5 : 3, connectNulls: false,
+    itemStyle: { color }, lineStyle: { width: 2 }, ...(stack ? { areaStyle: { color, opacity: .4 } } : {}),
     data: view.value.visible.map(row => row[key] ?? null) }
 }
 async function draw() {
@@ -65,12 +66,12 @@ async function draw() {
   if (!structureChart) { structureChart = echarts.init(structureEl.value); structureAxis = adaptiveYAxis(structureChart) }
   const v = view.value, few = v.visible.length <= 12, dates = v.visible.map(row => row.date)
   let series
-  if (metal.value === 'gold') {
-    series = v.pledgeComplete ? [inventorySeries('未质押注册库存', 'unpledged', colors.registered, 'registered', few), inventorySeries('已质押注册库存', 'pledged', colors.pledged, 'registered', few)] : [inventorySeries('注册库存', 'registered', colors.registered, undefined, false), inventorySeries('已质押库存（独立序列）', 'pledged', colors.pledged, undefined, false)]
-    if (v.pledgeComplete) series.push(inventorySeries('注册库存总量', 'registered', colors.boundary, undefined, false))
+  if (v.pledgeComplete) {
+    series = [inventorySeries('未质押注册库存', 'unpledged', colors.registered, 'registered'), inventorySeries('已质押注册库存', 'pledged', colors.pledged, 'registered')]
+    series.push(inventorySeries('注册库存总量', 'registered', colors.boundary))
   } else {
-    series = [inventorySeries('注册库存', 'registered', colors.registered, v.totalsAgree ? 'inventory' : undefined, few), inventorySeries('合格库存', 'eligible', colors.eligible, v.totalsAgree ? 'inventory' : undefined, few)]
-    series.push(inventorySeries('总库存（原表）', 'total', colors.boundary, undefined, false))
+    series = [inventorySeries('注册库存', 'registered', colors.registered, v.totalsAgree ? 'inventory' : undefined), inventorySeries('合格库存', 'eligible', colors.eligible, v.totalsAgree ? 'inventory' : undefined)]
+    series.push(inventorySeries('总库存（原表）', 'total', colors.boundary))
   }
   structureChart.setOption({ ...axisTransition, grid: { left: 18, right: 36, top: 52, bottom: 58, containLabel: true },
     legend: { type: 'scroll', top: 4, left: 0, right: 0, itemWidth: 12, itemHeight: 5, icon: 'roundRect', textStyle: { fontSize: 10, color: '#667579' } },
@@ -124,7 +125,7 @@ onBeforeUnmount(() => { observer?.disconnect(); echarts.disconnect('comex-invent
     </div>
     <div class="comex-coverage">吨数口径 · {{ summary?.metals?.[metal]?.coverage_start || '—' }} — {{ summary?.metals?.[metal]?.coverage_end || '—' }} · {{ summary?.metals?.[metal]?.record_count ?? 0 }} 个观察期 / {{ summary?.metals?.[metal]?.valid_record_count ?? 0 }} 个完整有效记录 · 所选区间 {{ view.visible.length }} 期 / {{ view.validCount }} 期完整 · 历史{{ view.historyStatus === '短历史' ? '覆盖较短' : view.historyStatus }}</div>
     <div v-if="loading || error" class="comex-message" role="status">{{ empty }}</div>
-    <div v-if="metal === 'gold' && !view.confirmed" class="comex-definition">已质押扣减口径待核实；当前以黄金注册库存为主指标，注册与已质押独立展示，不相加、不扣减，已质押占比暂不计算。</div>
+    <div v-if="metal === 'gold' && !view.confirmed" class="comex-definition">已质押扣减口径待核实；当前以黄金注册库存为主指标，结构图按注册＋合格展示，已质押值保留于辅助信息和悬停提示，不重复计入总库存，也不计算未质押余额及已质押占比。</div>
     <div v-if="missingNames && !loading" class="comex-message">字段缺失或区间内无有效值：{{ missingNames }}；其余字段照常展示。</div>
     <div v-if="summary?.metals?.[metal]?.total_check_status === '不一致'" class="comex-message">注册＋合格与原表总库存不一致；保留原值，结构图暂停堆叠，请核对来源。</div>
     <div v-if="summary?.duplicate_date_count || summary?.invalid_date_count" class="comex-message">重复日期 {{ summary.duplicate_date_count }} 个、无效日期 {{ summary.invalid_date_count }} 条；冲突日期值留空，无效日期不进入图表。</div>
@@ -138,7 +139,7 @@ onBeforeUnmount(() => { observer?.disconnect(); echarts.disconnect('comex-invent
       <dl class="comex-secondary" v-else><div><dt>白银合格库存</dt><dd>{{ stockNumber(view.latest?.eligible) }} 吨</dd></div><div><dt>白银总库存</dt><dd>{{ stockNumber(view.latest?.total) }} 吨</dd></div><div><dt>注册库存占总比例</dt><dd>{{ percentNumber(view.latest?.registeredRatio) }}</dd></div><div><dt>辅助值观察日期</dt><dd>{{ view.latest?.date || '未提供' }}</dd></div></dl>
     </article>
 
-    <article class="chart-panel comex-structure"><header class="panel-header"><div><h3>{{ structureTitle }}</h3><p>{{ metal === 'gold' && !view.confirmed ? '口径未确认，独立折线显示真实观测点；不做内部堆叠' : view.visible.length <= 12 ? '有效点数较少，采用堆叠柱状图并保留真实观测点' : '堆叠面积图与总量边界；不插值、不平滑' }} · {{ metal === 'gold' && !view.confirmed ? '纵轴随可见数据调整' : '纵轴从零开始' }}</p></div></header><div class="comex-chart-stage structure-stage"><div ref="structureEl" class="echart" data-chart-title="COMEX 库存结构" /><div v-if="empty" class="empty-state"><strong>{{ empty }}</strong></div></div><div class="chart-caption"><span>{{ view.visible[0]?.date || '—' }} — {{ view.visible.at(-1)?.date || '—' }} · {{ view.visible.length }} 个真实观察期</span><span>原表总库存＝注册＋合格 · 核验{{ summary?.metals?.[metal]?.total_check_status || '数据不足' }}</span></div><p v-if="structureInfo" class="comex-axis-note">{{ structureInfo }}</p></article>
+    <article class="chart-panel comex-structure"><header class="panel-header"><div><h3>{{ structureTitle }}</h3><p>{{ structureDescription }} · {{ view.pledgeComplete || view.totalsAgree ? '堆叠面积图，纵轴从零开始' : '纵轴随可见数据调整' }}</p></div></header><div class="comex-chart-stage structure-stage"><div ref="structureEl" class="echart" data-chart-title="COMEX 库存结构" /><div v-if="empty" class="empty-state"><strong>{{ empty }}</strong></div></div><div class="chart-caption"><span>{{ view.visible[0]?.date || '—' }} — {{ view.visible.at(-1)?.date || '—' }} · {{ view.visible.length }} 个真实观察期</span><span>原表总库存＝注册＋合格 · 核验{{ summary?.metals?.[metal]?.total_check_status || '数据不足' }}</span></div><p v-if="structureInfo" class="comex-axis-note">{{ structureInfo }}</p></article>
 
     <article class="chart-panel comex-relative"><header class="panel-header"><div><h3>注册库存与合格库存相对变化（基期＝100）</h3><p>指数共同基准日期：{{ view.commonBase?.date || '无共同有效日期' }} · 所选区间首个共同有效观察日，与顶部变化比较基准分别计算</p><p v-if="view.commonBase && (!view.commonBase.registered || !view.commonBase.eligible)">部分基准库存为零，对应指数暂不可计算。</p></div></header><div class="comex-chart-stage relative-stage"><div ref="indexEl" class="echart" data-chart-title="COMEX 库存相对变化" /><div v-if="indexEmpty" class="empty-state"><strong>{{ indexEmpty }}</strong></div></div><div class="chart-caption"><span>{{ fact }}</span><span>末端标签为该序列最后有效日较基期变化；空值保留断点</span></div><p v-if="indexInfo" class="comex-axis-note">{{ indexInfo }}</p></article>
 
