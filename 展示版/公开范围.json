@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "publication_status": "用户已于2026-10-23确认本次真实数值、历史序列和页面品牌完全公开",
+  "indicator_ids": [
+    "gold_price_anchor", "domestic_etf_total_assets", "spdr_gold_holdings",
+    "global_central_bank_net_purchases", "central_bank_reserves",
+    "au_td_volume", "au_td_open_interest", "au_td_delivery_direction",
+    "futures_volume", "futures_open_interest", "futures_main_contract",
+    "cftc_long", "cftc_short", "cftc_net_long", "cftc_net_long_ratio",
+    "london_gold", "london_silver",
+    "comex_gold_registered", "comex_gold_pledged", "comex_gold_eligible", "comex_gold_total",
+    "comex_silver_registered", "comex_silver_eligible", "comex_silver_total",
+    "global_etf_weekly_north_america_tonnes", "global_etf_weekly_north_america_usd",
+    "global_etf_weekly_europe_tonnes", "global_etf_weekly_europe_usd",
+    "global_etf_weekly_asia_tonnes", "global_etf_weekly_asia_usd",
+    "global_etf_weekly_other_tonnes", "global_etf_weekly_other_usd",
+    "global_etf_weekly_total_tonnes", "global_etf_weekly_total_usd",
+    "global_etf_monthly_north_america_tonnes", "global_etf_monthly_north_america_usd",
+    "global_etf_monthly_europe_tonnes", "global_etf_monthly_europe_usd",
+    "global_etf_monthly_asia_tonnes", "global_etf_monthly_asia_usd",
+    "global_etf_monthly_other_tonnes", "global_etf_monthly_other_usd",
+    "global_etf_monthly_total_tonnes", "global_etf_monthly_total_usd"
+  ],
+  "fund_codes": ["518880", "159937", "159934", "518800", "518850", "518660", "159812"],
+  "fund_fields": ["assets", "shares"],
+  "include_existing_country_rankings": true,
+  "excluded_country_columns": ["Euro Area", "Turkey*", "State Oil Fund of the Republic of Azerbaijan (SOFAZ)"],
+  "latest_only": ["futures_main_contract", "au_td_delivery_direction", "cftc_net_long_ratio"],
+  "withheld_sources": [],
+  "withheld_indicators": {}
+}
