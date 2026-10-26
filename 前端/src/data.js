@@ -4,7 +4,7 @@ export { isStatic }
 
 export const categories = ['etf', 'futures', 'cftc', 'au-td', 'central-bank', 'inventory', 'price']
 export const categoryNames = { etf: 'ETF', futures: '黄金期货', cftc: 'CFTC', 'au-td': 'Au(T+D)', 'central-bank': '央行购金', inventory: '库存', price: '黄金价格与波动率', meta: '数据元信息' }
-export const regionColors = { north_america: '#247d91', europe: '#7c91bc', asia: '#558e79', other: '#b39761' }
+export const regionColors = { north_america: '#0072B2', europe: '#CC79A7', asia: '#E69F00', other: '#6B7280' }
 export const regions = [{ id: 'north_america', name: '北美' }, { id: 'europe', name: '欧洲' }, { id: 'asia', name: '亚洲' }, { id: 'other', name: '其他' }]
 export const ranges = [{ value: '1M', label: '1 个月' }, { value: '3M', label: '3 个月' }, { value: '1Y', label: '1 年' }, { value: '5Y', label: '5 年' }, { value: 'ALL', label: '全部' }]
 export const palette = ['#207c88', '#b59b64', '#6d83ab', '#8c6ca0', '#668e6f', '#b77964', '#86969e']
