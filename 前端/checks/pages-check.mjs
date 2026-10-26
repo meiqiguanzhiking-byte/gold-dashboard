@@ -76,7 +76,7 @@ try {
     await page.locator('#' + id + ' canvas').first().waitFor()
     assert.ok(await chartInk('#' + id + ' canvas') > 15, id + ' 图表应包含真实绘制内容')
   }
-  assert.ok((await page.locator('#overview').textContent()).includes('数据暂缺'))
+  for (const item of snapshot.groups.price.filter(i => i.metadata.publication_withheld)) assert.equal(item.points.length, 0)
   await page.getByRole('tab', { name: '国内' }).click()
   await page.waitForTimeout(250)
   assert.ok((await page.locator('#global-central-bank').textContent()).includes('数据暂缺'))

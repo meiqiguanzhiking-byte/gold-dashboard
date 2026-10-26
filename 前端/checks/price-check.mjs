@@ -20,11 +20,17 @@ for (let index = 0; index < items.length; index++) {
   assert.equal(expanded.price.indicators[index].latest.change_pct, items[index].latest.change_pct)
 }
 const snapshot = JSON.parse(await readFile(new URL('../../展示版/数据/data/snapshot.json', import.meta.url), 'utf8'))
+const policy = JSON.parse(await readFile(new URL('../../展示版/公开范围.json', import.meta.url), 'utf8'))
+const published = expandSnapshot(snapshot).price.indicators
 for (const item of snapshot.groups.price) {
-  assert.equal(item.points.length, 0)
-  assert.equal(item.metadata.publication_withheld, true)
-  assert.equal(item.metadata.valid_count, 0)
+  if (item.metadata.publication_withheld) {
+    assert.equal(item.points.length, 0)
+    assert.equal(item.metadata.valid_count, 0)
+  } else {
+    assert.ok((item.metadata.input_sources || [item.metadata.source]).every(source => policy.source_permissions[source] === 'approved' && !policy.withheld_sources.includes(source)))
+  }
 }
+const expectedCharts = [['gold_price_anchor'], ['gold_hv20', 'gold_hv60'], ['gold_domestic_spread']].filter(group => group.some(id => published.find(i => i.metadata.indicator_id === id)?.history.filter(p => p.value != null).length > 1)).length
 const browser = await chromium.launch({ channel: 'msedge', headless: true, args: ['--disable-breakpad', '--disable-logging'] })
 const errors = [], layouts = [], blocked = []
 async function ready(page) {
@@ -113,15 +119,20 @@ try {
   })
   await staticPage.goto(preview)
   await ready(staticPage)
-  assert.equal(await staticPage.locator('#gold-price canvas').count(), 0)
-  assert.equal(await staticPage.locator('#gold-price .empty-state').count(), 3)
-  assert.ok((await staticPage.locator('#gold-price').textContent()).includes('公开使用尚未确认'))
-  assert.ok((await staticPage.locator('.volatility-card').textContent()).includes('数据暂缺'))
+  assert.equal(await staticPage.locator('#gold-price canvas').count(), expectedCharts)
+  assert.equal(await staticPage.locator('#gold-price .empty-state').count(), 3 - expectedCharts)
+  if (expectedCharts === 0) {
+    assert.ok((await staticPage.locator('#gold-price').textContent()).includes('公开使用尚未确认'))
+    assert.ok((await staticPage.locator('.volatility-card').textContent()).includes('数据暂缺'))
+  } else {
+    const price = published.find(i => i.metadata.indicator_id === 'gold_price_anchor')
+    assert.ok((await staticPage.locator('#overview .metric-card').first().textContent()).includes(price.latest.value.toLocaleString('zh-CN', { maximumFractionDigits: 2 })))
+  }
   assert.ok((await staticPage.locator('.data-summary').textContent()).includes('快照生成'))
   await layout(staticPage, 'static')
   await staticPage.getByRole('button', { name: '重新加载展示数据' }).click()
   await ready(staticPage)
-  assert.equal(await staticPage.locator('#gold-price canvas').count(), 0)
+  assert.equal(await staticPage.locator('#gold-price canvas').count(), expectedCharts)
   assert.deepEqual(blocked, [])
   assert.deepEqual(errors, [])
   console.log(JSON.stringify({ passed: true, latest: items[0].latest.observation_date, observations: items[0].history.length, layouts,

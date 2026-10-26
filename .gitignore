@@ -82,3 +82,18 @@ build/
 前端/coverage/
 Thumbs.db
 .DS_Store
+
+# User confirmed these original workbooks/CSVs may be public on 2026-10-26
+!/全量数据/AuTD.csv
+!/全量数据/CFTC黄金交易量和持仓量.csv
+!/全量数据/CFTC黄金非商业持仓量.csv
+!/全量数据/COMEX金银库存.xlsx
+!/全量数据/SPDR黄金ETF份额.xlsx
+!/全量数据/伦敦金现与汇率.xlsx
+!/全量数据/伦敦金银库存.xlsx
+!/全量数据/全球央行购金.csv
+!/全量数据/全球黄金ETF流量.xlsx
+!/全量数据/央行购金.xlsx
+!/全量数据/黄金ETF份额.xlsx
+!/全量数据/黄金期货.csv
+!/全量数据/黄金现货价格.xlsx

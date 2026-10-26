@@ -75,6 +75,8 @@ def export():
                                 delay_days=None, latest_valid_date=None, publication_withheld=True)
                 notes = ["数据暂缺：" + reason]
                 withheld.append(key)
+            elif category == "price":
+                metadata["public_use_status"] = "用户已确认公开"
             metadata["published_record_count"] = len(history)
             metadata["published_history"] = "未获准公开，未导出历史" if reason else "最新两期，仅供当前值和环比" if key in policy["latest_only"] else "页面所用完整历史"
             points = [[point["observation_date"], point["value"]] for point in history]
