@@ -40,8 +40,9 @@ async function draw() {
   }, true)
 }
 watch([() => props.items, () => props.selected, () => props.loading, () => props.error, range], draw, { deep: true })
-onMounted(() => { draw(); observer = new ResizeObserver(() => chart?.resize()); observer.observe(el.value) })
-onBeforeUnmount(() => { observer?.disconnect(); chart?.dispose() })
+function refreshPageChart() { nextTick(() => chart?.resize()) }
+onMounted(() => { draw(); window.addEventListener('dashboard-page-visible', refreshPageChart); observer = new ResizeObserver(() => chart?.resize()); observer.observe(el.value) })
+onBeforeUnmount(() => { window.removeEventListener('dashboard-page-visible', refreshPageChart); observer?.disconnect(); chart?.dispose() })
 </script>
 <template>
   <article class="chart-panel wide"><header class="panel-header"><div><h3>全球黄金 ETF 月度地区净流量热力图（吨）</h3><p>横向比较月份，纵向比较地区；灰色表示缺失，与真实零值分开</p></div><StatusBadge :status="status" /></header>

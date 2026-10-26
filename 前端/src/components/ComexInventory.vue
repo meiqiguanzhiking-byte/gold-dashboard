@@ -113,9 +113,10 @@ async function draw() {
   structureChart.group = group; indexChart.group = group; echarts.connect(group)
 }
 function resetZoom() { structureChart?.dispatchAction({ type: 'dataZoom', start: 0, end: 100 }) }
+function refreshPageCharts() { nextTick(() => { structureChart?.resize(); indexChart?.resize() }) }
 watch([view, () => props.loading, () => props.error], draw, { deep: true })
-onMounted(() => { draw(); observer = new ResizeObserver(() => { structureChart?.resize(); indexChart?.resize() }); observer.observe(structureEl.value); observer.observe(indexEl.value) })
-onBeforeUnmount(() => { observer?.disconnect(); echarts.disconnect('comex-inventory-linked'); structureAxis?.dispose(); indexAxis?.dispose(); structureChart?.dispose(); indexChart?.dispose() })
+onMounted(() => { draw(); window.addEventListener('dashboard-page-visible', refreshPageCharts); observer = new ResizeObserver(() => { structureChart?.resize(); indexChart?.resize() }); observer.observe(structureEl.value); observer.observe(indexEl.value) })
+onBeforeUnmount(() => { window.removeEventListener('dashboard-page-visible', refreshPageCharts); observer?.disconnect(); echarts.disconnect('comex-inventory-linked'); structureAxis?.dispose(); indexAxis?.dispose(); structureChart?.dispose(); indexChart?.dispose() })
 </script>
 
 <template>

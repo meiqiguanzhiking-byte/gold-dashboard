@@ -58,9 +58,10 @@ async function draw() {
   } })
 }
 function resetZoom() { chart?.dispatchAction({ type: 'dataZoom', start: 0, end: 100 }) }
+function refreshPageChart() { nextTick(() => chart?.resize()) }
 watch([() => props.series, () => props.loading, () => props.error, () => props.reason, localRange], draw, { deep: true })
-onMounted(() => { draw(); resizeObserver = new ResizeObserver(() => chart?.resize()); if (el.value) resizeObserver.observe(el.value) })
-onBeforeUnmount(() => { resizeObserver?.disconnect(); adaptive?.dispose(); chart?.dispose() })
+onMounted(() => { draw(); window.addEventListener('dashboard-page-visible', refreshPageChart); resizeObserver = new ResizeObserver(() => chart?.resize()); if (el.value) resizeObserver.observe(el.value) })
+onBeforeUnmount(() => { window.removeEventListener('dashboard-page-visible', refreshPageChart); resizeObserver?.disconnect(); adaptive?.dispose(); chart?.dispose() })
 </script>
 <template>
   <article class="chart-panel">

@@ -7,24 +7,11 @@ import RankingChart from './components/RankingChart.vue'
 import FlowHeatmap from './components/FlowHeatmap.vue'
 import ComexInventory from './components/ComexInventory.vue'
 import VolatilityCard from './components/VolatilityCard.vue'
+import DashboardPages from './components/DashboardPages.vue'
+import DashboardPage from './components/DashboardPage.vue'
 import { useDashboard, isStatic, categoryNames, format, localTime, regions, regionColors, palette, numeric, sortHealthSources } from './data.js'
 
 const { blocks, meta, all, item, refreshing, reloadError, clientRefreshedAt, notice, loadAll, refresh, loadBlock } = useDashboard()
-const navigation = [
-  { id: 'overview', name: '核心指标' },
-  { id: 'gold-price', name: '黄金现价' },
-  { id: 'central-bank', name: '央行购金' },
-  { id: 'au-td', name: 'Au(T+D)' },
-  { id: 'futures', name: '黄金期货' },
-  { id: 'domestic-etf', name: '场内 ETF' },
-  { id: 'positions', name: 'CFTC' },
-  { id: 'spdr', name: 'SPDR' },
-  { id: 'london', name: '伦敦库存' },
-  { id: 'comex', name: 'COMEX 库存' },
-  { id: 'global-etf', name: '全球 ETF' },
-  { id: 'global-central-bank', name: '全球央行' },
-  { id: 'health', name: '数据健康度' },
-]
 const coreCards = [
   { id: 'gold_price_anchor', category: 'price', label: '上金所Au99.99收盘价', price: true },
   { id: 'gold-volatility', category: 'price', volatility: true },
@@ -34,6 +21,8 @@ const coreCards = [
   { id: 'global_etf_weekly_total_tonnes', category: 'etf', label: '全球黄金 ETF 周度净流入' },
   { id: 'global_central_bank_net_purchases', category: 'central-bank', label: '全球央行月度净购金' },
 ]
+const domesticCards = coreCards.filter(card => ['gold_price_anchor', 'gold-volatility', 'domestic_etf_total_assets'].includes(card.id))
+const foreignCards = coreCards.filter(card => !domesticCards.includes(card))
 const tradeCards = [
   { id: 'futures_volume', category: 'futures', label: '黄金期货总成交量' },
   { id: 'futures_open_interest', category: 'futures', label: '黄金期货总持仓量' },
@@ -97,11 +86,12 @@ onMounted(loadAll)
       <section class="page-intro"><div><p class="eyebrow">PRECIOUS METALS / 黄金研究</p><h1>黄金市场指标看板</h1><p class="intro-note">从交易、持仓与资金流观察黄金市场</p></div><button class="refresh-button" :disabled="refreshing || pending" @click="refresh"><span :class="{ spinning: refreshing }">↻</span>{{ refreshing ? '正在重新加载…' : isStatic ? '重新加载展示数据' : '刷新真实数据' }}</button></section>
       <p v-if="isStatic" class="static-notice">静态展示版：数据不会随电脑中的文件自动更新。重新加载仅读取已发布的快照；观察日期和口径以各指标标注为准。网页中的真实数值和历史序列可被访问或下载。</p>
       <div class="data-summary"><span>数据截至 <strong>{{ asOf }}</strong><small>各来源频率不同</small></span><span v-if="isStatic">快照生成 <strong>{{ localTime(meta?.generated_at) }}</strong><small>北京时间</small></span><span>{{ isStatic ? '页面读取' : '最近刷新' }} <strong>{{ localTime(clientRefreshedAt) }}</strong></span><span class="summary-status"><i :class="{ warning: failures.length || missingCount }"></i>{{ pending ? '读取中' : failures.length ? failures.length + (isStatic ? ' 个区域读取异常' : ' 个接口异常') : isStatic ? '展示数据已载入' : '接口已连接' }}<small v-if="!pending">{{ missingCount }} 项数据缺失 · {{ countStatus('滞后') }} 项滞后{{ isStatic ? '（快照生成时）' : '' }}</small></span></div>
-      <nav class="section-nav" aria-label="页面区域"><a v-for="n in navigation" :key="n.id" :href="'#' + n.id">{{ n.name }}</a></nav>
+      <DashboardPages>
       <div v-if="reloadError" class="alert error" role="alert">{{ reloadError }}</div><div v-else-if="notice" class="alert success" role="status">{{ notice }}</div>
       <div v-for="[key, block] in failures" :key="key" class="alert error" role="alert"><span>{{ categoryNames[key] }}{{ isStatic ? '展示数据读取失败' : '接口失败' }}：{{ block.error }}。其他区域可继续查看。</span><button class="text-button" :disabled="block.loading" @click="loadBlock(key)">{{ isStatic ? '重试此区域' : '重试此接口' }}</button></div>
 
-      <section id="overview" class="section"><div class="section-heading"><div><span class="section-number">概览</span><h2>核心指标</h2></div><span>不同观察频率独立显示</span></div><div class="metric-grid core-grid"><template v-for="card in coreCards" :key="card.id"><VolatilityCard v-if="card.volatility" :items="[item('gold_hv20'), item('gold_hv60')]" :loading="blocks.price.loading" :error="blocks.price.error" /><MetricCard v-else :item="item(card.id)" :label="card.label" :price="card.price" :loading="blocks[card.category].loading" :error="blocks[card.category].error" /></template></div><p class="section-footnote">全球央行总量口径待确认，不以其他指标替代。卡片日期为各指标观察日期，刷新时间不代表数据发布日期。</p></section>
+      <DashboardPage page="domestic" label="国内">
+      <section id="overview" class="section"><div class="section-heading"><div><span class="section-number">概览</span><h2>国内核心指标</h2></div><span>不同观察频率独立显示</span></div><div class="metric-grid core-grid"><template v-for="card in domesticCards" :key="card.id"><VolatilityCard v-if="card.volatility" :items="[item('gold_hv20'), item('gold_hv60')]" :loading="blocks.price.loading" :error="blocks.price.error" /><MetricCard v-else :item="item(card.id)" :label="card.label" :price="card.price" :loading="blocks[card.category].loading" :error="blocks[card.category].error" /></template></div><p class="section-footnote">卡片日期为各指标观察日期，刷新时间不代表数据发布日期。</p></section>
 
       <section id="gold-price" class="section">
         <div class="section-heading"><div><span class="section-number">现价</span><h2>黄金价格与波动率</h2></div><span>上金所Au99.99 · 日度</span></div>
@@ -114,7 +104,6 @@ onMounted(loadAll)
         <p class="section-footnote">方法：日对数收益率、20/60个交易观测收益率、样本标准差（ddof=1）、252日年化；只读取上游结果。窗口不足或源值缺失时保持数据暂缺。</p>
         <p v-if="!priceWithheld" class="section-footnote">来源：黄金现货价格.xlsx / 黄金现货价格 · 文件更新 {{ localTime(item('gold_price_anchor')?.metadata.updated_at) }} · 缓存加载 {{ localTime(blocks.price.data?.loaded_at) }} · 发布日期未知（null）。</p>
       </section>
-
       <section id="central-bank" class="section">
         <div class="section-heading"><div><span class="section-number">01</span><h2>央行购金</h2></div><span>月度储备 · 机构未确认</span></div>
         <div class="chart-grid">
@@ -148,6 +137,11 @@ onMounted(loadAll)
           <ChartPanel title="境内黄金 ETF 份额较上期变化（万份）" description="原始份额的相邻观察期差额；缺失任一期时不计算" :series="shareLines" :loading="blocks.etf.loading" :error="blocks.etf.error" :reason="!selectedFunds.length ? '请选择至少一只基金' : ''" note="按原始份额做简单差分，不视为净申购金额" />
         </div>
       </section>
+
+      </DashboardPage>
+
+      <DashboardPage page="foreign" label="国外">
+      <section id="foreign-overview" class="section"><div class="section-heading"><div><span class="section-number">概览</span><h2>国外核心指标</h2></div><span>不同观察频率独立显示</span></div><div class="metric-grid core-grid"><MetricCard v-for="card in foreignCards" :key="card.id" :item="item(card.id)" :label="card.label" :loading="blocks[card.category].loading" :error="blocks[card.category].error" /></div><p class="section-footnote">全球央行总量口径待确认，不以其他指标替代。</p></section>
 
       <section id="positions" class="section">
         <div class="section-heading"><div><span class="section-number">05</span><h2>CFTC 黄金非商业持仓</h2></div><span>周度非商业持仓 · 原表单位为吨</span></div>
@@ -200,19 +194,23 @@ onMounted(loadAll)
         </div>
       </section>
 
+      </DashboardPage>
+
+      <DashboardPage page="health" label="数据健康度">
       <section id="health" class="section"><div class="section-heading"><div><span class="section-number">11</span><h2>数据健康度</h2></div><span>{{ allMetadata.length }} 个指标 · {{ meta?.files.length || '—' }} 个文件</span></div><div class="health-filters"><input v-model="healthSearch" placeholder="搜索指标或来源文件" aria-label="搜索数据健康度"><select v-model="healthFrequency" aria-label="健康度频率筛选"><option>全部</option><option>日度</option><option>周度</option><option>月度</option><option>未提供</option></select><select v-model="healthStatus" aria-label="健康度状态筛选"><option>全部</option><option>正常</option><option>滞后</option><option>短历史</option><option>仅最新值</option><option>人工接入</option><option>未确认</option><option>数据缺失</option></select><span>自动化状态按来源披露，不假定已自动接入</span></div>
         <div v-if="blocks.meta.loading" class="table-message">正在读取元数据…</div><div v-else-if="blocks.meta.error" class="alert caution">元信息接口失败，使用已成功接口的指标元数据；文件级信息暂不可用。</div>
         <div class="health-table"><table><thead><tr><th>数据项 / 来源</th><th>更新频率</th><th>最新观察期</th><th>历史起始</th><th>文件最近更新</th><th>数据延迟</th><th>自动化状态</th><th>数据状态</th></tr></thead><tbody><tr v-for="m in visibleHealth" :key="m.indicator_id"><td><strong>{{ m.indicator_name }}</strong><small>{{ m.source }}{{ m.sheet ? ' / ' + m.sheet : '' }}</small></td><td>{{ m.frequency }}</td><td>{{ m.coverage_end || '未提供' }}</td><td>{{ m.coverage_start || '未提供' }}</td><td>{{ localTime(m.updated_at) }}</td><td>{{ m.delay_days == null ? '未提供' : m.delay_days + ' 天' }}</td><td><StatusBadge :status="m.automation_status" /></td><td><StatusBadge :status="m.status" /><span v-if="m.status !== '滞后' && m.statuses?.includes('滞后')" class="secondary-status">滞后</span></td></tr><tr v-if="!visibleHealth.length"><td colspan="8" class="table-message">{{ pending ? '读取中…' : '没有符合筛选条件的数据项' }}</td></tr></tbody></table></div>
         <div class="pagination"><span>共 {{ healthRows.length }} 项 · 第 {{ healthPage }} / {{ healthPages }} 页</span><button :disabled="healthPage <= 1" @click="healthPage--">上一页</button><button :disabled="healthPage >= healthPages" @click="healthPage++">下一页</button></div>
         <details class="source-details"><summary>查看文件读取状态与数据口径</summary><div v-for="file in healthFiles" :key="file.source" class="file-row"><strong>{{ file.source }}</strong><span>{{ file.coverage_start || '未提供' }} — {{ file.latest_date || '未提供' }}</span><StatusBadge :status="file.status" /><small>{{ file.warnings.join('；') }}</small></div><p>缺失保持空值；真实零值显示为 0。日/周/月延迟阈值为后端配置的提示阈值，不代表发布日历。原始发布日期未提供，数据健康度显示“未提供”。</p></details>
-      </section><footer class="page-footer"><span>黄金市场指标看板 · {{ isStatic ? '静态展示版' : '本地真实文件' }}</span><span>不插值 · 不前值填充 · 不生成虚构数据</span></footer>
+      </section>
+      </DashboardPage>
+      </DashboardPages><footer class="page-footer"><span>黄金市场指标看板 · {{ isStatic ? '静态展示版' : '本地真实文件' }}</span><span>不插值 · 不前值填充 · 不生成虚构数据</span></footer>
     </main>
   </div>
 </template>
 
 <style scoped>
 .static-notice { margin:16px 0 0; padding:10px 12px; border-left:2px solid #b69b64; background:#f7f4eb; color:#867348; font-size:11px; line-height:1.8; }
-.section-nav { flex-wrap: wrap; row-gap: 10px; }
 .chart-grid > :only-child { grid-column: 1 / -1; }
 .trade-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 @media (max-width: 760px) {

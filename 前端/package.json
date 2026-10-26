@@ -12,6 +12,7 @@
     "check:pages": "node checks/pages-check.mjs",
     "check:axes": "node checks/axis-check.mjs",
     "check:price": "node checks/price-check.mjs",
+    "check:tabs": "node checks/page-tabs-check.mjs",
     "check:ui": "node checks/ui-check.mjs"
   },
   "dependencies": {

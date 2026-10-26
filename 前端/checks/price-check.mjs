@@ -62,7 +62,7 @@ try {
   }
   assert.equal(await page.locator('#gold-price canvas').count(), 2)
   assert.ok((await page.locator('#gold-price').textContent()).includes('样本标准差（ddof=1）'))
-  const sectionOrder = await page.locator('main > section.section').evaluateAll(sections => sections.map(el => el.id))
+  const sectionOrder = await page.locator('main section.section').evaluateAll(sections => sections.map(el => el.id))
   assert.ok(sectionOrder.indexOf('gold-price') < sectionOrder.indexOf('central-bank'))
   const title = '20日与60日年化历史波动率（%）'
   const readChart = () => page.evaluate(async title => {
@@ -94,6 +94,7 @@ try {
     return { tooltip, hidden }
   }, title)
   assert.ok(interaction.hidden && interaction.tooltip.includes('%') && interaction.tooltip.includes(items[0].latest.observation_date))
+  await page.getByRole('tab', { name: '数据健康度' }).click()
   await page.getByLabel('搜索数据健康度').fill('黄金现货价格.xlsx')
   assert.equal(await page.locator('.health-table tbody tr:has(td strong)').count(), 3)
   await layout(page, 'dynamic')

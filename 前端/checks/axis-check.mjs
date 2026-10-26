@@ -71,6 +71,8 @@ const spdr = 'SPDR 黄金持仓趋势（吨）', funds = '境内黄金 ETF 分�
 try {
   await page.goto(base)
   await page.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled && document.querySelectorAll('#comex canvas').length === 2)
+  await page.getByRole('tab', { name: '国外' }).click()
+  await page.waitForTimeout(250)
   const initial = await state(spdr)
   assertAdaptive(initial)
   assert.ok(initial.min > 0)
@@ -121,6 +123,8 @@ try {
   assert.ok(month.max - month.min < all.max - all.min)
   await page.getByLabel(spdr + '时间区间').selectOption('1Y')
 
+  await page.getByRole('tab', { name: '国内' }).click()
+  await page.waitForTimeout(250)
   const fullFund = await state(funds)
   const names = await page.evaluate(async title => {
     const { echarts } = await import('/src/charts.js')
@@ -137,17 +141,25 @@ try {
   for (const name of names) await action(funds, { type: 'legendSelect', name })
   assert.deepEqual([(await state(funds)).min, (await state(funds)).max], [fullFund.min, fullFund.max])
 
-  for (const title of ['央行黄金储备（吨，机构未确认）', '境内黄金 ETF 总资产规模（亿元）', 'CFTC 非商业净多头持仓（吨）', '伦敦黄金库存趋势（吨）', '伦敦白银库存趋势（吨）']) {
+  await page.getByRole('tab', { name: '国外' }).click()
+  await page.waitForTimeout(250)
+  for (const title of ['CFTC 非商业净多头持仓（吨）', '伦敦黄金库存趋势（吨）', '伦敦白银库存趋势（吨）']) {
     assertAdaptive(await state(title))
     assertAdaptive(await action(title, { type: 'dataZoom', start: 50, end: 100 }))
     await action(title, { type: 'dataZoom', start: 0, end: 100 })
   }
+  await page.getByRole('tab', { name: '国内' }).click()
+  await page.waitForTimeout(250)
+  assertAdaptive(await state('央行黄金储备（吨，机构未确认）'))
+  assertAdaptive(await state('境内黄金 ETF 总资产规模（亿元）'))
   const combined = '黄金期货成交量与持仓量（吨）'
   assert.equal((await state(combined)).min, 0)
   assert.equal((await action(combined, { type: 'dataZoom', start: 85, end: 100 })).min, 0)
   assert.equal((await action(combined, { type: 'legendUnSelect', name: '成交量（吨）' })).min, 0)
   await action(combined, { type: 'legendSelect', name: '成交量（吨）' })
   await action(combined, { type: 'dataZoom', start: 0, end: 100 })
+  await page.getByRole('tab', { name: '国外' }).click()
+  await page.waitForTimeout(250)
   const structure = 'COMEX 库存结构', index = 'COMEX 库存相对变化'
   const indexBefore = await state(index)
   assertAdaptive(indexBefore)

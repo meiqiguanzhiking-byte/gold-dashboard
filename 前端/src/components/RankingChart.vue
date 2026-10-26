@@ -21,8 +21,9 @@ async function draw() {
   chart.resize()
 }
 watch([() => props.rows, () => props.loading, () => props.error, expanded], draw, { deep: true })
-onMounted(() => { draw(); observer = new ResizeObserver(() => chart?.resize()); observer.observe(el.value) })
-onBeforeUnmount(() => { observer?.disconnect(); chart?.dispose() })
+function refreshPageChart() { nextTick(() => chart?.resize()) }
+onMounted(() => { draw(); window.addEventListener('dashboard-page-visible', refreshPageChart); observer = new ResizeObserver(() => chart?.resize()); observer.observe(el.value) })
+onBeforeUnmount(() => { window.removeEventListener('dashboard-page-visible', refreshPageChart); observer?.disconnect(); chart?.dispose() })
 </script>
 <template>
   <article class="chart-panel ranking-panel"><header class="panel-header"><div><h3>{{ title }}</h3><p>统计期间：{{ period || '未提供' }} · {{ unit || '单位未提供' }}</p></div><StatusBadge :status="loading ? '加载中' : error ? '接口失败' : rows.length ? unit === '未提供' ? '未确认' : '正常' : '数据缺失'" /></header>
