@@ -58,13 +58,17 @@ test-results/
 playwright-report/
 提示词/
 
-# Local backend and original instructions stay on this computer
-/后端/
+# Share backend source only; local runtimes, data and private instructions stay here
+/后端/*
+!/后端/*.py
+!/后端/requirements.txt
+!/后端/tests/
+/后端/tests/*
+!/后端/tests/*.py
 /README.md
 /前端/README.md
 /前端/checks/ui-check.mjs
 /前端/checks/comex-check.mjs
-/展示版/export_snapshot.py
 
 # Rebuildable local outputs
 dist/

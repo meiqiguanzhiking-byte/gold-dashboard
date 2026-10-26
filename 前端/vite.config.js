@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => ({
   server: {
     port: 5173,
     strictPort: true,
-    allowedHosts: ['backed-arguments-scroll-cup.trycloudflare.com'],
+    allowedHosts: (process.env.GOLD_ALLOWED_HOSTS || '').split(',').map(host => host.trim()).filter(Boolean),
     proxy: mode === 'pages' ? undefined : {
       '/api': 'http://127.0.0.1:8000',
     },
