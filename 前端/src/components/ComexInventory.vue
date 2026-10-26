@@ -1,4 +1,5 @@
 <script setup>
+import DashboardSection from './DashboardSection.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import StatusBadge from './StatusBadge.vue'
 import { echarts, axisLabel, tooltipStyle } from '../charts.js'
@@ -120,7 +121,7 @@ onBeforeUnmount(() => { window.removeEventListener('dashboard-page-visible', ref
 </script>
 
 <template>
-  <section id="comex" class="section comex-section">
+  <DashboardSection id="comex" title="COMEX 金银库存与结构" class="comex-section">
     <div class="section-heading comex-heading"><div><span class="section-number">08</span><h2>COMEX 金银库存与结构</h2></div>
       <div class="comex-controls"><label>金属<select v-model="metal" aria-label="COMEX 金属"><option value="gold">黄金</option><option value="silver">白银</option></select></label><label>区间<select v-model="range" aria-label="COMEX 时间范围"><option value="30">近30日</option><option value="90">近90日</option><option value="ALL">全部</option></select></label><button class="text-button" aria-label="COMEX 重置缩放" @click="resetZoom">重置缩放</button><span>最新观察 {{ view.lastDate || '未提供' }}</span><StatusBadge :status="state" /></div>
     </div>
@@ -145,7 +146,7 @@ onBeforeUnmount(() => { window.removeEventListener('dashboard-page-visible', ref
     <article class="chart-panel comex-relative"><header class="panel-header"><div><h3>注册库存与合格库存相对变化（基期＝100）</h3><p>指数共同基准日期：{{ view.commonBase?.date || '无共同有效日期' }} · 所选区间首个共同有效观察日，与顶部变化比较基准分别计算</p><p v-if="view.commonBase && (!view.commonBase.registered || !view.commonBase.eligible)">部分基准库存为零，对应指数暂不可计算。</p></div></header><div class="comex-chart-stage relative-stage"><div ref="indexEl" class="echart" data-chart-title="COMEX 库存相对变化" /><div v-if="indexEmpty" class="empty-state"><strong>{{ indexEmpty }}</strong></div></div><div class="chart-caption"><span>{{ fact }}</span><span>末端标签为该序列最后有效日较基期变化；空值保留断点</span></div><p v-if="indexInfo" class="comex-axis-note">{{ indexInfo }}</p></article>
 
     <div class="comex-notes"><p>库存变化可能涉及出入库及库存类别转换，未质押余额不代表持有人即时交割意愿。</p><p>来源：{{ summary?.source || 'COMEX金银库存.xlsx' }} / {{ summary?.sheet || 'COMEX金银库存' }} · 单位：吨。盎司表仅作另一单位口径，不合并；发布日期与采集自动化状态未提供。</p><details v-if="metal === 'gold' && !view.confirmed"><summary>已质押扣减待确认事项</summary><ul><li v-for="note in summary?.definition?.pending || ['原始报告字段映射、子集关系、同日及同范围口径待确认']" :key="note">{{ note }}</li></ul><p>{{ summary?.definition?.exchange_definition }}</p><a v-if="summary?.definition?.reference" :href="summary.definition.reference" target="_blank" rel="noopener noreferrer">CME 官方仓单 FAQ（定义参考）</a></details></div>
-  </section>
+  </DashboardSection>
 </template>
 
 <style scoped>

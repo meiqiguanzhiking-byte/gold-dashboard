@@ -9,6 +9,7 @@ import ComexInventory from './components/ComexInventory.vue'
 import VolatilityCard from './components/VolatilityCard.vue'
 import DashboardPages from './components/DashboardPages.vue'
 import DashboardPage from './components/DashboardPage.vue'
+import DashboardSection from './components/DashboardSection.vue'
 import { useDashboard, isStatic, categoryNames, format, localTime, regions, regionColors, palette, numeric, sortHealthSources } from './data.js'
 
 const { blocks, meta, all, item, refreshing, reloadError, clientRefreshedAt, notice, loadAll, refresh, loadBlock } = useDashboard()
@@ -91,9 +92,9 @@ onMounted(loadAll)
       <div v-for="[key, block] in failures" :key="key" class="alert error" role="alert"><span>{{ categoryNames[key] }}{{ isStatic ? '展示数据读取失败' : '接口失败' }}：{{ block.error }}。其他区域可继续查看。</span><button class="text-button" :disabled="block.loading" @click="loadBlock(key)">{{ isStatic ? '重试此区域' : '重试此接口' }}</button></div>
 
       <DashboardPage page="domestic" label="国内">
-      <section id="overview" class="section"><div class="section-heading"><div><span class="section-number">概览</span><h2>国内核心指标</h2></div><span>不同观察频率独立显示</span></div><div class="metric-grid core-grid"><template v-for="card in domesticCards" :key="card.id"><VolatilityCard v-if="card.volatility" :items="[item('gold_hv20'), item('gold_hv60')]" :loading="blocks.price.loading" :error="blocks.price.error" /><MetricCard v-else :item="item(card.id)" :label="card.label" :price="card.price" :loading="blocks[card.category].loading" :error="blocks[card.category].error" /></template></div><p class="section-footnote">卡片日期为各指标观察日期，刷新时间不代表数据发布日期。</p></section>
+      <DashboardSection id="overview" title="国内核心指标"><div class="section-heading"><div><span class="section-number">概览</span><h2>国内核心指标</h2></div><span>不同观察频率独立显示</span></div><div class="metric-grid core-grid"><template v-for="card in domesticCards" :key="card.id"><VolatilityCard v-if="card.volatility" :items="[item('gold_hv20'), item('gold_hv60')]" :loading="blocks.price.loading" :error="blocks.price.error" /><MetricCard v-else :item="item(card.id)" :label="card.label" :price="card.price" :loading="blocks[card.category].loading" :error="blocks[card.category].error" /></template></div><p class="section-footnote">卡片日期为各指标观察日期，刷新时间不代表数据发布日期。</p></DashboardSection>
 
-      <section id="gold-price" class="section">
+      <DashboardSection id="gold-price" title="黄金价格与波动率">
         <div class="section-heading"><div><span class="section-number">现价</span><h2>黄金价格与波动率</h2></div><span>上金所Au99.99 · 日度</span></div>
         <p class="section-footnote">历史波动率反映过去价格波动程度，不代表未来涨跌方向。</p>
         <p class="section-footnote">{{ priceNote }}</p>
@@ -103,31 +104,31 @@ onMounted(loadAll)
         </div>
         <p class="section-footnote">方法：日对数收益率、20/60个交易观测收益率、样本标准差（ddof=1）、252日年化；只读取上游结果。窗口不足或源值缺失时保持数据暂缺。</p>
         <p v-if="!priceWithheld" class="section-footnote">来源：黄金现货价格.xlsx / 黄金现货价格 · 文件更新 {{ localTime(item('gold_price_anchor')?.metadata.updated_at) }} · 缓存加载 {{ localTime(blocks.price.data?.loaded_at) }} · 发布日期未知（null）。</p>
-      </section>
-      <section id="central-bank" class="section">
+      </DashboardSection>
+      <DashboardSection id="central-bank" title="央行购金">
         <div class="section-heading"><div><span class="section-number">01</span><h2>央行购金</h2></div><span>月度储备 · 机构未确认</span></div>
         <div class="chart-grid">
           <ChartPanel title="央行黄金储备（吨，机构未确认）" :series="[line('central_bank_reserves', '原表央行储备', '#ad945b')]" :loading="blocks['central-bank'].loading" :error="blocks['central-bank'].error" note="工作表未明确国家或机构，不认定为中国官方储备" />
         </div>
-      </section>
+      </DashboardSection>
 
-      <section id="au-td" class="section">
+      <DashboardSection id="au-td" title="Au(T+D)">
         <div class="section-heading"><div><span class="section-number">02</span><h2>Au(T+D)</h2></div><StatusBadge status="日度" /></div>
         <div class="metric-grid trade-grid"><MetricCard v-for="card in tradeCards.filter(card => card.category === 'au-td')" :key="card.id" :item="item(card.id)" :label="card.label" :loading="blocks[card.category].loading" :error="blocks[card.category].error" /></div>
         <div class="chart-grid">
           <ChartPanel title="Au(T+D) 成交量与持仓量（吨）" description="成交量柱状图与持仓量折线图 · 日度原始记录" :series="[line('au_td_volume', '成交量（吨）', '#abc6ca', { type: 'bar' }), line('au_td_open_interest', '持仓量（吨）', '#287985')]" :loading="blocks['au-td'].loading" :error="blocks['au-td'].error" />
         </div>
-      </section>
+      </DashboardSection>
 
-      <section id="futures" class="section">
+      <DashboardSection id="futures" title="上期所黄金期货">
         <div class="section-heading"><div><span class="section-number">03</span><h2>上期所黄金期货</h2></div><StatusBadge status="日度" /></div>
         <div class="metric-grid trade-grid"><MetricCard v-for="card in tradeCards.filter(card => card.category === 'futures')" :key="card.id" :item="item(card.id)" :label="card.label" :loading="blocks[card.category].loading" :error="blocks[card.category].error" /></div>
         <div class="chart-grid">
           <ChartPanel title="黄金期货成交量与持仓量（吨）" description="成交量柱状图与持仓量折线图 · 同单位共用坐标轴" :series="[line('futures_volume', '成交量（吨）', '#abc6ca', { type: 'bar' }), line('futures_open_interest', '持仓量（吨）', '#287985')]" :loading="blocks.futures.loading" :error="blocks.futures.error" note="全市场数据采用后端按日期聚合；主力按成交量最高确定" />
         </div>
-      </section>
+      </DashboardSection>
 
-      <section id="domestic-etf" class="section">
+      <DashboardSection id="domestic-etf" title="场内黄金 ETF 份额">
         <div class="section-heading"><div><span class="section-number">04</span><h2>场内黄金 ETF 份额</h2></div><span>境内七只基金 · 日度</span></div>
         <div class="filter-bar"><span>基金筛选</span><label v-for="fund in funds" :key="fund.metadata.fund"><input v-model="selectedFunds" type="checkbox" :value="fund.metadata.fund">{{ fund.metadata.fund }}</label><button class="text-button" @click="selectedFunds = funds.map(i => i.metadata.fund)">全选</button></div>
         <div class="chart-grid">
@@ -136,14 +137,14 @@ onMounted(loadAll)
           <ChartPanel title="境内黄金 ETF 分基金资产规模（亿元）" :series="fundLines" :loading="blocks.etf.loading" :error="blocks.etf.error" :reason="!selectedFunds.length ? '请选择至少一只基金' : ''" />
           <ChartPanel title="境内黄金 ETF 份额较上期变化（万份）" description="原始份额的相邻观察期差额；缺失任一期时不计算" :series="shareLines" :loading="blocks.etf.loading" :error="blocks.etf.error" :reason="!selectedFunds.length ? '请选择至少一只基金' : ''" note="按原始份额做简单差分，不视为净申购金额" />
         </div>
-      </section>
+      </DashboardSection>
 
       </DashboardPage>
 
       <DashboardPage page="foreign" label="国外">
-      <section id="foreign-overview" class="section"><div class="section-heading"><div><span class="section-number">概览</span><h2>国外核心指标</h2></div><span>不同观察频率独立显示</span></div><div class="metric-grid core-grid"><MetricCard v-for="card in foreignCards" :key="card.id" :item="item(card.id)" :label="card.label" :loading="blocks[card.category].loading" :error="blocks[card.category].error" /></div><p class="section-footnote">全球央行总量口径待确认，不以其他指标替代。</p></section>
+      <DashboardSection id="foreign-overview" title="国外核心指标"><div class="section-heading"><div><span class="section-number">概览</span><h2>国外核心指标</h2></div><span>不同观察频率独立显示</span></div><div class="metric-grid core-grid"><MetricCard v-for="card in foreignCards" :key="card.id" :item="item(card.id)" :label="card.label" :loading="blocks[card.category].loading" :error="blocks[card.category].error" /></div><p class="section-footnote">全球央行总量口径待确认，不以其他指标替代。</p></DashboardSection>
 
-      <section id="positions" class="section">
+      <DashboardSection id="positions" title="CFTC 黄金非商业持仓">
         <div class="section-heading"><div><span class="section-number">05</span><h2>CFTC 黄金非商业持仓</h2></div><span>周度非商业持仓 · 原表单位为吨</span></div>
         <div class="metric-grid position-grid"><MetricCard v-for="card in positionCards" :key="card.id" :item="item(card.id)" :label="card.label" :loading="blocks.cftc.loading" :error="blocks.cftc.error" /></div>
         <div class="chart-grid">
@@ -151,26 +152,26 @@ onMounted(loadAll)
           <ChartPanel title="CFTC 非商业净多头持仓（吨）" description="单独观察净持仓方向与历史变化" :series="[line('cftc_net_long', '净多头（吨）', '#287985')]" :loading="blocks.cftc.loading" :error="blocks.cftc.error" />
         </div>
         <p class="section-footnote">CFTC 日度交易文件不与周度仓位混用；原表早期周度记录并非固定每 7 天，保留实际观察日。</p>
-      </section>
+      </DashboardSection>
 
-      <section id="spdr" class="section">
+      <DashboardSection id="spdr" title="SPDR 黄金 ETF 份额">
         <div class="section-heading"><div><span class="section-number">06</span><h2>SPDR 黄金 ETF 份额</h2></div><StatusBadge status="日度" /></div>
         <div class="chart-grid">
           <ChartPanel title="SPDR 黄金持仓趋势（吨）" :series="[line('spdr_gold_holdings', 'SPDR 持有黄金', '#ad945b')]" :loading="blocks.etf.loading" :error="blocks.etf.error" note="采用总持有黄金数，不以 ETF 份额或价格替代持仓" />
         </div>
-      </section>
+      </DashboardSection>
 
-      <section id="london" class="section">
+      <DashboardSection id="london" title="伦敦金银库存">
         <div class="section-heading"><div><span class="section-number">07</span><h2>伦敦金银库存</h2></div><StatusBadge status="月度" /></div>
         <div class="chart-grid">
           <ChartPanel title="伦敦黄金库存趋势（吨）" :series="[line('london_gold', '黄金库存', '#ad945b')]" :loading="blocks.inventory.loading" :error="blocks.inventory.error" />
           <ChartPanel title="伦敦白银库存趋势（吨）" :series="[line('london_silver', '白银库存', '#6d83ab')]" :loading="blocks.inventory.loading" :error="blocks.inventory.error" />
         </div>
-      </section>
+      </DashboardSection>
 
       <ComexInventory :items="blocks.inventory.data?.indicators || []" :summary="blocks.inventory.data?.comex" :loading="blocks.inventory.loading" :error="blocks.inventory.error" />
 
-      <section id="global-etf" class="section">
+      <DashboardSection id="global-etf" title="全球黄金 ETF 流量">
         <div class="section-heading"><div><span class="section-number">09</span><h2>全球黄金 ETF 流量</h2></div><span>周度与月度分开展示</span></div>
         <div class="tab-row" role="tablist" aria-label="全球 ETF 观察频率"><button v-for="tab in [{ id: 'weekly', name: '全球流量 · 周度' }, { id: 'monthly', name: '全球流量 · 月度' }]" :key="tab.id" role="tab" :aria-selected="etfTab === tab.id" :class="{ selected: etfTab === tab.id }" @click="etfTab = tab.id">{{ tab.name }}</button></div>
         <div class="filter-bar"><span>地区筛选</span><label v-for="r in regions" :key="r.id"><input v-model="selectedRegions" type="checkbox" :value="r.id"><i class="region-dot" :style="{ background: regionColors[r.id] }"></i>{{ r.name }}</label><label class="unit-select">统计口径<select v-model="flowUnit" aria-label="全球ETF流量口径"><option value="tonnes">吨数流量</option><option value="usd">美元资金流</option></select></label></div>
@@ -179,9 +180,9 @@ onMounted(loadAll)
           <ChartPanel :key="etfTab + flowUnit + 'total'" :title="'全球黄金 ETF ' + (etfTab === 'monthly' ? '月度' : '周度') + '净流量合计（' + (flowUnit === 'tonnes' ? '吨' : '美元') + '）'" :series="[line('global_etf_' + flowFrequency + '_total_' + flowUnit, '四地区合计', '#278b94', { type: 'bar', signed: true })]" :loading="blocks.etf.loading" :error="blocks.etf.error" note="四地区总量固定，不随地区筛选改变" />
           <FlowHeatmap v-if="etfTab === 'monthly'" :items="blocks.etf.data?.indicators || []" :selected="selectedRegions" :loading="blocks.etf.loading" :error="blocks.etf.error" />
         </div>
-      </section>
+      </DashboardSection>
 
-      <section id="global-central-bank" class="section">
+      <DashboardSection id="global-central-bank" title="全球央行购金">
         <div class="section-heading"><div><span class="section-number">10</span><h2>全球央行购金</h2></div><StatusBadge status="月度" /></div>
         <div class="chart-grid">
           <ChartPanel title="全球央行月度净购金趋势" :series="[line('global_central_bank_net_purchases', '全球净购金', '#278b94', { type: 'bar', signed: true })]" :loading="blocks['central-bank'].loading" :error="blocks['central-bank'].error" reason="数据暂缺：全球合计、单位与去重口径未提供，不能直接按国家列相加。" />
@@ -192,17 +193,17 @@ onMounted(loadAll)
           <RankingChart title="当月买入国家/地区 · 原始正值排序" :rows="buying" :period="countryMonth" unit="未提供" :loading="blocks['central-bank'].loading" :error="blocks['central-bank'].error" note="只列该月已披露的正值；使用原始英文列名，不推断单位" />
           <RankingChart title="当月卖出国家/地区 · 原始负值排序" :rows="selling" :period="countryMonth" unit="未提供" negative :loading="blocks['central-bank'].loading" :error="blocks['central-bank'].error" note="按原始负值从低到高；不把缺失或真实零值列入卖出排名" />
         </div>
-      </section>
+      </DashboardSection>
 
       </DashboardPage>
 
       <DashboardPage page="health" label="数据健康度">
-      <section id="health" class="section"><div class="section-heading"><div><span class="section-number">11</span><h2>数据健康度</h2></div><span>{{ allMetadata.length }} 个指标 · {{ meta?.files.length || '—' }} 个文件</span></div><div class="health-filters"><input v-model="healthSearch" placeholder="搜索指标或来源文件" aria-label="搜索数据健康度"><select v-model="healthFrequency" aria-label="健康度频率筛选"><option>全部</option><option>日度</option><option>周度</option><option>月度</option><option>未提供</option></select><select v-model="healthStatus" aria-label="健康度状态筛选"><option>全部</option><option>正常</option><option>滞后</option><option>短历史</option><option>仅最新值</option><option>人工接入</option><option>未确认</option><option>数据缺失</option></select><span>自动化状态按来源披露，不假定已自动接入</span></div>
+      <DashboardSection id="health" title="数据健康度"><div class="section-heading"><div><span class="section-number">11</span><h2>数据健康度</h2></div><span>{{ allMetadata.length }} 个指标 · {{ meta?.files.length || '—' }} 个文件</span></div><div class="health-filters"><input v-model="healthSearch" placeholder="搜索指标或来源文件" aria-label="搜索数据健康度"><select v-model="healthFrequency" aria-label="健康度频率筛选"><option>全部</option><option>日度</option><option>周度</option><option>月度</option><option>未提供</option></select><select v-model="healthStatus" aria-label="健康度状态筛选"><option>全部</option><option>正常</option><option>滞后</option><option>短历史</option><option>仅最新值</option><option>人工接入</option><option>未确认</option><option>数据缺失</option></select><span>自动化状态按来源披露，不假定已自动接入</span></div>
         <div v-if="blocks.meta.loading" class="table-message">正在读取元数据…</div><div v-else-if="blocks.meta.error" class="alert caution">元信息接口失败，使用已成功接口的指标元数据；文件级信息暂不可用。</div>
         <div class="health-table"><table><thead><tr><th>数据项 / 来源</th><th>更新频率</th><th>最新观察期</th><th>历史起始</th><th>文件最近更新</th><th>数据延迟</th><th>自动化状态</th><th>数据状态</th></tr></thead><tbody><tr v-for="m in visibleHealth" :key="m.indicator_id"><td><strong>{{ m.indicator_name }}</strong><small>{{ m.source }}{{ m.sheet ? ' / ' + m.sheet : '' }}</small></td><td>{{ m.frequency }}</td><td>{{ m.coverage_end || '未提供' }}</td><td>{{ m.coverage_start || '未提供' }}</td><td>{{ localTime(m.updated_at) }}</td><td>{{ m.delay_days == null ? '未提供' : m.delay_days + ' 天' }}</td><td><StatusBadge :status="m.automation_status" /></td><td><StatusBadge :status="m.status" /><span v-if="m.status !== '滞后' && m.statuses?.includes('滞后')" class="secondary-status">滞后</span></td></tr><tr v-if="!visibleHealth.length"><td colspan="8" class="table-message">{{ pending ? '读取中…' : '没有符合筛选条件的数据项' }}</td></tr></tbody></table></div>
         <div class="pagination"><span>共 {{ healthRows.length }} 项 · 第 {{ healthPage }} / {{ healthPages }} 页</span><button :disabled="healthPage <= 1" @click="healthPage--">上一页</button><button :disabled="healthPage >= healthPages" @click="healthPage++">下一页</button></div>
         <details class="source-details"><summary>查看文件读取状态与数据口径</summary><div v-for="file in healthFiles" :key="file.source" class="file-row"><strong>{{ file.source }}</strong><span>{{ file.coverage_start || '未提供' }} — {{ file.latest_date || '未提供' }}</span><StatusBadge :status="file.status" /><small>{{ file.warnings.join('；') }}</small></div><p>缺失保持空值；真实零值显示为 0。日/周/月延迟阈值为后端配置的提示阈值，不代表发布日历。原始发布日期未提供，数据健康度显示“未提供”。</p></details>
-      </section>
+      </DashboardSection>
       </DashboardPage>
       </DashboardPages><footer class="page-footer"><span>黄金市场指标看板 · {{ isStatic ? '静态展示版' : '本地真实文件' }}</span><span>不插值 · 不前值填充 · 不生成虚构数据</span></footer>
     </main>

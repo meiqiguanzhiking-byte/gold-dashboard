@@ -84,7 +84,7 @@ try {
   const fundChecks = page.locator('#domestic-etf input[type=checkbox]')
   for (const checkbox of await fundChecks.all()) await checkbox.uncheck()
   await page.locator('#domestic-etf').getByText('请选择至少一只基金', { exact: true }).first().waitFor()
-  await page.getByRole('button', { name: '全选', exact: true }).click()
+  await page.locator('#domestic-etf').getByRole('button', { name: '全选', exact: true }).click()
   await page.locator('[data-chart-title="境内黄金 ETF 分基金资产规模（亿元）"] canvas').waitFor()
   await page.getByRole('tab', { name: '国外' }).click()
   await page.waitForTimeout(250)
