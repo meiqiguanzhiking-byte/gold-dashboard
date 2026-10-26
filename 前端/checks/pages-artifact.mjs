@@ -23,7 +23,8 @@ for (const rows of Object.values(snapshot.groups)) for (const item of rows) {
   assert.deepEqual(item.points.map(p => p[0]), item.points.map(p => p[0]).sort())
   assert.ok(item.points.every(p => p.length === 2 && (p[1] === null || typeof p[1] === 'string' || Number.isFinite(p[1]))))
   assert.ok(!('source_column' in item.metadata) && !('component_columns' in item.metadata))
-  if (item.metadata.source === '黄金现货价格.xlsx' && policy.source_permissions?.[item.metadata.source] !== 'approved') {
+  const priceSources = item.metadata.input_sources || [item.metadata.source]
+  if (['黄金现货价格.xlsx', '伦敦金现与汇率.xlsx'].includes(item.metadata.source) && priceSources.some(source => policy.source_permissions?.[source] !== 'approved' || policy.withheld_sources.includes(source))) {
     assert.equal(item.points.length, 0, '未获准的价格及派生波动率不得导出历史或数值')
     assert.equal(item.metadata.publication_withheld, true)
     assert.equal(item.metadata.coverage_start, null)
@@ -32,7 +33,7 @@ for (const rows of Object.values(snapshot.groups)) for (const item of rows) {
     assert.equal(item.metadata.updated_at, null)
   }
 }
-for (const id of ['gold_price_anchor', 'gold_hv20', 'gold_hv60']) assert.ok(ids.has(id), '静态版应保留新指标或明确的缺失占位')
+for (const id of ['gold_price_anchor', 'gold_hv20', 'gold_hv60', 'london_gold_spot', 'usdcnh', 'gold_domestic_spread']) assert.ok(ids.has(id), '静态版应保留新指标或明确的缺失占位')
 assert.ok(!ids.has('spdr_close') && !ids.has('spdr_volume') && !ids.has('cftc_trading_volume'))
 assert.ok([...ids].filter(id => /^domestic_/.test(id)).every(id => !id.endsWith('_nav')))
 if (!snapshotOnly) {

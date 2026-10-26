@@ -153,7 +153,7 @@ try {
     assert.deepEqual(await panel.locator('.section:visible').evaluateAll(nodes => nodes.map(n => n.id)), ['overview', 'au-td'])
     await select(page, '国外')
     assert.equal(await picker.getByLabel('伦敦金银库存', { exact: true }).isChecked(), false)
-    assert.equal(await panel.locator('.section:visible').count(), 6)
+    assert.equal(await panel.locator('.section:visible').count(), 7)
     await select(page, '数据健康度')
     assert.equal(await panel.locator('.section:visible').count(), 0, '空选择刷新后也应保留')
     await panel.getByText('请选择要显示的版块', { exact: true }).waitFor()

@@ -63,7 +63,7 @@ try {
   const generatedDate = snapshot.generated_at.slice(0, 10).split('-').map(Number).join('/')
   assert.ok((await page.locator('.data-summary').textContent()).includes(generatedDate))
   assert.equal(await page.getByRole('button', { name: '刷新真实数据', exact: true }).count(), 0)
-  assert.equal(await page.locator('main section.section').count(), 14)
+  assert.equal(await page.locator('main section.section').count(), 15)
   assert.deepEqual(await page.locator('.page-tabs button').allTextContents(), ['国内', '国外', '数据健康度'])
   assert.equal(await page.locator('.page-tabs button[aria-selected="true"]').textContent(), '国内')
   for (const id of ['central-bank', 'au-td', 'futures', 'domestic-etf']) {
@@ -141,7 +141,8 @@ try {
   await page.mouse.move(box.x + 80 + (box.width - 116) * 0.4, box.y + 130)
   await page.waitForTimeout(180)
   const linked = await page.locator('#comex .echart').evaluateAll(elements => elements.map(el => [...el.querySelectorAll('div')].find(t => t.style.position === 'absolute' && t.textContent.includes('观察日期'))?.textContent))
-  assert.ok(linked.every(text => text?.includes(goldPoints[2][0])), '悬停应联动相同的真实观察日')
+  const hoveredDates = linked.map(text => text?.match(/观察日期[：:]?\s*(\d{4}-\d{2}-\d{2})/)?.[1])
+  assert.ok(hoveredDates[0] && hoveredDates.every(date => date === hoveredDates[0]) && goldPoints.some(([date]) => date === hoveredDates[0]), '悬停应联动相同的真实观察日')
   assert.ok(linked[1].includes('较基期') && linked[1].includes('指数'))
   await page.mouse.move(0, 0)
   const before = await page.locator('#comex .comex-value').textContent()

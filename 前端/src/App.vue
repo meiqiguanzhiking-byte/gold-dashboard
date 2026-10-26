@@ -17,6 +17,7 @@ const coreCards = [
   { id: 'gold_price_anchor', category: 'price', label: '上金所Au99.99收盘价', price: true },
   { id: 'gold-volatility', category: 'price', volatility: true },
   { id: 'domestic_etf_total_assets', category: 'etf', label: '境内黄金 ETF 总资产规模' },
+  { id: 'london_gold_spot', category: 'price', label: '伦敦金现', price: true },
   { id: 'spdr_gold_holdings', category: 'etf', label: 'SPDR 黄金持仓' },
   { id: 'cftc_net_long', category: 'cftc', label: 'CFTC 非商业净多头' },
   { id: 'global_etf_weekly_total_tonnes', category: 'etf', label: '全球黄金 ETF 周度净流入' },
@@ -43,6 +44,12 @@ function line(id, name, color, rest = {}) { return { item: item(id), name, color
 const priceItems = computed(() => ['gold_price_anchor', 'gold_hv20', 'gold_hv60'].map(id => item(id)))
 const priceWithheld = computed(() => priceItems.value.some(i => i?.metadata.publication_withheld))
 const priceNote = computed(() => priceWithheld.value ? '数据暂缺：新增来源公开使用尚未确认，静态版不发布价格及派生波动率。' : '非连续全史：上游未取得2003-04-16至2008-08-10历史；空值保留断点，不补零、不平滑补点。')
+const overseasNote = 'Barchart日线close，保留来源日期；伦敦金现不是LBMA定盘价，汇率为离岸CNH。今日记录可能尚未收盘。'
+const withheldReason = id => item(id)?.metadata.publication_withheld ? '数据暂缺：来源公开使用尚未确认，静态版不发布该指标及派生数值。' : ''
+const spreadNote = computed(() => {
+  const m = item('gold_domestic_spread')?.metadata
+  return withheldReason('gold_domestic_spread') || `仅使用北京时间昨日及以前的同日有效值；计算截止 ${m?.cutoff_date || '未提供'}，最新有效观察 ${m?.latest_valid_date || '数据暂缺'}。缺任一项保留断点，不前值填充。`
+})
 
 const etfTab = ref('weekly'), selectedFunds = ref([]), selectedRegions = ref(regions.map(r => r.id)), flowUnit = ref('tonnes')
 const funds = computed(() => (blocks.etf.data?.indicators || []).filter(i => /^domestic_\d+_assets$/.test(i.metadata.indicator_id)))
@@ -101,7 +108,9 @@ onMounted(loadAll)
         <div class="chart-grid">
           <ChartPanel title="上金所Au99.99收盘价（元/克）" description="上金所交易日期收盘价；人民币元/克" :series="[line('gold_price_anchor', 'Au99.99收盘价', '#287985')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="priceWithheld ? priceNote : ''" :note="priceNote" />
           <ChartPanel title="20日与60日年化历史波动率（%）" description="上游计算结果；切换区间不重新计算波动率" :series="[line('gold_hv20', '20日年化历史波动率', '#287985'), line('gold_hv60', '60日年化历史波动率', '#ad945b')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="priceWithheld ? priceNote : ''" note="缺值或收益窗口不足时显示数据不足；不按零处理，不前值填充" />
+          <ChartPanel class="wide" title="国内外价差（元/克）" description="Au99.99 − 海外金价人民币折算值；同名日期的非同步收盘价差" :series="[line('gold_domestic_spread', '国内外价差', '#287985')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('gold_domestic_spread')" :note="spreadNote" />
         </div>
+        <p class="section-footnote">国内外价差＝Au99.99（元/克）−伦敦金现（美元/金衡盎司）×USDCNH（CNH/美元）÷31.1034768。1金衡盎司＝31.1034768克。仅比较同名日期各自收盘，包含CNH/CNY口径差异，不代表同步溢价或可交易套利空间。</p>
         <p class="section-footnote">方法：日对数收益率、20/60个交易观测收益率、样本标准差（ddof=1）、252日年化；只读取上游结果。窗口不足或源值缺失时保持数据暂缺。</p>
         <p v-if="!priceWithheld" class="section-footnote">来源：黄金现货价格.xlsx / 黄金现货价格 · 文件更新 {{ localTime(item('gold_price_anchor')?.metadata.updated_at) }} · 缓存加载 {{ localTime(blocks.price.data?.loaded_at) }} · 发布日期未知（null）。</p>
       </DashboardSection>
@@ -142,7 +151,15 @@ onMounted(loadAll)
       </DashboardPage>
 
       <DashboardPage page="foreign" label="国外">
-      <DashboardSection id="foreign-overview" title="国外核心指标"><div class="section-heading"><div><span class="section-number">概览</span><h2>国外核心指标</h2></div><span>不同观察频率独立显示</span></div><div class="metric-grid core-grid"><MetricCard v-for="card in foreignCards" :key="card.id" :item="item(card.id)" :label="card.label" :loading="blocks[card.category].loading" :error="blocks[card.category].error" /></div><p class="section-footnote">全球央行总量口径待确认，不以其他指标替代。</p></DashboardSection>
+      <DashboardSection id="foreign-overview" title="国外核心指标"><div class="section-heading"><div><span class="section-number">概览</span><h2>国外核心指标</h2></div><span>不同观察频率独立显示</span></div><div class="metric-grid core-grid"><MetricCard v-for="card in foreignCards" :key="card.id" :item="item(card.id)" :label="card.label" :price="card.price" :loading="blocks[card.category].loading" :error="blocks[card.category].error" /></div><p class="section-footnote">伦敦金现采用来源最新日线记录，今日值可能尚未收盘；全球央行总量口径待确认，不以其他指标替代。</p></DashboardSection>
+
+      <DashboardSection id="overseas-price" title="伦敦金现与汇率">
+        <div class="section-heading"><div><span class="section-number">现价</span><h2>伦敦金现与汇率</h2></div><span>来源日频收盘价 · 今日值可能未完成</span></div>
+        <div class="chart-grid">
+          <ChartPanel title="伦敦金现（美元/金衡盎司）" :description="overseasNote" :series="[line('london_gold_spot', '伦敦金现', '#ad945b')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('london_gold_spot')" note="来源：Barchart ^XAUUSD日线close；不使用今日记录计算国内外价差" />
+          <ChartPanel title="美元兑离岸人民币（CNH/美元）" description="1美元对应的离岸人民币数量；不等于在岸CNY或人民币中间价" :series="[line('usdcnh', '美元兑离岸人民币', '#287985')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('usdcnh')" note="来源：Barchart ^USDCNH日线close；早期缺失保留空值，今日记录可能尚未收盘" />
+        </div>
+      </DashboardSection>
 
       <DashboardSection id="positions" title="CFTC 黄金非商业持仓">
         <div class="section-heading"><div><span class="section-number">05</span><h2>CFTC 黄金非商业持仓</h2></div><span>周度非商业持仓 · 原表单位为吨</span></div>
