@@ -99,7 +99,7 @@ try {
           c.dates.forEach((d, index) => assert.equal(c.values[index], values.get(d)))
           assert.equal(c.unit, sourceItems[id].metadata.unit)
           assert.equal(c.smooth, false); assert.equal(c.connectNulls, false)
-          if (id === 'gold_domestic_spread') assert.ok(c.dates.every(d => d <= sourceItems[id].metadata.cutoff_date))
+          if (id === 'gold_domestic_spread') assert.equal(sourceItems[id].metadata.observation_time, '15:30')
           assert.ok(c.tooltip.includes(c.dates.at(-1)))
         }
         const before = await read(page, title)
@@ -109,17 +109,17 @@ try {
         assert.ok(zoomed.max - zoomed.min < before.max - before.min, id + '纵轴应随可见日期收紧')
       }
       assert.equal(await page.locator('#gold-price canvas').count(), 3)
-      assert.ok((await page.locator('#gold-price').textContent()).includes(sourceItems.gold_domestic_spread.metadata.cutoff_date))
+      assert.ok((await page.locator('#gold-price').textContent()).includes(sourceItems.gold_domestic_spread.metadata.latest_valid_date))
     } else {
       assert.equal(await page.locator('#overseas-price canvas,#gold-price canvas').count(), 0)
       assert.equal(await page.locator('#overseas-price .empty-state').count(), 2)
       assert.equal(await page.locator('#gold-price .empty-state').count(), 3)
       assert.ok((await page.locator('#overseas-price').textContent()).includes('公开使用尚未确认'))
     }
-    if (mode === 'static') assert.ok(requests.every(u => new URL(u).pathname.startsWith('/gold-dashboard/') && !/\/api(?:\/|$)/.test(new URL(u).pathname)))
+    if (mode === 'static') assert.ok(requests.every(u => new URL(u).pathname.startsWith(new URL(preview).pathname) && !/\/api(?:\/|$)/.test(new URL(u).pathname)))
     await layout(page)
     await page.getByRole('tab', { name: '数据健康度', exact: true }).click()
-    await page.getByLabel('搜索数据健康度').fill('伦敦金现与汇率.xlsx')
+    await page.getByLabel('搜索数据健康度').fill('伦敦金现与汇率_北京时间1530收盘价.xlsx')
     assert.equal(await page.locator('.health-table tbody tr:has(td strong)').count(), 3)
     await page.getByRole('button', { name: mode === 'dynamic' ? '刷新真实数据' : '重新加载展示数据' }).click()
     await page.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled)
@@ -128,5 +128,5 @@ try {
     results.push({ mode, layouts: [1280, 1440], errors })
     await page.close()
   }
-  console.log(JSON.stringify({ passed: true, cutoff: items.gold_domestic_spread.metadata.cutoff_date, latestSpread: items.gold_domestic_spread.latest_available.observation_date, results }))
+  console.log(JSON.stringify({ passed: true, comparison: items.gold_domestic_spread.metadata.comparison_basis, latestSpread: items.gold_domestic_spread.latest_available.observation_date, results }))
 } finally { await browser.close() }

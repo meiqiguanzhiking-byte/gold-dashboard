@@ -11,6 +11,9 @@
     "domestic_etf_total_assets",
     "spdr_gold_holdings",
     "global_central_bank_net_purchases",
+    "global_central_bank_gross_purchases",
+    "global_central_bank_gross_sales",
+    "global_central_bank_reporting_count",
     "central_bank_reserves",
     "au_td_volume",
     "au_td_open_interest",
@@ -73,12 +76,14 @@
   ],
   "latest_only": [
     "futures_main_contract",
-    "au_td_delivery_direction",
     "cftc_net_long_ratio"
   ],
+  "history_limits": {
+    "au_td_delivery_direction": 30
+  },
   "source_permissions": {
     "黄金现货价格.xlsx": "approved",
-    "伦敦金现与汇率.xlsx": "approved",
+    "伦敦金现与汇率_北京时间1530收盘价.xlsx": "approved",
     "AuTD.csv": "approved",
     "CFTC黄金交易量和持仓量.csv": "approved",
     "CFTC黄金非商业持仓量.csv": "approved",

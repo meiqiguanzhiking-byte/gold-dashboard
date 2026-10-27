@@ -24,7 +24,7 @@ for (const rows of Object.values(snapshot.groups)) for (const item of rows) {
   assert.ok(item.points.every(p => p.length === 2 && (p[1] === null || typeof p[1] === 'string' || Number.isFinite(p[1]))))
   assert.ok(!('source_column' in item.metadata) && !('component_columns' in item.metadata))
   const priceSources = item.metadata.input_sources || [item.metadata.source]
-  if (['黄金现货价格.xlsx', '伦敦金现与汇率.xlsx'].includes(item.metadata.source) && priceSources.some(source => policy.source_permissions?.[source] !== 'approved' || policy.withheld_sources.includes(source))) {
+  if (['黄金现货价格.xlsx', '伦敦金现与汇率_北京时间1530收盘价.xlsx'].includes(item.metadata.source) && priceSources.some(source => policy.source_permissions?.[source] !== 'approved' || policy.withheld_sources.includes(source))) {
     assert.equal(item.points.length, 0, '未获准的价格及派生波动率不得导出历史或数值')
     assert.equal(item.metadata.publication_withheld, true)
     assert.equal(item.metadata.coverage_start, null)

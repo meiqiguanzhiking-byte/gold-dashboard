@@ -1,18 +1,16 @@
-"""已核对日频收盘价表；同标签日期换算，排除北京时间今日和未来记录。"""
+"""北京时间15:30价格按相同观察日期换算，不再施加昨日截止。"""
 import math
-from datetime import datetime, timedelta
 
 import pandas as pd
 
-from config import LOCAL_TIMEZONE
 from price import SOURCE as DOMESTIC_SOURCE
 
-SOURCE = "伦敦金现与汇率.xlsx"
-SHEET = "日频收盘价"
+SOURCE = "伦敦金现与汇率_北京时间1530收盘价.xlsx"
+SHEET = "北京时间1530"
 GRAMS_PER_TROY_OUNCE = 31.1034768
 FORMULA = "Au99.99（元/克）−伦敦金现（美元/金衡盎司）×USDCNH（CNH/美元）÷31.1034768"
-TIMING_NOTE = "按来源同名日期比较非同步收盘，排除北京时间今日及未来记录；不顺延日期，不前值填充。"
-BASIS_NOTE = "海外折算使用离岸人民币CNH，含CNH/CNY口径差异；各市场收盘不同步，不代表同步溢价或可交易套利空间。"
+TIMING_NOTE = "按相同观察日期匹配Au99.99收盘价、北京时间15:30伦敦金现及汇率；不再限制截至昨日，不顺延日期。"
+BASIS_NOTE = "海外折算使用离岸人民币CNH，含CNH/CNY口径差异；该价差不代表可交易套利空间。"
 
 
 def finish_change(item):
@@ -23,8 +21,7 @@ def finish_change(item):
                              if current["change"] is not None and previous and previous["value"] else None)
 
 
-def add_international_price_indicators(builder, today=None):
-    today = today or datetime.now(LOCAL_TIMEZONE).date()
+def add_international_price_indicators(builder):
     table = builder.tables.get((SOURCE, SHEET))
     frame = table.frame.copy() if table else pd.DataFrame(columns=["日期"])
     for key, name, column, unit, reference in [
@@ -37,20 +34,19 @@ def add_international_price_indicators(builder, today=None):
                            source_reference=reference, source_unit=unit, change_unit=unit,
                            change_kind="absolute_and_percent", input_sources=[SOURCE],
                            display_digits=4 if key == "usdcnh" else 2,
-                           public_use_status="未确认", price_basis="Barchart日线close，保持来源日期；今日记录可能尚未收盘。",
-                           warnings=["来源为Barchart日线close；伦敦金现不是LBMA AM/PM定盘价，汇率是离岸CNH而非在岸CNY或中间价。",
-                                     "今日标签记录可能仍在形成，最新源值不等于已完成收盘；价差单独排除今日及未来记录。",
+                           public_use_status="未确认", price_basis="Barchart精确结束于北京时间15:30的完整30分钟K线收盘价。",
+                           observation_time="15:30", observation_timezone="Asia/Shanghai",
+                           warnings=["来源为Barchart北京时间15:30半小时K线收盘价；伦敦金现不是LBMA AM/PM定盘价，汇率是离岸CNH而非在岸CNY或中间价。",
                                      "缺失不补零、不前值填充，最新期缺失不回退。"])
         finish_change(item)
 
     items = {i["metadata"]["indicator_id"]: i for i in builder.groups["price"]}
     inputs = [items[key] for key in ("gold_price_anchor", "london_gold_spot", "usdcnh")]
     maps = [{p["observation_date"]: p["value"] for p in item["history"]} for item in inputs]
-    cutoff = (today - timedelta(days=1)).isoformat()
     # 按日期并集保留共同覆盖期内的断点；不因任一输入缺失而跳过最新观察期。
     valid_starts = [next((p["observation_date"] for p in item["history"] if p["value"] is not None), None) for item in inputs]
     start = max(valid_starts) if all(valid_starts) else None
-    dates = sorted({date for mapping in maps for date in mapping if start and start <= date <= cutoff})
+    dates = sorted({date for mapping in maps for date in mapping if start and start <= date})
     values = []
     for date in dates:
         domestic, gold, fx = [mapping.get(date) for mapping in maps]
@@ -62,7 +58,8 @@ def add_international_price_indicators(builder, today=None):
                        column="国内外价差", frame=spread_frame, values=values, missing_fields=missing,
                        warnings=[TIMING_NOTE, BASIS_NOTE, "三项同日有效才计算，缺任一项保留断点；周末或节假日不补值。"],
                        input_sources=[DOMESTIC_SOURCE, SOURCE], input_indicators=["gold_price_anchor", "london_gold_spot", "usdcnh"],
-                       method=FORMULA, cutoff_date=cutoff, cutoff_timezone="Asia/Shanghai", comparison_basis="同名日期的非同步收盘价差",
+                       method=FORMULA, comparison_basis="同日期匹配：Au99.99收盘价与北京时间15:30海外价格及汇率",
+                       observation_time="15:30", observation_timezone="Asia/Shanghai",
                        grams_per_troy_ounce=GRAMS_PER_TROY_OUNCE, change_unit="元/克", change_kind="absolute",
                        public_use_status="未确认")
     source_times = [i["metadata"]["updated_at"] for i in inputs if i["metadata"]["updated_at"]]

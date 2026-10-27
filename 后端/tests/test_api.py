@@ -11,6 +11,8 @@ import pandas as pd
 
 from config import DATA_DIR, LOCAL_TIMEZONE
 from data_loader import load_tables, parse_dates
+from central_banks import read_reported_months
+from config import CENTRAL_BANK_CHANGES_FILE
 
 BASE = os.environ.get("GOLD_API_URL", "http://127.0.0.1:8000").rstrip("/")
 
@@ -85,17 +87,19 @@ class RealDataAPI(unittest.TestCase):
 
     def test_missing_and_limited_history(self):
         frame = self.tables[("全球央行购金.csv", None)].frame
+        reported, _ = read_reported_months(CENTRAL_BANK_CHANGES_FILE)
         for item in self.responses["central-bank"]["indicators"]:
             country = item["metadata"].get("country")
             if not country:
                 continue
             self.assertEqual(len(item["history"]), len(frame))
-            for raw, point in zip(frame[country], item["history"]):
-                if pd.isna(raw):
+            for month, point in zip(frame['时间'], item["history"]):
+                raw = reported[str(month)[:7]][country]
+                if raw is None:
                     self.assertIsNone(point["value"])
                 else:
                     self.assertEqual(point["value"], raw)
-        self.assertIsNone(self.items["global_central_bank_net_purchases"]["latest"]["value"])
+        self.assertIsNotNone(self.items["global_central_bank_net_purchases"]["latest"]["value"])
         self.assertEqual(self.items["gold_price_anchor"]["metadata"]["unit"], "元/克")
         for item in self.responses["inventory"]["indicators"]:
             if item["metadata"]["indicator_id"].startswith("comex_"):

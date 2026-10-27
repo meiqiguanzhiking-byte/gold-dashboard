@@ -7,6 +7,7 @@ import RankingChart from './components/RankingChart.vue'
 import FlowHeatmap from './components/FlowHeatmap.vue'
 import ComexInventory from './components/ComexInventory.vue'
 import VolatilityCard from './components/VolatilityCard.vue'
+import AutdFeeTable from './components/AutdFeeTable.vue'
 import DashboardPages from './components/DashboardPages.vue'
 import DashboardPage from './components/DashboardPage.vue'
 import DashboardSection from './components/DashboardSection.vue'
@@ -21,7 +22,7 @@ const coreCards = [
   { id: 'spdr_gold_holdings', category: 'etf', label: 'SPDR 黄金持仓' },
   { id: 'cftc_net_long', category: 'cftc', label: 'CFTC 非商业净多头' },
   { id: 'global_etf_weekly_total_tonnes', category: 'etf', label: '全球黄金 ETF 周度净流入' },
-  { id: 'global_central_bank_net_purchases', category: 'central-bank', label: '全球央行月度净购金' },
+  { id: 'global_central_bank_net_purchases', category: 'central-bank', label: '全球黄金储备净变化合计（已报告）' },
 ]
 const domesticCards = coreCards.filter(card => ['gold_price_anchor', 'gold-volatility', 'domestic_etf_total_assets'].includes(card.id))
 const foreignCards = coreCards.filter(card => !domesticCards.includes(card))
@@ -44,11 +45,11 @@ function line(id, name, color, rest = {}) { return { item: item(id), name, color
 const priceItems = computed(() => ['gold_price_anchor', 'gold_hv20', 'gold_hv60'].map(id => item(id)))
 const priceWithheld = computed(() => priceItems.value.some(i => i?.metadata.publication_withheld))
 const priceNote = computed(() => priceWithheld.value ? '数据暂缺：新增来源公开使用尚未确认，静态版不发布价格及派生波动率。' : '非连续全史：上游未取得2003-04-16至2008-08-10历史；空值保留断点，不补零、不平滑补点。')
-const overseasNote = 'Barchart日线close，保留来源日期；伦敦金现不是LBMA定盘价，汇率为离岸CNH。今日记录可能尚未收盘。'
+const overseasNote = '北京时间15:30结束的半小时K线收盘价；伦敦金现不是LBMA定盘价，汇率为离岸CNH。'
 const withheldReason = id => item(id)?.metadata.publication_withheld ? '数据暂缺：来源公开使用尚未确认，静态版不发布该指标及派生数值。' : ''
 const spreadNote = computed(() => {
   const m = item('gold_domestic_spread')?.metadata
-  return withheldReason('gold_domestic_spread') || `仅使用北京时间昨日及以前的同日有效值；计算截止 ${m?.cutoff_date || '未提供'}，最新有效观察 ${m?.latest_valid_date || '数据暂缺'}。缺任一项保留断点，不前值填充。`
+  return withheldReason('gold_domestic_spread') || `按相同观察日期匹配Au99.99收盘价、北京时间15:30海外金价及汇率；最新有效观察 ${m?.latest_valid_date || '数据暂缺'}。缺任一项保留断点，不前值填充；折算使用CNH，含CNH/CNY口径差异。`
 })
 
 const etfTab = ref('weekly'), selectedFunds = ref([]), selectedRegions = ref(regions.map(r => r.id)), flowUnit = ref('tonnes')
@@ -67,14 +68,18 @@ const shareLines = computed(() => funds.value.filter(i => selectedFunds.value.in
 const flowFrequency = computed(() => etfTab.value === 'monthly' ? 'monthly' : 'weekly')
 const flowSeries = computed(() => regions.filter(r => selectedRegions.value.includes(r.id)).map(r => line('global_etf_' + flowFrequency.value + '_' + r.id + '_' + flowUnit.value, r.name, regionColors[r.id], { type: 'bar', stack: 'flow' })))
 
-const countryItems = computed(() => (blocks['central-bank'].data?.indicators || []).filter(i => i.metadata.country))
+const countryItems = computed(() => (blocks['central-bank'].data?.indicators || []).filter(i => i.metadata.country && i.metadata.aggregation_included))
 const countryMonths = computed(() => [...new Set(countryItems.value.flatMap(i => i.history.map(p => p.observation_date)))].sort().reverse())
 const countryMonth = ref('')
 watch(countryMonths, months => { if (!countryMonth.value || !months.includes(countryMonth.value)) countryMonth.value = months[0] || '' })
-const countryRows = computed(() => countryItems.value.filter(i => i.metadata.country !== 'Euro Area' && i.metadata.country !== 'Turkey*' && !i.metadata.country.includes('SOFAZ')).map(i => ({ name: i.metadata.country, item: i, point: i.history.find(p => p.observation_date === countryMonth.value) })).filter(r => numeric(r.point)))
+const countryRows = computed(() => countryItems.value.map(i => ({ name: i.metadata.country, item: i, point: i.history.find(p => p.observation_date === countryMonth.value) })).filter(r => numeric(r.point)))
 const buying = computed(() => countryRows.value.filter(r => r.point.value > 0).sort((a, b) => b.point.value - a.point.value))
 const selling = computed(() => countryRows.value.filter(r => r.point.value < 0).sort((a, b) => a.point.value - b.point.value))
 const undisclosed = computed(() => countryItems.value.filter(i => !numeric(i.history.find(p => p.observation_date === countryMonth.value))).length)
+const centralScope = computed(() => item('global_central_bank_net_purchases')?.metadata.aggregation_scope)
+const centralPoint = (id, month = countryMonth.value) => item(id)?.history.find(p => p.observation_date === month)?.value
+const reportedCount = computed(() => centralPoint('global_central_bank_reporting_count'))
+const centralTooltip = month => `数据月份：${month}；报告机构数：${format(centralPoint('global_central_bank_reporting_count', month), 0)} / ${centralScope.value?.included_entities.length || '未提供'}。基于已报告数据，可能随补报修订；非完整全球总量。`
 
 const healthSearch = ref(''), healthFrequency = ref('全部'), healthStatus = ref('全部'), healthPage = ref(1)
 const orderedHealthMetadata = computed(() => sortHealthSources(allMetadata.value))
@@ -108,7 +113,7 @@ onMounted(loadAll)
         <div class="chart-grid">
           <ChartPanel title="上金所Au99.99收盘价（元/克）" description="上金所交易日期收盘价；人民币元/克" :series="[line('gold_price_anchor', 'Au99.99收盘价', '#287985')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="priceWithheld ? priceNote : ''" :note="priceNote" />
           <ChartPanel title="20日与60日年化历史波动率（%）" description="上游计算结果；切换区间不重新计算波动率" :series="[line('gold_hv20', '20日年化历史波动率', '#287985'), line('gold_hv60', '60日年化历史波动率', '#ad945b')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="priceWithheld ? priceNote : ''" note="缺值或收益窗口不足时显示数据不足；不按零处理，不前值填充" />
-          <ChartPanel class="wide" title="国内外价差（元/克）" description="Au99.99 − 海外金价人民币折算值；同名日期的非同步收盘价差" :series="[line('gold_domestic_spread', '国内外价差', '#287985')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('gold_domestic_spread')" :note="spreadNote" />
+          <ChartPanel class="wide" title="国内外价差（元/克）" description="Au99.99 − 海外金价人民币折算值；同日期匹配，北京时间15:30海外价格及汇率" :series="[line('gold_domestic_spread', '国内外价差', '#287985')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('gold_domestic_spread')" :note="spreadNote" />
         </div>
         <p class="section-footnote">国内外价差＝Au99.99（元/克）−伦敦金现（美元/金衡盎司）×USDCNH（CNH/美元）÷31.1034768。1金衡盎司＝31.1034768克。仅比较同名日期各自收盘，包含CNH/CNY口径差异，不代表同步溢价或可交易套利空间。</p>
         <p class="section-footnote">方法：日对数收益率、20/60个交易观测收益率、样本标准差（ddof=1）、252日年化；只读取上游结果。窗口不足或源值缺失时保持数据暂缺。</p>
@@ -124,8 +129,9 @@ onMounted(loadAll)
       <DashboardSection id="au-td" title="Au(T+D)">
         <div class="section-heading"><div><span class="section-number">02</span><h2>Au(T+D)</h2></div><StatusBadge status="日度" /></div>
         <div class="metric-grid trade-grid"><MetricCard v-for="card in tradeCards.filter(card => card.category === 'au-td')" :key="card.id" :item="item(card.id)" :label="card.label" :loading="blocks[card.category].loading" :error="blocks[card.category].error" /></div>
-        <div class="chart-grid">
+        <div class="chart-grid autd-grid">
           <ChartPanel title="Au(T+D) 成交量与持仓量（吨）" description="成交量柱状图与持仓量折线图 · 日度原始记录" :series="[line('au_td_volume', '成交量（吨）', '#abc6ca', { type: 'bar' }), line('au_td_open_interest', '持仓量（吨）', '#287985')]" :loading="blocks['au-td'].loading" :error="blocks['au-td'].error" />
+          <AutdFeeTable :item="item('au_td_delivery_direction')" :loading="blocks['au-td'].loading" :error="blocks['au-td'].error" />
         </div>
       </DashboardSection>
 
@@ -151,13 +157,13 @@ onMounted(loadAll)
       </DashboardPage>
 
       <DashboardPage page="foreign" label="国外">
-      <DashboardSection id="foreign-overview" title="国外核心指标"><div class="section-heading"><div><span class="section-number">概览</span><h2>国外核心指标</h2></div><span>不同观察频率独立显示</span></div><div class="metric-grid core-grid"><MetricCard v-for="card in foreignCards" :key="card.id" :item="item(card.id)" :label="card.label" :price="card.price" :loading="blocks[card.category].loading" :error="blocks[card.category].error" /></div><p class="section-footnote">伦敦金现采用来源最新日线记录，今日值可能尚未收盘；全球央行总量口径待确认，不以其他指标替代。</p></DashboardSection>
+      <DashboardSection id="foreign-overview" title="国外核心指标"><div class="section-heading"><div><span class="section-number">概览</span><h2>国外核心指标</h2></div><span>不同观察频率独立显示</span></div><div class="metric-grid core-grid"><MetricCard v-for="card in foreignCards" :key="card.id" :item="item(card.id)" :label="card.label" :price="card.price" :loading="blocks[card.category].loading" :error="blocks[card.category].error" /></div><p class="section-footnote">伦敦金现及汇率采用北京时间15:30半小时K线收盘价；全球黄金储备净变化仅汇总已报告机构，不代表完整全球总量。</p></DashboardSection>
 
       <DashboardSection id="overseas-price" title="伦敦金现与汇率">
-        <div class="section-heading"><div><span class="section-number">现价</span><h2>伦敦金现与汇率</h2></div><span>来源日频收盘价 · 今日值可能未完成</span></div>
+        <div class="section-heading"><div><span class="section-number">现价</span><h2>伦敦金现与汇率</h2></div><span>北京时间15:30 · 半小时K线收盘价</span></div>
         <div class="chart-grid">
-          <ChartPanel title="伦敦金现（美元/金衡盎司）" :description="overseasNote" :series="[line('london_gold_spot', '伦敦金现', '#ad945b')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('london_gold_spot')" note="来源：Barchart ^XAUUSD日线close；不使用今日记录计算国内外价差" />
-          <ChartPanel title="美元兑离岸人民币（CNH/美元）" description="1美元对应的离岸人民币数量；不等于在岸CNY或人民币中间价" :series="[line('usdcnh', '美元兑离岸人民币', '#287985')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('usdcnh')" note="来源：Barchart ^USDCNH日线close；早期缺失保留空值，今日记录可能尚未收盘" />
+          <ChartPanel title="伦敦金现（美元/金衡盎司）" :description="overseasNote" :series="[line('london_gold_spot', '伦敦金现', '#ad945b')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('london_gold_spot')" note="来源：Barchart ^XAUUSD北京时间15:30半小时K线close" />
+          <ChartPanel title="美元兑离岸人民币（CNH/美元）" description="1美元对应的离岸人民币数量；不等于在岸CNY或人民币中间价" :series="[line('usdcnh', '美元兑离岸人民币', '#287985')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('usdcnh')" note="来源：Barchart ^USDCNH北京时间15:30半小时K线close；缺失保留空值" />
         </div>
       </DashboardSection>
 
@@ -201,14 +207,15 @@ onMounted(loadAll)
 
       <DashboardSection id="global-central-bank" title="全球央行购金">
         <div class="section-heading"><div><span class="section-number">10</span><h2>全球央行购金</h2></div><StatusBadge status="月度" /></div>
+        <div class="filter-bar country-filter"><label>数据月份<select v-model="countryMonth" aria-label="央行购金排名月份"><option v-for="month in countryMonths" :key="month" :value="month">{{ month }}</option></select></label><span class="central-report-count">报告机构数：{{ format(reportedCount, 0) }} / {{ centralScope?.included_entities.length || '未提供' }}</span><span>纳入范围内 {{ undisclosed }} 个实体该期缺失或未通过核验；不计作零</span></div>
+        <p class="central-month-summary">{{ countryMonth || '数据月份暂缺' }} · 买入量 {{ format(centralPoint('global_central_bank_gross_purchases')) }} 吨 · 卖出量 {{ format(centralPoint('global_central_bank_gross_sales')) }} 吨 · 净买入 {{ format(centralPoint('global_central_bank_net_purchases')) }} 吨</p>
         <div class="chart-grid">
-          <ChartPanel title="全球央行月度净购金趋势" :series="[line('global_central_bank_net_purchases', '全球净购金', '#278b94', { type: 'bar', signed: true })]" :loading="blocks['central-bank'].loading" :error="blocks['central-bank'].error" reason="数据暂缺：全球合计、单位与去重口径未提供，不能直接按国家列相加。" />
+          <ChartPanel title="全球黄金储备净变化合计（吨）" description="已报告月度净变化：正值合计在零轴上方、负值合计在下方，折线表示净买入；同一吨数轴" :series="[line('global_central_bank_gross_purchases', '买入量（正变化合计）', '#78b6cf', { type: 'bar', stack: 'official-changes' }), line('global_central_bank_gross_sales', '卖出量（负变化合计）', '#8b72a0', { type: 'bar', stack: 'official-changes' }), line('global_central_bank_net_purchases', '净买入', '#355d7b')]" :loading="blocks['central-bank'].loading" :error="blocks['central-bank'].error" :tooltip-details="centralTooltip" note="基于已报告数据，可能随补报修订；非完整全球总量。买入/卖出为机构净变化分组，并非实际交易流水。" />
         </div>
-        <div class="filter-bar country-filter"><label>购金观察月份<select v-model="countryMonth" aria-label="央行购金排名月份"><option v-for="month in countryMonths" :key="month" :value="month">{{ month }}</option></select></label><span>{{ undisclosed }} 个实体该期未披露或缺失；不计作零</span></div>
-        <div class="alert caution">国家/地区列单位未提供，下列仅展示原始正负值排序，不能认定为正式吨数买卖排名。已排除 Euro Area、Turkey* 和 SOFAZ 等汇总或特殊口径列，未进行全球加总。</div>
+        <details class="source-details central-scope"><summary>汇总范围与机构名单（固定口径）</summary><p>WGC Changes Monthly 为月度储备净变化，单位吨，不再差分。共纳入 {{ centralScope?.included_entities.length || '未提供' }} 个官方储备实体；Turkey 采用央行自有黄金＋财政部黄金，剔除商业部门相关黄金。SOFAZ 全历史排除，季度披露不摊入月份；Euro Area 不与成员国重复计算。</p><p>报告机构数按原始 Monthly 表有数值的机构计数，真实0计入，原表空白不计入。现有CSV曾补零，后台以只读原始表逐月核验并恢复空白；无法核验的月份保持缺失。该范围并非完整全球总量，储备变化可能含调整、掉期及其他非交易因素。</p><p><strong>纳入：</strong>{{ centralScope?.included_entities.join('；') || '数据暂缺' }}</p><p v-for="(reason, entity) in centralScope?.excluded_entities || {}" :key="entity"><strong>排除 {{ entity }}：</strong>{{ reason }}</p><p>来源：World Gold Council（WGC），IMF IFS及各官方机构披露。基于已报告数据，可能随补报修订。</p></details>
         <div class="chart-grid">
-          <RankingChart title="当月买入国家/地区 · 原始正值排序" :rows="buying" :period="countryMonth" unit="未提供" :loading="blocks['central-bank'].loading" :error="blocks['central-bank'].error" note="只列该月已披露的正值；使用原始英文列名，不推断单位" />
-          <RankingChart title="当月卖出国家/地区 · 原始负值排序" :rows="selling" :period="countryMonth" unit="未提供" negative :loading="blocks['central-bank'].loading" :error="blocks['central-bank'].error" note="按原始负值从低到高；不把缺失或真实零值列入卖出排名" />
+          <RankingChart title="当月买入国家/地区 · 正变化排序" :rows="buying" :period="countryMonth" unit="吨" :loading="blocks['central-bank'].loading" :error="blocks['central-bank'].error" note="与上方汇总使用相同纳入名单；仅列已报告正值，不是交易流水" />
+          <RankingChart title="当月卖出国家/地区 · 负变化排序" :rows="selling" :period="countryMonth" unit="吨" negative :loading="blocks['central-bank'].loading" :error="blocks['central-bank'].error" note="与上方汇总使用相同纳入名单；缺失不计作零，真实0不列入排名" />
         </div>
       </DashboardSection>
 
@@ -231,6 +238,12 @@ onMounted(loadAll)
 .static-notice { margin:16px 0 0; padding:10px 12px; border-left:2px solid #b69b64; background:#f7f4eb; color:#867348; font-size:11px; line-height:1.8; }
 .chart-grid > :only-child { grid-column: 1 / -1; }
 .trade-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.central-month-summary { font-size:11px; color:#536970; line-height:1.8; }
+.central-scope p { font-size:11px; line-height:1.9; overflow-wrap:anywhere; }
+.autd-grid { grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); }
+@media (max-width: 1000px) { .central-month-summary { font-size:11px; color:#536970; line-height:1.8; }
+.central-scope p { font-size:11px; line-height:1.9; overflow-wrap:anywhere; }
+.autd-grid { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 760px) {
   .trade-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .section { scroll-margin-top: 40px; }

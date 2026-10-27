@@ -21,7 +21,8 @@ METADATA_FIELDS = (
     "change_unit", "change_kind", "price_basis", "source_unit", "source_reference", "method",
     "window_observations", "annualization_days", "public_use_status",
     "input_sources", "input_indicators", "cutoff_date", "cutoff_timezone", "comparison_basis", "grams_per_troy_ounce", "latest_valid_date",
-    "display_digits",
+    "display_digits", "observation_time", "observation_timezone",
+    "aggregation_included", "aggregation_scope", "scope_entity_count", "coverage_basis", "reporting_evidence",
 )
 
 
@@ -58,6 +59,9 @@ def export():
             if key not in allowed:
                 continue
             history = item["history"][-2:] if key in policy["latest_only"] else item["history"]
+            history_limit = policy.get("history_limits", {}).get(key)
+            if history_limit:
+                history = history[-history_limit:]
             metadata = pick(m, METADATA_FIELDS)
             notes = list(item["warnings"])
             reason = policy["withheld_indicators"].get(key)
@@ -79,6 +83,8 @@ def export():
                 metadata["public_use_status"] = "用户已确认公开"
             metadata["published_record_count"] = len(history)
             metadata["published_history"] = "未获准公开，未导出历史" if reason else "最新两期，仅供当前值和环比" if key in policy["latest_only"] else "页面所用完整历史"
+            if history_limit and not reason:
+                metadata["published_history"] = f"最近{history_limit}个交易观测日，供延期费方向统计"
             points = [[point["observation_date"], point["value"]] for point in history]
             point_count += len(points)
             exported[category].append({"metadata": metadata, "points": points, "notes": notes})

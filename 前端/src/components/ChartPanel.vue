@@ -2,10 +2,10 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import StatusBadge from './StatusBadge.vue'
 import { echarts, axisLabel, tooltipRow, tooltipStyle } from '../charts.js'
-import { filteredHistory, numeric, ranges, palette } from '../data.js'
+import { filteredHistory, numeric, ranges, palette, escapeHtml } from '../data.js'
 import { adaptiveYAxis, axisTransition, timeZoom } from '../adaptive-axis.js'
 
-const props = defineProps({ title: String, description: String, series: { type: Array, default: () => [] }, loading: Boolean, error: String, reason: String, note: String, range: { type: String, default: '1Y' }, fixedRange: Boolean })
+const props = defineProps({ title: String, description: String, series: { type: Array, default: () => [] }, loading: Boolean, error: String, reason: String, note: String, tooltipDetails: Function, range: { type: String, default: '1Y' }, fixedRange: Boolean })
 const localRange = ref(props.range), el = ref(null)
 let chart, resizeObserver, adaptive
 const axisInfo = ref('')
@@ -46,7 +46,11 @@ async function draw() {
     textStyle: { fontFamily: 'Segoe UI, Microsoft YaHei, sans-serif' },
     grid: { left: 18, right: axisCount > 1 ? 30 : 22, top: 54, bottom: 58, containLabel: true },
     legend: { type: 'scroll', top: 2, left: 0, right: 0, selected: chart.getOption()?.legend?.[0]?.selected || {}, textStyle: { color: '#667579', fontSize: 10 }, icon: 'roundRect', itemWidth: 12, itemHeight: 5 },
-    tooltip: { ...tooltipStyle, trigger: 'axis', formatter(params) { return params.map(p => tooltipRow(available.value[p.seriesIndex].item, pointMaps[p.seriesIndex].get(p.axisValue) || { observation_date: p.axisValue, value: null }, p.color)).join('') } },
+    tooltip: { ...tooltipStyle, trigger: 'axis', formatter(params) {
+      const rows = params.map(p => tooltipRow(available.value[p.seriesIndex].item, pointMaps[p.seriesIndex].get(p.axisValue) || { observation_date: p.axisValue, value: null }, p.color)).join('')
+      const details = props.tooltipDetails?.(params[0]?.axisValue)
+      return rows + (details ? '<div class="tooltip-item">' + escapeHtml(details) + '</div>' : '')
+    } },
     xAxis: { type: 'category', data: dates.value, boundaryGap: available.value.some(s => s.type === 'bar'), axisTick: { show: false }, axisLine: { lineStyle: { color: '#d8e0e0' } }, axisLabel },
     yAxis: Array.from({ length: axisCount }, (_, index) => ({ type: 'value', name: [...new Set(available.value.filter(s => (s.yAxisIndex || 0) === index).map(s => s.item.metadata.unit))].join(' / '), position: index ? 'right' : 'left', nameTextStyle: { color: '#718082', fontSize: 10, align: index ? 'right' : 'left' }, nameLocation: 'end', axisLabel: { ...axisLabel, show: true, hideOverlap: false }, splitLine: { show: index === 0, lineStyle: { color: '#edf1f0' } }, axisLine: { show: true, onZero: true, lineStyle: { color: '#adbdbd' } } })),
     dataZoom: timeZoom(),
@@ -75,5 +79,6 @@ onBeforeUnmount(() => { window.removeEventListener('dashboard-page-visible', ref
 </template>
 
 <style scoped>
+.echart{overflow:hidden}
 .time-controls{display:flex;align-items:center;gap:10px;flex-shrink:0}.time-controls .text-button{font-size:9px}.axis-note{font-size:9px;color:#849491;line-height:1.7;margin-top:4px;overflow-wrap:anywhere}
 </style>

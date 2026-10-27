@@ -1,5 +1,4 @@
 """使用已核对的真实表头映射指标，保持来源单位和频率。"""
-import hashlib
 import math
 import re
 from datetime import datetime
@@ -11,6 +10,7 @@ from data_loader import parse_dates
 from comex import add_comex_indicators
 from price import add_price_indicators
 from international_price import add_international_price_indicators
+from central_banks import add_central_bank_changes
 
 CATEGORIES = ("central-bank", "etf", "inventory", "futures", "cftc", "au-td", "price")
 
@@ -208,19 +208,7 @@ def build_indicators(tables):
         ("central_bank_reserves", "央行黄金储备", "储量（吨）", "吨"),
         ("central_bank_reserve_value", "央行黄金储备市值", "市值（亿美元）", "亿美元"),
     ], warnings=["工作表未明确国家或机构名称，不据文件名认定为中国或全球汇总"], missing_fields=["institution"])
-    countries = tables.get(("全球央行购金.csv", None))
-    country_columns = list(countries.frame.columns.drop("时间")) if countries and "时间" in countries.frame else []
-    for country in country_columns:
-        slug = re.sub(r"[^a-z0-9]+", "_", country.lower()).strip("_")
-        suffix = hashlib.sha1(country.encode("utf-8")).hexdigest()[:8]
-        b.add("central-bank", f"central_bank_country_{slug}_{suffix}", f"{country} 月度购金（原始值）",
-              "未提供", "月度", "全球央行购金.csv", column=country,
-              warnings=["原始表未注明单位；空值表示缺失或未披露。区域汇总和不同口径列不相加"],
-              missing_fields=["unit"], country=country, entity_type="区域汇总" if country == "Euro Area" else "原始实体列")
-    b.add("central-bank", "global_central_bank_net_purchases", "全球央行月度净购金", "未确认", "月度",
-          "全球央行购金.csv", values=[None] * len(countries.frame) if countries else None,
-          warnings=["数据暂缺：未提供全球总计与单位，且含 Euro Area、Turkey* 与 Turkey 等可能重叠口径，不能直接按列相加"],
-          missing_fields=["global_total", "unit", "aggregation_scope"])
+    add_central_bank_changes(b)
     futures = tables.get(("黄金期货.csv", None))
     required = ["时间", "合约", "持仓量（吨）", "交易量（吨）"]
     aggregate = pd.DataFrame(columns=["时间", "持仓量（吨）", "交易量（吨）"])
