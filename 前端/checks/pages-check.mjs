@@ -20,7 +20,7 @@ await page.route('**/*', route => {
   return route.continue()
 })
 async function loaded(p = page) {
-  await p.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled && document.querySelectorAll('#comex canvas').length === 2)
+  await p.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled && document.querySelectorAll('#daily-brief .daily-card').length === 9)
 }
 async function layout(width) {
   await page.setViewportSize({ width, height: 1000 })
@@ -68,12 +68,14 @@ try {
   assert.equal(await page.locator('.page-tabs button[aria-selected="true"]').textContent(), '每日速递')
   assert.equal(await page.locator('#daily-brief .daily-card').count(), 9)
   await page.getByRole('tab', { name: '国内', exact: true }).click()
+  await loaded()
   await page.waitForTimeout(200)
   for (const id of ['central-bank', 'au-td', 'futures', 'domestic-etf']) {
     await page.locator('#' + id + ' canvas').first().waitFor()
     assert.ok(await chartInk('#' + id + ' canvas') > 15, id + ' 图表应包含真实绘制内容')
   }
   await page.getByRole('tab', { name: '国外' }).click()
+  await loaded()
   await page.waitForTimeout(250)
   for (const id of ['positions', 'spdr', 'london', 'comex', 'global-etf']) {
     await page.locator('#' + id + ' canvas').first().waitFor()
@@ -149,21 +151,21 @@ try {
   assert.ok(linked[1].includes('较基期') && linked[1].includes('指数'))
   await page.mouse.move(0, 0)
   const before = await page.locator('#comex .comex-value').textContent()
-  const count = requests.filter(r => r.url.includes('snapshot.json')).length
+  const count = requests.filter(r => r.url.includes('bootstrap.json')).length
   await page.getByRole('button', { name: '重新加载展示数据' }).click()
   await loaded()
-  assert.equal(requests.filter(r => r.url.includes('snapshot.json')).length, count + 1)
+  assert.equal(requests.filter(r => r.url.includes('bootstrap.json')).length, count + 1)
   assert.equal(await page.locator('#comex .comex-value').textContent(), before)
   assert.ok((await page.locator('.alert.success').textContent()).includes('已重新读取已发布的展示数据'))
   assert.deepEqual(blocked, [], '展示版不应尝试访问 API 或外部服务')
   assert.ok(requests.every(r => r.method === 'GET' && new URL(r.url).pathname.startsWith(target.pathname)))
   assert.deepEqual(errors, [])
   assert.deepEqual(consoleErrors, [])
-  await page.route('**/data/snapshot.json', route => route.abort('failed'))
+  await page.route('**/data/bootstrap.json', route => route.fulfill({ status: 503, body: 'Unavailable' }))
   await page.getByRole('button', { name: '重新加载展示数据' }).click()
   await page.getByRole('alert').filter({ hasText: '重新加载失败' }).waitFor()
   assert.equal(await page.locator('#comex .comex-value').textContent(), before)
-  await page.unroute('**/data/snapshot.json')
+  await page.unroute('**/data/bootstrap.json')
   await page.getByRole('button', { name: '重新加载展示数据' }).click()
   await loaded()
   console.log(JSON.stringify({ passed: true, indicators: snapshot.publication.indicator_count, layouts, apiRequests: blocked.length,

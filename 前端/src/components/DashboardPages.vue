@@ -1,5 +1,6 @@
 <script setup>
 import { nextTick, provide, ref } from 'vue'
+const emit = defineEmits(['select'])
 const activePage = ref('daily')
 const pages = [{ id: 'daily', name: '每日速递' }, { id: 'domestic', name: '国内' }, { id: 'foreign', name: '国外' }, { id: 'health', name: '数据健康度' }]
 provide('dashboardActivePage', activePage)
@@ -12,6 +13,7 @@ provide('dashboardNavigate', async (page, section) => {
 async function selectPage(page) {
   if (activePage.value === page) return
   activePage.value = page
+  emit('select', page)
   await nextTick()
   window.dispatchEvent(new Event('dashboard-page-visible'))
 }

@@ -27,6 +27,7 @@ async function chart(page, title, actions = []) {
 }
 async function select(page, name) {
   await page.getByRole('tab', { name, exact: true }).click()
+  await page.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled)
   await page.waitForTimeout(250)
   assert.equal(await page.locator('.page-panel:visible').count(), 1)
   assert.equal(await page.locator('.page-panel:visible').getAttribute('aria-label'), name)
@@ -65,7 +66,7 @@ try {
     page.on('console', m => { if (m.type() === 'error') errors.push(m.text()) })
     page.on('request', r => requests.push(r.url()))
     await page.goto(target.url)
-    await page.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled && document.querySelectorAll('#comex canvas').length === 2)
+    await page.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled && document.querySelectorAll('#daily-brief .daily-card').length === 9)
     assert.deepEqual(await page.locator('.page-tabs button').allTextContents(), ['每日速递', '国内', '国外', '数据健康度'])
     assert.equal(await page.locator('.page-tabs [aria-selected="true"]').textContent(), '每日速递')
     await select(page, '国内')
@@ -156,7 +157,7 @@ try {
     assert.deepEqual(await panel.locator('.section:visible').evaluateAll(nodes => nodes.map(n => n.id)), ['overview', 'au-td'])
     await select(page, '国外')
     assert.equal(await picker.getByLabel('伦敦金银库存', { exact: true }).isChecked(), false)
-    assert.equal(await panel.locator('.section:visible').count(), 7)
+    assert.equal(await panel.locator('.section:visible').count(), await picker.locator('input:checked').count())
     await select(page, '数据健康度')
     assert.equal(await panel.locator('.section:visible').count(), 0, '空选择刷新后也应保留')
     await panel.getByText('请选择要显示的版块', { exact: true }).waitFor()

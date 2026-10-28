@@ -2,6 +2,10 @@ import assert from 'node:assert/strict'
 import { readFile, readdir } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
+import { buildPagesData, chunkLimit } from '../pages-data.mjs'
+import { expandSnapshot } from '../src/static-source.js'
+import { buildDailyBrief, beijingDate } from '../src/daily-brief.js'
+import { gzipSync } from 'node:zlib'
 
 const project = fileURLToPath(new URL('../../', import.meta.url))
 export const snapshotPath = path.join(project, '展示版/数据/data/snapshot.json')
@@ -55,6 +59,27 @@ for (const id of ['gold_price_anchor', 'gold_hv20', 'gold_hv60', 'london_gold_sp
 for (const id of ['domestic_etf_total_shares', 'au_td_close']) assert.ok(ids.has(id), '每日速递应保留合计份额与收盘价缺失占位')
 assert.ok(!ids.has('spdr_close') && !ids.has('spdr_volume') && !ids.has('cftc_trading_volume'))
 assert.ok([...ids].filter(id => /^domestic_/.test(id)).every(id => !id.endsWith('_nav')))
+const prepared = buildPagesData(snapshot)
+const initial = expandSnapshot(prepared.bootstrap.snapshot)
+const full = expandSnapshot(snapshot)
+const flatten = groups => Object.entries(groups).filter(([key]) => key !== 'meta').flatMap(([, group]) => group.indicators)
+assert.deepEqual(buildDailyBrief(flatten(initial), beijingDate(snapshot.generated_at)), buildDailyBrief(flatten(full), beijingDate(snapshot.generated_at)), '首屏精简数据必须保留全部速递数值、日期和比较基准')
+for (const [category, paths] of Object.entries(prepared.bootstrap.categories)) {
+  const rebuilt = prepared.bootstrap.snapshot.groups[category].map(item => ({ ...item, points: [] }))
+  const byId = new Map(rebuilt.map(item => [item.metadata.indicator_id, item]))
+  for (const file of paths) {
+    const content = prepared.assets.get(file)
+    assert.ok(Buffer.byteLength(content) <= chunkLimit)
+    const part = JSON.parse(content)
+    assert.equal(part.generated_at, snapshot.generated_at)
+    for (const segment of part.segments) {
+      const item = byId.get(segment.id)
+      assert.equal(item.points.length, segment.offset)
+      item.points.push(...segment.points)
+    }
+  }
+  assert.deepEqual(rebuilt, snapshot.groups[category], '历史拆分重组必须逐值一致：' + category)
+}
 if (!snapshotOnly) {
   async function walk(dir) {
     const files = []
@@ -71,7 +96,12 @@ if (!snapshotOnly) {
     const content = await readFile(file, 'utf8')
     assert.ok(!forbidden.test(content), '构建产物包含本机地址、路径或接口：' + path.basename(file))
   }
-  assert.equal(files.filter(f => f.endsWith('.json')).length, 1)
+  assert.equal(files.filter(f => f.endsWith('.json')).length, prepared.assets.size + 1)
+  for (const [name, content] of prepared.assets) assert.equal(await readFile(path.join(distPath, name), 'utf8'), content)
+  const html = await readFile(path.join(distPath, 'index.html'), 'utf8')
+  const embedded = html.match(/<script[^>]*id="pages-bootstrap"[^>]*>([\s\S]*?)<\/script>/)?.[1]
+  assert.deepEqual(JSON.parse(embedded), prepared.bootstrap, '首屏数据必须内嵌HTML，无需另行下载JSON')
   assert.deepEqual(JSON.parse(await readFile(path.join(distPath, 'data/snapshot.json'), 'utf8')), snapshot)
 }
-console.log(JSON.stringify({ passed: true, scope: snapshotOnly ? 'snapshot' : 'snapshot-and-built-artifact', indicators: ids.size, rawFilesIncluded: false }))
+console.log(JSON.stringify({ passed: true, scope: snapshotOnly ? 'snapshot' : 'snapshot-and-built-artifact', indicators: ids.size, rawFilesIncluded: false,
+  bootstrapBytes: Buffer.byteLength(JSON.stringify(prepared.bootstrap)), bootstrapGzipBytes: gzipSync(JSON.stringify(prepared.bootstrap)).length, historyChunkLimit: chunkLimit }))

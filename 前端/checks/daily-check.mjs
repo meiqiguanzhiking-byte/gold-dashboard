@@ -125,6 +125,7 @@ try {
     for (const card of model.cards) {
       await p.getByRole('tab', { name: '每日速递', exact: true }).click()
       await p.getByRole('button', { name: card.title + '查看详情', exact: true }).click()
+      await p.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled)
       await p.waitForTimeout(150)
       assert.equal(await p.locator('.page-panel:visible').getAttribute('id'), 'page-panel-' + card.page)
       assert.equal(await p.locator('#' + card.section).isVisible(), true)

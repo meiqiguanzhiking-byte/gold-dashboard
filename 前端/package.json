@@ -10,6 +10,7 @@
     "prebuild:pages": "node checks/pages-artifact.mjs --snapshot-only",
     "preview:pages": "vite preview --mode pages --host 127.0.0.1 --port 4173 --strictPort --base=/pages-preview/",
     "check:pages": "node checks/pages-check.mjs",
+    "check:loading": "node checks/static-loading-check.mjs",
     "check:axes": "node checks/axis-check.mjs",
     "check:price": "node checks/price-check.mjs",
     "check:international-price": "node checks/international-price-check.mjs",

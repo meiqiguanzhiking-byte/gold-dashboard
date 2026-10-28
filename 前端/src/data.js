@@ -58,16 +58,44 @@ export function filteredHistory(item, range, end) {
   return points.filter(p => dateNumber(p.observation_date) >= start && dateNumber(p.observation_date) <= dateNumber(last))
 }
 export function useDashboard() {
-  const blocks = reactive(Object.fromEntries([...categories, 'meta'].map(key => [key, { data: null, loading: true, error: '' }])))
+  const blocks = reactive(Object.fromEntries([...categories, 'meta'].map(key => [key, { data: null, loading: true, error: '', complete: false }])))
   const refreshing = ref(false), reloadError = ref(''), clientRefreshedAt = ref(null), notice = ref('')
-  async function loadBlock(key) {
+  const briefItems = ref(null), briefError = ref('')
+  const jobs = new Map()
+  let activePage = 'daily', initialized = false
+  function loadBlock(key) {
+    if (jobs.has(key)) return jobs.get(key)
     const block = blocks[key]
     block.loading = true
     block.error = ''
-    try { block.data = await request(key) } catch (error) { block.data = null; block.error = error.message } finally { block.loading = false }
+    const job = (async () => {
+      try { block.data = await request(key); block.complete = true }
+      catch (error) { block.error = error.message }
+      finally { block.loading = false; jobs.delete(key) }
+    })()
+    jobs.set(key, job)
+    return job
+  }
+  async function loadPage(page) {
+    activePage = page
+    if (!isStatic || !initialized) return
+    const needed = { domestic: ['price', 'etf', 'au-td', 'futures', 'central-bank'], foreign: ['price', 'etf', 'inventory', 'cftc', 'central-bank'] }[page] || []
+    await Promise.allSettled(needed.filter(key => !blocks[key].complete).map(loadBlock))
   }
   async function loadAll() {
-    await Promise.allSettled([...categories, 'meta'].map(loadBlock))
+    if (isStatic) {
+      try {
+        const initial = await request('bootstrap')
+        for (const key of [...categories, 'meta']) Object.assign(blocks[key], { data: initial[key], loading: false, error: '', complete: key === 'meta' })
+        briefItems.value = categories.flatMap(key => initial[key].indicators)
+        briefError.value = ''
+        initialized = true
+        await loadPage(activePage)
+      } catch (error) {
+        briefError.value = error.message
+        for (const block of Object.values(blocks)) { block.error = error.message; block.loading = false }
+      }
+    } else await Promise.allSettled([...categories, 'meta'].map(loadBlock))
     clientRefreshedAt.value = new Date().toISOString()
   }
   async function refresh() {
@@ -82,8 +110,12 @@ export function useDashboard() {
     } catch (error) { reloadError.value = '重新加载失败：' + error.message + '。页面保留上次数据。' } finally { refreshing.value = false }
   }
   const all = computed(() => categories.flatMap(category => blocks[category].data?.indicators || []))
+  const dailyItems = computed(() => isStatic ? briefItems.value || [] : all.value)
+  const dailyBlocks = computed(() => isStatic ? Object.fromEntries(categories.map(key => [key,
+    { loading: !briefItems.value && !briefError.value, error: briefError.value },
+  ])) : blocks)
   const index = computed(() => Object.fromEntries(all.value.map(item => [item.metadata.indicator_id, item])))
   function item(id) { return index.value[id] }
   const meta = computed(() => blocks.meta.data)
-  return { blocks, refreshing, reloadError, clientRefreshedAt, notice, all, meta, item, loadAll, refresh, loadBlock }
+  return { blocks, refreshing, reloadError, clientRefreshedAt, notice, all, dailyItems, dailyBlocks, meta, item, loadAll, loadPage, refresh, loadBlock }
 }

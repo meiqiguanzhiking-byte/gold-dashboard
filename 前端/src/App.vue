@@ -16,7 +16,7 @@ import DashboardSection from './components/DashboardSection.vue'
 import { centralBankEntityName } from './central-bank-names.js'
 import { useDashboard, isStatic, categoryNames, format, localTime, regions, regionColors, palette, numeric, sortHealthSources } from './data.js'
 
-const { blocks, meta, all, item, refreshing, reloadError, clientRefreshedAt, notice, loadAll, refresh, loadBlock } = useDashboard()
+const { blocks, meta, all, dailyItems, dailyBlocks, item, refreshing, reloadError, clientRefreshedAt, notice, loadAll, loadPage, refresh, loadBlock } = useDashboard()
 const coreCards = [
   { id: 'gold_price_anchor', category: 'price', label: '上金所Au99.99收盘价', price: true },
   { id: 'gold-volatility', category: 'price', volatility: true },
@@ -52,7 +52,7 @@ const overseasNote = '北京时间15:30结束的半小时K线收盘价；伦敦�
 const withheldReason = id => item(id)?.metadata.publication_withheld ? '数据暂缺：来源公开使用尚未确认，静态版不发布该指标及派生数值。' : ''
 const spreadNote = computed(() => {
   const m = item('gold_domestic_spread')?.metadata
-  return withheldReason('gold_domestic_spread') || `按相同观察日期匹配Au99.99收盘价、北京时间15:30海外金价及汇率；最新有效观察 ${m?.latest_valid_date || '数据暂缺'}。缺任一项保留断点，不前值填充；折算使用CNH，含CNH/CNY口径差异。`
+  return withheldReason('gold_domestic_spread') || `按相同观察日期匹配Au99.99收盘价、北京时间15:30海外金价及汇率；最新有效观察 ${m?.latest_valid_date || '数据暂缺'}。折线跳过空值连接前后有效数据，不补值；折算使用CNH，含CNH/CNY口径差异。`
 })
 
 const etfTab = ref('weekly'), selectedFunds = ref([]), selectedRegions = ref(regions.map(r => r.id)), flowUnit = ref('tonnes')
@@ -104,11 +104,11 @@ onMounted(loadAll)
       <section class="page-intro"><div><p class="eyebrow">PRECIOUS METALS / 黄金研究</p><h1>黄金市场指标看板</h1><p class="intro-note">从交易、持仓与资金流观察黄金市场</p></div><button class="refresh-button" :disabled="refreshing || pending" @click="refresh"><span :class="{ spinning: refreshing }">↻</span>{{ refreshing ? '正在重新加载…' : isStatic ? '重新加载展示数据' : '刷新真实数据' }}</button></section>
       <p v-if="isStatic" class="static-notice">静态展示版：数据不会随电脑中的文件自动更新。重新加载仅读取已发布的快照；观察日期和口径以各指标标注为准。网页中的真实数值和历史序列可被访问或下载。</p>
       <div class="data-summary"><span>数据截至 <strong>{{ asOf }}</strong><small>各来源频率不同</small></span><span v-if="isStatic">快照生成 <strong>{{ localTime(meta?.generated_at) }}</strong><small>北京时间</small></span><span>{{ isStatic ? '页面读取' : '最近刷新' }} <strong>{{ localTime(clientRefreshedAt) }}</strong></span><span class="summary-status"><i :class="{ warning: failures.length || missingCount }"></i>{{ pending ? '读取中' : failures.length ? failures.length + (isStatic ? ' 个区域读取异常' : ' 个接口异常') : isStatic ? '展示数据已载入' : '接口已连接' }}<small v-if="!pending">{{ missingCount }} 项数据缺失 · {{ countStatus('滞后') }} 项滞后{{ isStatic ? '（快照生成时）' : '' }}</small></span></div>
-      <DashboardPages>
+      <DashboardPages @select="loadPage">
       <div v-if="reloadError" class="alert error" role="alert">{{ reloadError }}</div><div v-else-if="notice" class="alert success" role="status">{{ notice }}</div>
       <div v-for="[key, block] in failures" :key="key" class="alert error" role="alert"><span>{{ categoryNames[key] }}{{ isStatic ? '展示数据读取失败' : '接口失败' }}：{{ block.error }}。其他区域可继续查看。</span><button class="text-button" :disabled="block.loading" @click="loadBlock(key)">{{ isStatic ? '重试此区域' : '重试此接口' }}</button></div>
 
-      <DashboardPage page="daily" label="每日速递" :pickable="false"><DailyBrief :items="all" :meta="meta" :blocks="blocks" /></DashboardPage>
+      <DashboardPage page="daily" label="每日速递" :pickable="false"><DailyBrief :items="dailyItems" :meta="meta" :blocks="dailyBlocks" /></DashboardPage>
       <DashboardPage page="domestic" label="国内">
       <DashboardSection id="overview" title="国内核心指标"><div class="section-heading"><div><span class="section-number">概览</span><h2>国内核心指标</h2></div><span>不同观察频率独立显示</span></div><div class="metric-grid core-grid"><template v-for="card in domesticCards" :key="card.id"><VolatilityCard v-if="card.volatility" :items="[item('gold_hv20'), item('gold_hv60')]" :loading="blocks.price.loading" :error="blocks.price.error" /><MetricCard v-else :item="item(card.id)" :label="card.label" :price="card.price" :loading="blocks[card.category].loading" :error="blocks[card.category].error" /></template></div><p class="section-footnote">卡片日期为各指标观察日期，刷新时间不代表数据发布日期。</p></DashboardSection>
 
@@ -119,9 +119,9 @@ onMounted(loadAll)
         <div class="chart-grid">
           <ChartPanel title="上金所Au99.99收盘价（元/克）" description="上金所交易日期收盘价；人民币元/克" :series="[line('gold_price_anchor', 'Au99.99收盘价', '#287985')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="priceWithheld ? priceNote : ''" :note="priceNote" />
           <ChartPanel title="20日与60日年化历史波动率（%）" description="上游计算结果；切换区间不重新计算波动率" :series="[line('gold_hv20', '20日年化历史波动率', '#287985'), line('gold_hv60', '60日年化历史波动率', '#ad945b')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="priceWithheld ? priceNote : ''" note="缺值或收益窗口不足时显示数据不足；不按零处理，不前值填充" />
-          <ChartPanel class="wide" title="国内外价差（元/克）" description="Au99.99 − 海外金价人民币折算值；同日期匹配，北京时间15:30海外价格及汇率" :series="[line('gold_domestic_spread', '国内外价差', '#287985')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('gold_domestic_spread')" :note="spreadNote" />
+          <ChartPanel class="wide" title="黄金现价价差（元/克）" description="Au99.99 − 海外金价人民币折算值；同日期匹配，北京时间15:30海外价格及汇率" :series="[line('gold_domestic_spread', '黄金现价价差', '#287985', { connectNulls: true })]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('gold_domestic_spread')" :note="spreadNote" />
         </div>
-        <p class="section-footnote">国内外价差＝Au99.99（元/克）−伦敦金现（美元/金衡盎司）×USDCNH（CNH/美元）÷31.1034768。1金衡盎司＝31.1034768克。仅比较同名日期各自收盘，包含CNH/CNY口径差异，不代表同步溢价或可交易套利空间。</p>
+        <p class="section-footnote">黄金现价价差＝Au99.99（元/克）−伦敦金现（美元/金衡盎司）×USDCNH（CNH/美元）÷31.1034768。1金衡盎司＝31.1034768克。仅比较同名日期各自收盘，包含CNH/CNY口径差异，不代表同步溢价或可交易套利空间。</p>
         <p class="section-footnote">方法：日对数收益率、20/60个交易观测收益率、样本标准差（ddof=1）、252日年化；只读取上游结果。窗口不足或源值缺失时保持数据暂缺。</p>
         <p v-if="!priceWithheld" class="section-footnote">来源：黄金现货价格.xlsx / 黄金现货价格 · 文件更新 {{ localTime(item('gold_price_anchor')?.metadata.updated_at) }} · 缓存加载 {{ localTime(blocks.price.data?.loaded_at) }} · 发布日期未知（null）。</p>
       </DashboardSection>

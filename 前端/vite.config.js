@@ -1,12 +1,13 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { fileURLToPath } from 'node:url'
+import { pagesDataPlugin } from './pages-data.mjs'
 
 export default defineConfig(({ mode }) => ({
   base: mode === 'pages' ? './' : '/',
   publicDir: mode === 'pages' ? '../展示版/数据' : 'public',
   resolve: { alias: [{ find: /^\.\/live-source\.js$/, replacement: fileURLToPath(new URL(mode === 'pages' ? './src/static-source.js' : './src/live-source.js', import.meta.url)) }] },
-  plugins: [vue()],
+  plugins: [vue(), ...(mode === 'pages' ? [pagesDataPlugin()] : [])],
   server: {
     port: 5173,
     strictPort: true,
