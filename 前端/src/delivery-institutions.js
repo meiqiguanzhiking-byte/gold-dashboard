@@ -1,0 +1,100 @@
+// 精确匹配原表名称；会员编号和C/H不改写，也不跨机构合并。
+// 中文为品牌名称及业务词释义，不将原表简称补写成未经核实的法定全称。
+export const deliveryNameSources = [
+  { title: 'CME 清算会员目录', url: 'https://www.cmegroup.com/tools-information/clearing-firms.html' },
+  { title: 'ICE Clear US 会员及分部目录', url: 'https://status.ice.com/clear-us/membership' },
+  { title: '海峡金融官方中文介绍', url: 'https://straitsfinancial.com/cn/about-us-c/' },
+  { title: '城堡证券官方中文介绍', url: 'https://www.citadelsecurities.com/zh-hans/' },
+  { title: 'Plus500 官方公司历史', url: 'https://us.plus500.com/en/aboutus/ourhistory' },
+]
+
+const names = {
+  '072 GOLDMAN': '高盛公司',
+  '092 DEUTSCHE BANK': '德意志银行证券',
+  '099 DEUTSCHE BANK AG': '德意志银行股份公司',
+  '104 MIZUHO SECURITIES US': '瑞穗证券（美国）',
+  '118 MACQUARIE FUTURES US': '麦格理期货（美国）',
+  '132 SG AMERICAS': '法国兴业美洲证券',
+  '152 DORMAN TRADING, LLC': 'Dorman交易公司',
+  '167 MAREX': 'Marex资本市场167分部',
+  '190 BMO CAPITAL MARKETS': '蒙特利尔银行资本市场',
+  '273 CITADEL SECURIT': '城堡证券',
+  '323 HSBC': '汇丰证券（美国）',
+  '332 STANDARD CHARTERED B': '渣打银行',
+  '357 WEDBUSH SECURITIES': 'Wedbush证券',
+  '363 WELLS FARGO SECURITI': '富国银行证券',
+  '365 MAREX CAPITAL MARKET': 'Marex资本市场',
+  '407 STRAITS FINANCIAL': '海峡金融',
+  '435 SCOTIA CAPITAL (USA)': '丰业资本（美国）',
+  '523 INTERACTIVE BROKERS': '盈透证券',
+  '555 BNP PARIBAS SEC CORP': '法国巴黎银行证券',
+  '624 BOFA SECURITIES': '美银证券',
+  '657 MORGAN STANLEY': '摩根士丹利',
+  '661 JP MORGAN SECURITIES': '摩根大通证券',
+  '685 RJ OBRIEN': "R.J. O’Brien公司",
+  '686 STONEX FINANCIAL INC': 'StoneX金融公司',
+  '690 ABN AMRO CLR USA LLC': '荷兰银行清算（美国）',
+  '700 UBS SECURITIES LLC': '瑞银证券（美国）',
+  '709 BARCLAYS': '巴克莱资本',
+  '726 PLUS500US FINANCIAL': 'Plus500美国金融',
+  '730 PTG DIVISION OF SGAS': '法国兴业美洲证券PTG分部',
+  '732 RBC CAP MARKETS': '加拿大皇家银行资本市场',
+  '737 ADVANTAGE FUTURES': 'Advantage期货公司',
+  '800 MAREX SPEC': 'Marex SPEC分部',
+  '845 GOLDMAN SACHS CLEARI': '高盛清算分部',
+  '880 CITIGROUP': '花旗环球市场',
+  '905 ADM': 'ADM投资服务',
+  '991 CME': '芝商所（CME）',
+}
+
+// 以会员名录核对实体/分部，避免把美国证券公司误指为集团母公司或境内同名公司。
+const clearingNames = {
+  '072 GOLDMAN': 'Goldman Sachs & Co. LLC',
+  '092 DEUTSCHE BANK': 'Deutsche Bank Securities Inc.',
+  '099 DEUTSCHE BANK AG': 'Deutsche Bank AG',
+  '104 MIZUHO SECURITIES US': 'Mizuho Securities USA LLC',
+  '118 MACQUARIE FUTURES US': 'Macquarie Futures USA LLC',
+  '132 SG AMERICAS': 'SG Americas Securities LLC',
+  '152 DORMAN TRADING, LLC': 'Dorman Trading, LLC',
+  '167 MAREX': 'Marex Capital Markets Inc. — 167 division',
+  '190 BMO CAPITAL MARKETS': 'BMO Capital Markets Corp.',
+  '273 CITADEL SECURIT': 'Citadel Securities LLC',
+  '323 HSBC': 'HSBC Securities (USA) Inc.',
+  '332 STANDARD CHARTERED B': 'Standard Chartered Bank',
+  '357 WEDBUSH SECURITIES': 'Wedbush Securities Inc.',
+  '363 WELLS FARGO SECURITI': 'Wells Fargo Securities, LLC',
+  '365 MAREX CAPITAL MARKET': 'Marex Capital Markets Inc.',
+  '407 STRAITS FINANCIAL': 'Straits Financial LLC',
+  '435 SCOTIA CAPITAL (USA)': 'Scotia Capital (USA) Inc.',
+  '523 INTERACTIVE BROKERS': 'Interactive Brokers LLC',
+  '555 BNP PARIBAS SEC CORP': 'BNP Paribas Securities Corp.',
+  '624 BOFA SECURITIES': 'BofA Securities, Inc.',
+  '657 MORGAN STANLEY': 'Morgan Stanley & Co. LLC',
+  '661 JP MORGAN SECURITIES': 'J.P. Morgan Securities LLC',
+  '685 RJ OBRIEN': "R.J. O’Brien & Associates, LLC",
+  '686 STONEX FINANCIAL INC': 'StoneX Financial Inc.',
+  '690 ABN AMRO CLR USA LLC': 'ABN AMRO Clearing USA LLC',
+  '700 UBS SECURITIES LLC': 'UBS Securities LLC',
+  '709 BARCLAYS': 'Barclays Capital Inc.',
+  '726 PLUS500US FINANCIAL': 'Plus500US Financial Services LLC',
+  '730 PTG DIVISION OF SGAS': 'SG Americas Securities LLC — PTG division',
+  '732 RBC CAP MARKETS': 'RBC Capital Markets, LLC',
+  '737 ADVANTAGE FUTURES': 'Advantage Futures LLC',
+  '800 MAREX SPEC': 'Marex Capital Markets Inc. — 800 division; source label MAREX SPEC',
+  '845 GOLDMAN SACHS CLEARI': 'Goldman Sachs & Co. LLC — 845 division; source label GOLDMAN SACHS CLEARI',
+  '880 CITIGROUP': 'Citigroup Global Markets Inc.',
+  '905 ADM': 'ADM Investor Services, Inc.',
+}
+
+export function deliveryInstitution(institution, chinese = false) {
+  const match = /^(\d{3}) (.+) \[([CH])\]$/.exec(institution)
+  const key = match ? `${match[1]} ${match[2]}` : institution
+  const translated = names[key]
+  return {
+    original: institution,
+    label: chinese && translated ? `${match[1]} ${translated} [${match[3]}]` : institution,
+    translated: Boolean(translated),
+    clearingName: clearingNames[key] || null,
+    account: match?.[3] === 'H' ? 'H（自营账户）' : match?.[3] === 'C' ? 'C（客户账户）' : '账户类型未提供',
+  }
+}

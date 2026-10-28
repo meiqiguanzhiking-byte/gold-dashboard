@@ -3,7 +3,7 @@ import { chromium } from 'playwright'
 
 const targets = [
   { mode: 'dynamic', url: process.env.GOLD_FRONTEND_URL || 'http://127.0.0.1:5173/' },
-  { mode: 'static', url: process.env.GOLD_PAGES_URL || 'http://127.0.0.1:4173/gold-dashboard/' },
+  { mode: 'static', url: process.env.GOLD_PAGES_URL || 'http://127.0.0.1:4173/pages-preview/' },
 ]
 const browser = await chromium.launch({ channel: 'msedge', headless: true, args: ['--disable-breakpad', '--disable-logging'] })
 const results = []
@@ -66,8 +66,9 @@ try {
     page.on('request', r => requests.push(r.url()))
     await page.goto(target.url)
     await page.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled && document.querySelectorAll('#comex canvas').length === 2)
-    assert.deepEqual(await page.locator('.page-tabs button').allTextContents(), ['国内', '国外', '数据健康度'])
-    assert.equal(await page.locator('.page-tabs [aria-selected="true"]').textContent(), '国内')
+    assert.deepEqual(await page.locator('.page-tabs button').allTextContents(), ['每日速递', '国内', '国外', '数据健康度'])
+    assert.equal(await page.locator('.page-tabs [aria-selected="true"]').textContent(), '每日速递')
+    await select(page, '国内')
     assert.equal(await page.locator('.page-panel:visible').count(), 1)
     assert.equal(await page.locator('#positions:visible,#health:visible').count(), 0)
     const domesticTitle = '境内黄金 ETF 分基金资产规模（亿元）'
@@ -150,6 +151,8 @@ try {
     await picker.getByRole('button', { name: '清空', exact: true }).click()
     await page.reload()
     await page.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled)
+    assert.equal(await page.locator('.page-tabs [aria-selected="true"]').textContent(), '每日速递')
+    await select(page, '国内')
     assert.deepEqual(await panel.locator('.section:visible').evaluateAll(nodes => nodes.map(n => n.id)), ['overview', 'au-td'])
     await select(page, '国外')
     assert.equal(await picker.getByLabel('伦敦金银库存', { exact: true }).isChecked(), false)
@@ -165,7 +168,7 @@ try {
     }
     for (const width of [1280, 1440]) for (const name of ['国内', '国外', '数据健康度']) await layout(page, name, width)
     assert.deepEqual(errors, [])
-    if (target.mode === 'static') assert.ok(requests.every(url => new URL(url).pathname.startsWith('/gold-dashboard/') && !/\/api(?:\/|$)/.test(new URL(url).pathname)))
+    if (target.mode === 'static') assert.ok(requests.every(url => new URL(url).pathname.startsWith(new URL(target.url).pathname) && !/\/api(?:\/|$)/.test(new URL(url).pathname)))
     results.push({ mode: target.mode, retained: ['time-range', 'legend', 'filters', 'zoom', 'chart-instance', 'health-pagination'], sections: ['actual-titles', 'all-by-default', 'immediate-toggle', 'empty-and-restore', 'independent-pages', 'reload-persistence', 'hidden-chart-state', 'natural-order'], layouts: [390, 1280, 1440], errors })
     await page.close()
   }

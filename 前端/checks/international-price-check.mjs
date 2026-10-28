@@ -73,6 +73,8 @@ try {
     page.on('request', r => requests.push(r.url()))
     await page.goto(url)
     await page.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled)
+    await page.getByRole('tab', { name: '国内', exact: true }).click()
+    await page.waitForTimeout(200)
     const domesticRects = await page.locator('#gold-price .chart-panel').evaluateAll(nodes => nodes.map(n => { const r = n.getBoundingClientRect(); return { left: r.left, top: r.top, right: r.right, bottom: r.bottom } }))
     assert.ok(domesticRects[2].top > domesticRects[0].bottom && domesticRects[2].top > domesticRects[1].bottom)
     assert.equal(domesticRects[2].left, domesticRects[0].left)

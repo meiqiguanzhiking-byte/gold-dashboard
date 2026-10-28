@@ -8,6 +8,7 @@ import { adaptiveYAxis, axisTransition, timeZoom } from '../adaptive-axis.js'
 const props = defineProps({ title: String, description: String, series: { type: Array, default: () => [] }, loading: Boolean, error: String, reason: String, note: String, tooltipDetails: Function, range: { type: String, default: '1Y' }, fixedRange: Boolean })
 const localRange = ref(props.range), el = ref(null)
 let chart, resizeObserver, adaptive
+let previousDates = '', previousRange = ''
 const axisInfo = ref('')
 const hasLines = computed(() => available.value.some(s => !s.type || s.type === 'line'))
 const available = computed(() => props.series.filter(s => s.item))
@@ -32,6 +33,12 @@ async function draw() {
   await nextTick()
   if (emptyReason.value || !el.value) { adaptive?.dispose(); adaptive = null; chart?.dispose(); chart = null; axisInfo.value = ''; return }
   if (!chart) { chart = echarts.init(el.value); adaptive = adaptiveYAxis(chart) }
+  const prior = chart.getOption()
+  const dateSignature = dates.value.join('|')
+  // 父级版块显示/隐藏会生成新的series数组；日期和区间未变时保留用户缩放。
+  const preserveZoom = previousDates === dateSignature && previousRange === localRange.value
+  const zoom = timeZoom().map((z, index) => preserveZoom && prior?.dataZoom?.[index]
+    ? { ...z, start: prior.dataZoom[index].start, end: prior.dataZoom[index].end } : z)
   const pointMaps = histories.value.map(h => new Map(h.map(p => [p.observation_date, p])))
   const axisCount = Math.max(...available.value.map(s => s.yAxisIndex || 0)) + 1
   const series = available.value.map((s, index) => ({
@@ -53,18 +60,21 @@ async function draw() {
     } },
     xAxis: { type: 'category', data: dates.value, boundaryGap: available.value.some(s => s.type === 'bar'), axisTick: { show: false }, axisLine: { lineStyle: { color: '#d8e0e0' } }, axisLabel },
     yAxis: Array.from({ length: axisCount }, (_, index) => ({ type: 'value', name: [...new Set(available.value.filter(s => (s.yAxisIndex || 0) === index).map(s => s.item.metadata.unit))].join(' / '), position: index ? 'right' : 'left', nameTextStyle: { color: '#718082', fontSize: 10, align: index ? 'right' : 'left' }, nameLocation: 'end', axisLabel: { ...axisLabel, show: true, hideOverlap: false }, splitLine: { show: index === 0, lineStyle: { color: '#edf1f0' } }, axisLine: { show: true, onZero: true, lineStyle: { color: '#adbdbd' } } })),
-    dataZoom: timeZoom(),
+    dataZoom: zoom,
     series,
   }, true)
+  previousDates = dateSignature
+  previousRange = localRange.value
   adaptive.reset({ dates: dates.value, series, axisCount, onChange({ windows, extents }) {
     const [start, end] = windows[0]
     axisInfo.value = !extents.some(e => !e.empty) ? '可见区间内无已启用的有效数据' : `可见 ${dates.value[start]} — ${dates.value[end]} · ${extents.every(e => e.zeroBaseline) ? '柱状/堆叠轴保留零基线' : '折线纵轴按可见数据自适应，请结合刻度判断幅度'}`
   } })
 }
 function resetZoom() { chart?.dispatchAction({ type: 'dataZoom', start: 0, end: 100 }) }
-function refreshPageChart() { nextTick(() => chart?.resize()) }
+function resizeVisibleChart() { if (el.value?.clientWidth && el.value?.clientHeight) chart?.resize() }
+function refreshPageChart() { nextTick(resizeVisibleChart) }
 watch([() => props.series, () => props.loading, () => props.error, () => props.reason, localRange], draw, { deep: true })
-onMounted(() => { draw(); window.addEventListener('dashboard-page-visible', refreshPageChart); resizeObserver = new ResizeObserver(() => chart?.resize()); if (el.value) resizeObserver.observe(el.value) })
+onMounted(() => { draw(); window.addEventListener('dashboard-page-visible', refreshPageChart); resizeObserver = new ResizeObserver(resizeVisibleChart); if (el.value) resizeObserver.observe(el.value) })
 onBeforeUnmount(() => { window.removeEventListener('dashboard-page-visible', refreshPageChart); resizeObserver?.disconnect(); adaptive?.dispose(); chart?.dispose() })
 </script>
 <template>

@@ -35,6 +35,8 @@ const browser = await chromium.launch({ channel: 'msedge', headless: true, args:
 const errors = [], layouts = [], blocked = []
 async function ready(page) {
   await page.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled && document.querySelectorAll('#comex canvas').length === 2)
+  await page.getByRole('tab', { name: '国内', exact: true }).click()
+  await page.waitForTimeout(150)
 }
 async function layout(page, mode) {
   for (const width of [1280, 1440]) {

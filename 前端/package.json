@@ -14,6 +14,8 @@
     "check:price": "node checks/price-check.mjs",
     "check:international-price": "node checks/international-price-check.mjs",
     "check:central-bank": "node checks/central-bank-check.mjs",
+    "check:delivery": "node checks/delivery-check.mjs",
+    "check:daily": "node checks/daily-check.mjs",
     "check:tabs": "node checks/page-tabs-check.mjs",
     "check:ui": "node checks/ui-check.mjs"
   },

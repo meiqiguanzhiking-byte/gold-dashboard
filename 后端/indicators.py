@@ -142,6 +142,11 @@ def build_indicators(tables):
         ("au_td_volume", "Au(T+D) 成交量", "交易量（吨）", "吨"),
         ("au_td_delivery_direction", "Au(T+D) 交收方向", "交收方向", "文本"),
     ])
+    autd = tables.get(("AuTD.csv", None))
+    b.add("au-td", "au_td_close", "Au(T+D) 收盘价", "元/克", "日度", "AuTD.csv",
+          values=[None] * len(autd.frame) if autd else None,
+          warnings=["已核对现有AuTD.csv表头：仅有时间、交收方向、持仓量和交易量，未提供收盘价；不以Au99.99价格替代。"],
+          missing_fields=["close_price"], price_basis="Au(T+D)收盘价数据暂缺")
     b.columns("cftc", "CFTC黄金非商业持仓量.csv", None, "周度", [
         ("cftc_total", "CFTC 市场总持仓", "市场总持仓（吨）", "吨"),
         ("cftc_long", "CFTC 非商业多头持仓", "非商业多头持仓（吨）", "吨"),
@@ -185,6 +190,12 @@ def build_indicators(tables):
           values=strict_sum(domestic.frame, asset_columns) if domestic else None,
           warnings=["仅覆盖表中 7 只基金；任一基金当日规模缺失时合计为空"],
           calculation="同日七只基金原始资产规模之和", component_columns=asset_columns)
+    share_columns = [f"{fund}{code}\n份额（万份）" for fund, code in funds]
+    b.add("etf", "domestic_etf_total_shares", "境内 7 只黄金 ETF 合计份额", "万份", "日度",
+          "黄金ETF份额.xlsx", "份额净值及资产规模",
+          values=strict_sum(domestic.frame, share_columns) if domestic else None,
+          warnings=["与合计资产规模覆盖同一7只基金；同日份额相加，任一基金缺失则合计为空；份额变化不是资金净流入。"],
+          calculation="同日七只基金原始份额之和", component_columns=share_columns)
     for sheet, frequency, suffix in [("周度数据", "周度", "weekly"), ("月度数据", "月度", "monthly")]:
         flow = tables.get(("全球黄金ETF流量.xlsx", sheet))
         for region_id, region in [("north_america", "北美"), ("europe", "欧洲"), ("asia", "亚洲"), ("other", "其他")]:

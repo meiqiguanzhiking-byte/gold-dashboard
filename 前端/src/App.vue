@@ -6,11 +6,14 @@ import StatusBadge from './components/StatusBadge.vue'
 import RankingChart from './components/RankingChart.vue'
 import FlowHeatmap from './components/FlowHeatmap.vue'
 import ComexInventory from './components/ComexInventory.vue'
+import ComexDelivery from './components/ComexDelivery.vue'
 import VolatilityCard from './components/VolatilityCard.vue'
 import AutdFeeTable from './components/AutdFeeTable.vue'
+import DailyBrief from './components/DailyBrief.vue'
 import DashboardPages from './components/DashboardPages.vue'
 import DashboardPage from './components/DashboardPage.vue'
 import DashboardSection from './components/DashboardSection.vue'
+import { centralBankEntityName } from './central-bank-names.js'
 import { useDashboard, isStatic, categoryNames, format, localTime, regions, regionColors, palette, numeric, sortHealthSources } from './data.js'
 
 const { blocks, meta, all, item, refreshing, reloadError, clientRefreshedAt, notice, loadAll, refresh, loadBlock } = useDashboard()
@@ -71,6 +74,8 @@ const flowSeries = computed(() => regions.filter(r => selectedRegions.value.incl
 const countryItems = computed(() => (blocks['central-bank'].data?.indicators || []).filter(i => i.metadata.country && i.metadata.aggregation_included))
 const countryMonths = computed(() => [...new Set(countryItems.value.flatMap(i => i.history.map(p => p.observation_date)))].sort().reverse())
 const countryMonth = ref('')
+const chineseCentralNames = ref(false)
+const centralName = computed(() => { const chinese = chineseCentralNames.value; return name => centralBankEntityName(name, chinese) })
 watch(countryMonths, months => { if (!countryMonth.value || !months.includes(countryMonth.value)) countryMonth.value = months[0] || '' })
 const countryRows = computed(() => countryItems.value.map(i => ({ name: i.metadata.country, item: i, point: i.history.find(p => p.observation_date === countryMonth.value) })).filter(r => numeric(r.point)))
 const buying = computed(() => countryRows.value.filter(r => r.point.value > 0).sort((a, b) => b.point.value - a.point.value))
@@ -103,6 +108,7 @@ onMounted(loadAll)
       <div v-if="reloadError" class="alert error" role="alert">{{ reloadError }}</div><div v-else-if="notice" class="alert success" role="status">{{ notice }}</div>
       <div v-for="[key, block] in failures" :key="key" class="alert error" role="alert"><span>{{ categoryNames[key] }}{{ isStatic ? '展示数据读取失败' : '接口失败' }}：{{ block.error }}。其他区域可继续查看。</span><button class="text-button" :disabled="block.loading" @click="loadBlock(key)">{{ isStatic ? '重试此区域' : '重试此接口' }}</button></div>
 
+      <DashboardPage page="daily" label="每日速递" :pickable="false"><DailyBrief :items="all" :meta="meta" :blocks="blocks" /></DashboardPage>
       <DashboardPage page="domestic" label="国内">
       <DashboardSection id="overview" title="国内核心指标"><div class="section-heading"><div><span class="section-number">概览</span><h2>国内核心指标</h2></div><span>不同观察频率独立显示</span></div><div class="metric-grid core-grid"><template v-for="card in domesticCards" :key="card.id"><VolatilityCard v-if="card.volatility" :items="[item('gold_hv20'), item('gold_hv60')]" :loading="blocks.price.loading" :error="blocks.price.error" /><MetricCard v-else :item="item(card.id)" :label="card.label" :price="card.price" :loading="blocks[card.category].loading" :error="blocks[card.category].error" /></template></div><p class="section-footnote">卡片日期为各指标观察日期，刷新时间不代表数据发布日期。</p></DashboardSection>
 
@@ -207,18 +213,19 @@ onMounted(loadAll)
 
       <DashboardSection id="global-central-bank" title="全球央行购金">
         <div class="section-heading"><div><span class="section-number">10</span><h2>全球央行购金</h2></div><StatusBadge status="月度" /></div>
-        <div class="filter-bar country-filter"><label>数据月份<select v-model="countryMonth" aria-label="央行购金排名月份"><option v-for="month in countryMonths" :key="month" :value="month">{{ month }}</option></select></label><span class="central-report-count">报告机构数：{{ format(reportedCount, 0) }} / {{ centralScope?.included_entities.length || '未提供' }}</span><span>纳入范围内 {{ undisclosed }} 个实体该期缺失或未通过核验；不计作零</span></div>
+        <div class="filter-bar country-filter"><label>数据月份<select v-model="countryMonth" aria-label="央行购金排名月份"><option v-for="month in countryMonths" :key="month" :value="month">{{ month }}</option></select></label><label><input v-model="chineseCentralNames" type="checkbox" aria-label="全球央行购金名称翻译中文">国家/地区名称翻译中文</label><span class="central-report-count">报告机构数：{{ format(reportedCount, 0) }} / {{ centralScope?.included_entities.length || '未提供' }}</span><span>纳入范围内 {{ undisclosed }} 个实体该期缺失或未通过核验；不计作零</span></div>
         <p class="central-month-summary">{{ countryMonth || '数据月份暂缺' }} · 买入量 {{ format(centralPoint('global_central_bank_gross_purchases')) }} 吨 · 卖出量 {{ format(centralPoint('global_central_bank_gross_sales')) }} 吨 · 净买入 {{ format(centralPoint('global_central_bank_net_purchases')) }} 吨</p>
         <div class="chart-grid">
           <ChartPanel title="全球黄金储备净变化合计（吨）" description="已报告月度净变化：正值合计在零轴上方、负值合计在下方，折线表示净买入；同一吨数轴" :series="[line('global_central_bank_gross_purchases', '买入量（正变化合计）', '#78b6cf', { type: 'bar', stack: 'official-changes' }), line('global_central_bank_gross_sales', '卖出量（负变化合计）', '#8b72a0', { type: 'bar', stack: 'official-changes' }), line('global_central_bank_net_purchases', '净买入', '#355d7b')]" :loading="blocks['central-bank'].loading" :error="blocks['central-bank'].error" :tooltip-details="centralTooltip" note="基于已报告数据，可能随补报修订；非完整全球总量。买入/卖出为机构净变化分组，并非实际交易流水。" />
         </div>
-        <details class="source-details central-scope"><summary>汇总范围与机构名单（固定口径）</summary><p>WGC Changes Monthly 为月度储备净变化，单位吨，不再差分。共纳入 {{ centralScope?.included_entities.length || '未提供' }} 个官方储备实体；Turkey 采用央行自有黄金＋财政部黄金，剔除商业部门相关黄金。SOFAZ 全历史排除，季度披露不摊入月份；Euro Area 不与成员国重复计算。</p><p>报告机构数按原始 Monthly 表有数值的机构计数，真实0计入，原表空白不计入。现有CSV曾补零，后台以只读原始表逐月核验并恢复空白；无法核验的月份保持缺失。该范围并非完整全球总量，储备变化可能含调整、掉期及其他非交易因素。</p><p><strong>纳入：</strong>{{ centralScope?.included_entities.join('；') || '数据暂缺' }}</p><p v-for="(reason, entity) in centralScope?.excluded_entities || {}" :key="entity"><strong>排除 {{ entity }}：</strong>{{ reason }}</p><p>来源：World Gold Council（WGC），IMF IFS及各官方机构披露。基于已报告数据，可能随补报修订。</p></details>
+        <details class="source-details central-scope"><summary>汇总范围与机构名单（固定口径）</summary><p>WGC Changes Monthly 为月度储备净变化，单位吨，不再差分。共纳入 {{ centralScope?.included_entities.length || '未提供' }} 个官方储备实体；{{ centralName('Turkey') }} 采用央行自有黄金＋财政部黄金，剔除商业部门相关黄金。SOFAZ 全历史排除，季度披露不摊入月份；{{ centralName('Euro Area') }} 不与成员国重复计算。</p><p>报告机构数按原始 Monthly 表有数值的机构计数，真实0计入，原表空白不计入。现有CSV曾补零，后台以只读原始表逐月核验并恢复空白；无法核验的月份保持缺失。该范围并非完整全球总量，储备变化可能含调整、掉期及其他非交易因素。</p><p><strong>纳入：</strong>{{ centralScope?.included_entities.map(centralName).join('；') || '数据暂缺' }}</p><p v-for="(reason, entity) in centralScope?.excluded_entities || {}" :key="entity"><strong>排除 {{ centralName(entity) }}：</strong>{{ reason }}</p><p>来源：World Gold Council（WGC），IMF IFS及各官方机构披露。基于已报告数据，可能随补报修订。</p></details>
         <div class="chart-grid">
-          <RankingChart title="当月买入国家/地区 · 正变化排序" :rows="buying" :period="countryMonth" unit="吨" :loading="blocks['central-bank'].loading" :error="blocks['central-bank'].error" note="与上方汇总使用相同纳入名单；仅列已报告正值，不是交易流水" />
-          <RankingChart title="当月卖出国家/地区 · 负变化排序" :rows="selling" :period="countryMonth" unit="吨" negative :loading="blocks['central-bank'].loading" :error="blocks['central-bank'].error" note="与上方汇总使用相同纳入名单；缺失不计作零，真实0不列入排名" />
+          <RankingChart title="当月买入国家/地区 · 正变化排序" :rows="buying" :period="countryMonth" unit="吨" :loading="blocks['central-bank'].loading" :error="blocks['central-bank'].error" :name-formatter="centralName" note="与上方汇总使用相同纳入名单；仅列已报告正值，不是交易流水" />
+          <RankingChart title="当月卖出国家/地区 · 负变化排序" :rows="selling" :period="countryMonth" unit="吨" negative :loading="blocks['central-bank'].loading" :error="blocks['central-bank'].error" :name-formatter="centralName" note="与上方汇总使用相同纳入名单；缺失不计作零，真实0不列入排名" />
         </div>
       </DashboardSection>
 
+      <ComexDelivery :data="blocks.inventory.data?.deliveries" :loading="blocks.inventory.loading" :error="blocks.inventory.error" />
       </DashboardPage>
 
       <DashboardPage page="health" label="数据健康度">

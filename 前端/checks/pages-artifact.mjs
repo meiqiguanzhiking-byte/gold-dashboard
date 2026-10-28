@@ -11,7 +11,25 @@ const forbidden = /\b[A-Za-z]:[\\/]|localhost|127\.0\.0\.1|\/api\/|Traceback|BEG
 const snapshot = JSON.parse(await readFile(snapshotPath, 'utf8'))
 assert.equal(snapshot.schema_version, 1)
 assert.ok(!forbidden.test(JSON.stringify(snapshot)), '快照不得包含本机地址、路径、接口或密钥')
-assert.deepEqual(Object.keys(snapshot).sort(), ['comex', 'files', 'generated_at', 'groups', 'publication', 'schema_version'])
+assert.deepEqual(Object.keys(snapshot).filter(key => key !== 'deliveries').sort(), ['comex', 'files', 'generated_at', 'groups', 'publication', 'schema_version'])
+if (snapshot.deliveries) {
+  assert.equal(snapshot.deliveries.source, '黄金交割.xlsx')
+  assert.equal(snapshot.deliveries.unit, '吨')
+  assert.equal(snapshot.deliveries.release_date, null)
+  for (const [symbol, product] of Object.entries(snapshot.deliveries.contracts)) {
+    assert.ok(['GC', 'MGC'].includes(symbol))
+    assert.deepEqual(product.months, [...new Set(product.months)].sort())
+    assert.equal(new Set(product.accounts.map(a => a.institution)).size, product.accounts.length)
+    assert.ok(product.available_months.every(month => product.months.includes(month)))
+    for (const account of product.accounts) {
+      assert.match(account.institution, /\[[CH]\]$/)
+      for (const side of ['issued', 'stopped']) {
+        assert.equal(account[side].length, product.months.length)
+        assert.ok(account[side].every(value => value === null || typeof value === 'number' && Number.isFinite(value) && value >= 0))
+      }
+    }
+  }
+}
 assert.equal(snapshot.publication.indicator_count, Object.values(snapshot.groups).reduce((n, rows) => n + rows.length, 0))
 const ids = new Set()
 const policy = JSON.parse(await readFile(path.join(project, '展示版/公开范围.json'), 'utf8'))
@@ -34,6 +52,7 @@ for (const rows of Object.values(snapshot.groups)) for (const item of rows) {
   }
 }
 for (const id of ['gold_price_anchor', 'gold_hv20', 'gold_hv60', 'london_gold_spot', 'usdcnh', 'gold_domestic_spread']) assert.ok(ids.has(id), '静态版应保留新指标或明确的缺失占位')
+for (const id of ['domestic_etf_total_shares', 'au_td_close']) assert.ok(ids.has(id), '每日速递应保留合计份额与收盘价缺失占位')
 assert.ok(!ids.has('spdr_close') && !ids.has('spdr_volume') && !ids.has('cftc_trading_volume'))
 assert.ok([...ids].filter(id => /^domestic_/.test(id)).every(id => !id.endsWith('_nav')))
 if (!snapshotOnly) {

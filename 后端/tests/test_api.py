@@ -79,6 +79,16 @@ class RealDataAPI(unittest.TestCase):
                 self.assertIsNone(row["value"])
             else:
                 self.assertAlmostEqual(row["value"], value)
+        share_columns = [c for c in frame if c.endswith("份额（万份）")]
+        self.assertEqual(len(share_columns), 7)
+        share_expected = frame[share_columns].sum(axis=1, min_count=7)
+        for row, value in zip(self.items['domestic_etf_total_shares']['history'], share_expected):
+            if pd.isna(value):
+                self.assertIsNone(row['value'])
+            else:
+                self.assertAlmostEqual(row['value'], value)
+        self.assertEqual(self.items['domestic_etf_total_shares']['metadata']['unit'], '万份')
+        self.assertTrue(all(p['value'] is None for p in self.items['au_td_close']['history']))
         weekly = self.tables[("全球黄金ETF流量.xlsx", "周度数据")].frame
         self.assertAlmostEqual(self.items["global_etf_weekly_total_tonnes"]["latest"]["value"], weekly.iloc[-1][["北美（吨）", "欧洲（吨）", "亚洲（吨）", "其他（吨）"]].sum())
         weekly_response, _ = request("/api/etf?" + urlencode({"frequency": "周度", "include_history": "false"}))

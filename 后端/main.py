@@ -83,7 +83,7 @@ def category_handler(category):
                 history = [row for row in history if in_range(row)]
             output.append({**item, "history": history, "returned_history_count": len(history)})
         return {"category": category, "loaded_at": state["meta"]["loaded_at"], "indicators": output,
-                **({"comex": state["meta"]["comex"]} if category == "inventory" else {}),
+                **({"comex": state["meta"]["comex"], "deliveries": state.get("deliveries")} if category == "inventory" else {}),
                 "warnings": list(dict.fromkeys(note for item in output for note in item["warnings"])),
                 "missing_fields": [{"indicator_id": item["metadata"]["indicator_id"], "fields": item["missing_fields"]} for item in output if item["missing_fields"]],
                 "query": {"start_date": start_date, "end_date": end_date, "include_history": include_history,

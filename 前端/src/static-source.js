@@ -13,7 +13,7 @@ export function expandSnapshot(snapshot) {
       return { metadata: item.metadata, history, latest: { ...latest, change, change_pct, change_unit: item.metadata.change_unit }, warnings: item.notes }
     }),
     loaded_at: snapshot.generated_at,
-    ...(category === 'inventory' ? { comex: snapshot.comex } : {}),
+    ...(category === 'inventory' ? { comex: snapshot.comex, deliveries: snapshot.deliveries } : {}),
   }]))
   return { ...groups, meta: { loaded_at: snapshot.generated_at, generated_at: snapshot.generated_at, files: snapshot.files,
     indicators: Object.values(groups).flatMap(group => group.indicators.map(item => item.metadata)), publication: snapshot.publication } }

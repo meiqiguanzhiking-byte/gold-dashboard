@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { chromium } from 'playwright'
 import { expandSnapshot } from '../src/static-source.js'
+import { centralBankEntityName } from '../src/central-bank-names.js'
 
 const title = '全球黄金储备净变化合计（吨）'
 const live = process.env.GOLD_FRONTEND_URL || 'http://127.0.0.1:5173/'
@@ -31,12 +32,31 @@ async function chart(page, actions = []) {
       pixel: c.convertToPixel({ xAxisIndex: 0 }, dates[i]), zoom: o.dataZoom[0].start }
   }, { title, actions })
 }
+async function rankings(page) {
+  return page.evaluate(async () => {
+    let init
+    if (document.querySelector('script[src*="/@vite/client"]')) init = (await import('/src/charts.js')).echarts.init
+    else {
+      const url = performance.getEntriesByType('resource').find(r => /chart-core-.*\.js/.test(r.name)).name
+      init = Object.values(await import(url)).find(f => typeof f === 'function' && f.toString().includes('afterinit'))
+    }
+    return [...document.querySelectorAll('#global-central-bank .ranking-panel .echart')].map(el => {
+      const o = init(el).getOption(), names = o.yAxis[0].data
+      return { names, display: names.map(o.yAxis[0].axisLabel.formatter), values: o.series[0].data,
+        tooltip: o.tooltip[0].formatter({ dataIndex: 0, color: o.series[0].itemStyle.color }) }
+    })
+  })
+}
 try {
   for (const [mode, url, source] of [['dynamic', live, dynamic], ['static', preview, published]]) {
     const items = Object.fromEntries(source.indicators.map(i => [i.metadata.indicator_id, i]))
     const expected = ids.map(id => new Map(items[id].history.map(p => [p.observation_date, p.value])))
     const latest = items[ids[2]].latest.observation_date
     const scope = items[ids[2]].metadata.aggregation_scope
+    for (const name of [...scope.included_entities, ...Object.keys(scope.excluded_entities)]) {
+      assert.notEqual(centralBankEntityName(name, true), name, '名单内名称须有中文映射：' + name)
+      assert.equal(centralBankEntityName(name), name)
+    }
     for (const [date, net] of expected[2]) {
       if (net == null) continue
       assert.ok(Math.abs(net - expected[0].get(date) - expected[1].get(date)) < 1e-8)
@@ -53,6 +73,41 @@ try {
     const section = p.locator('#global-central-bank')
     await section.locator('canvas').first().waitFor()
     await p.getByLabel('央行购金排名月份').selectOption(latest)
+    const beforeTranslation = await rankings(p)
+    const translate = p.getByLabel('全球央行购金名称翻译中文')
+    assert.equal(await translate.isChecked(), false)
+    await translate.check()
+    await p.waitForTimeout(100)
+    const translated = await rankings(p)
+    for (let i = 0; i < translated.length; i++) {
+      assert.deepEqual(translated[i].names, beforeTranslation[i].names)
+      assert.deepEqual(translated[i].values, beforeTranslation[i].values)
+      assert.deepEqual(translated[i].display, translated[i].names.map(name => centralBankEntityName(name, true)))
+      assert.ok(translated[i].tooltip.includes('原表名称：' + translated[i].names[0]))
+      assert.ok(translated[i].tooltip.includes(translated[i].display[0]))
+    }
+    assert.ok((await section.locator('.central-scope').textContent()).includes('中国内地'))
+    assert.ok((await section.locator('.central-scope').textContent()).includes('阿塞拜疆共和国国家石油基金'))
+    const buyingPanel = section.locator('.ranking-panel').first()
+    const expand = buyingPanel.getByRole('button', { name: /^展开全部/ })
+    if (await expand.count()) await expand.click()
+    const expandedNames = (await rankings(p))[0].names
+    await p.getByRole('tab', { name: '国内', exact: true }).click()
+    await p.getByRole('tab', { name: '国外', exact: true }).click()
+    assert.equal(await translate.isChecked(), true)
+    assert.deepEqual((await rankings(p))[0].names, expandedNames)
+    const months = await p.getByLabel('央行购金排名月份').locator('option').evaluateAll(options => options.map(o => o.value))
+    if (months.length > 1) {
+      await p.getByLabel('央行购金排名月份').selectOption(months[1])
+      for (const row of await rankings(p)) assert.deepEqual(row.display, row.names.map(name => centralBankEntityName(name, true)))
+      await p.getByLabel('央行购金排名月份').selectOption(latest)
+    }
+    await translate.uncheck()
+    for (const row of await rankings(p)) assert.deepEqual(row.display, row.names)
+    assert.deepEqual((await rankings(p))[0].names, expandedNames)
+    const collapse = buyingPanel.getByRole('button', { name: '收起至前 5 名' })
+    if (await collapse.count()) await collapse.click()
+    await translate.check()
     assert.ok((await section.locator('.central-report-count').textContent()).includes(`${expected[3].get(latest)} / ${scope.included_entities.length}`))
     for (const range of ['1M', '1Y', 'ALL']) {
       await p.getByLabel(title + '时间区间').selectOption(range)
@@ -93,6 +148,7 @@ try {
     }
     await p.getByRole('button', { name: mode === 'dynamic' ? '刷新真实数据' : '重新加载展示数据' }).click()
     await p.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled)
+    assert.equal(await translate.isChecked(), true)
     assert.ok((await section.locator('.central-report-count').textContent()).includes(String(expected[3].get(latest))))
     assert.deepEqual(errors, [])
     if (mode === 'static') assert.ok(requests.every(u => new URL(u).pathname.startsWith(new URL(preview).pathname) && !/\/api(?:\/|$)/.test(new URL(u).pathname)))

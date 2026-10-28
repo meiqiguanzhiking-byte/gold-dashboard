@@ -9,6 +9,7 @@
     "usdcnh",
     "gold_domestic_spread",
     "domestic_etf_total_assets",
+    "domestic_etf_total_shares",
     "spdr_gold_holdings",
     "global_central_bank_net_purchases",
     "global_central_bank_gross_purchases",
@@ -16,6 +17,7 @@
     "global_central_bank_reporting_count",
     "central_bank_reserves",
     "au_td_volume",
+    "au_td_close",
     "au_td_open_interest",
     "au_td_delivery_direction",
     "futures_volume",
@@ -75,6 +77,8 @@
     "State Oil Fund of the Republic of Azerbaijan (SOFAZ)"
   ],
   "latest_only": [
+    "au_td_close",
+    "domestic_etf_total_shares",
     "futures_main_contract",
     "cftc_net_long_ratio"
   ],
@@ -96,6 +100,7 @@
     "黄金ETF份额.xlsx": "approved",
     "黄金期货.csv": "approved"
   },
+  "include_comex_deliveries": true,
   "withheld_sources": [],
   "withheld_indicators": {}
 }

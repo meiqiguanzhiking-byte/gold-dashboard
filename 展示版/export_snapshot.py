@@ -13,6 +13,7 @@ from comex import summarize_comex
 from config import DATA_DIR
 from data_loader import load_tables, now_iso
 from indicators import build_indicators
+from deliveries import build_deliveries, SOURCE as DELIVERY_SOURCE
 
 METADATA_FIELDS = (
     "indicator_id", "indicator_name", "unit", "frequency", "source", "sheet", "updated_at",
@@ -23,6 +24,7 @@ METADATA_FIELDS = (
     "input_sources", "input_indicators", "cutoff_date", "cutoff_timezone", "comparison_basis", "grams_per_troy_ounce", "latest_valid_date",
     "display_digits", "observation_time", "observation_timezone",
     "aggregation_included", "aggregation_scope", "scope_entity_count", "coverage_basis", "reporting_evidence",
+    "calculation",
 )
 
 
@@ -47,6 +49,8 @@ def export():
                        if item["metadata"].get("country") and item["metadata"]["country"] not in policy["excluded_country_columns"])
     used_sources = {item["metadata"]["source"] for items in groups.values() for item in items
                     if item["metadata"]["indicator_id"] in allowed}
+    if policy.get("include_comex_deliveries"):
+        used_sources.add(DELIVERY_SOURCE)
     if not tables or any(file["status"] == "读取失败" and file["source"] in used_sources for file in files):
         raise ValueError("所选来源读取失败；未覆盖已有快照，请先检查本地数据")
 
@@ -108,12 +112,24 @@ def export():
         public_files.append({"source": file["source"], "coverage_start": min(dates, default=None), "latest_date": max(dates, default=None),
                              "status": "数据缺失" if not dates else file["status"],
                              "warnings": ["相关来源公开使用尚未确认，未导出价格、汇率及派生指标"] if not dates else ["仅发布页面白名单指标，原始文件未发布"]})
+    deliveries = build_deliveries(tables) if policy.get("include_comex_deliveries") else None
+    if deliveries and DELIVERY_SOURCE in policy["withheld_sources"]:
+        for product in deliveries["contracts"].values():
+            product.update(accounts=[], available_months=[], coverage_start=None, coverage_end=None, updated_at=None,
+                           warnings=["此来源暂不导出，交割数据暂缺"])
+    if deliveries:
+        months = [month for product in deliveries["contracts"].values() for month in product["available_months"]]
+        public_files.append({"source": DELIVERY_SOURCE, "coverage_start": min(months, default=None),
+                             "latest_date": max(months, default=None), "status": "正常" if months else "数据缺失",
+                             "warnings": ["仅导出GC/MGC交割图表所需月度机构数据，原始文件未发布"]})
     snapshot = {
         "schema_version": 1, "generated_at": now_iso(), "groups": exported, "files": public_files, "comex": comex,
         "publication": {"status": policy["publication_status"], "indicator_count": sum(map(len, exported.values())),
                         "point_count": point_count, "withheld_indicators": withheld,
                         "notice": "真实数值和历史序列可被访问或下载；不随本机文件自动更新。公开前确认数据及品牌展示权限。"},
     }
+    if deliveries is not None:
+        snapshot["deliveries"] = deliveries
     validate_public(snapshot)
     output = ROOT / "展示版" / "数据" / "data" / "snapshot.json"
     output.parent.mkdir(parents=True, exist_ok=True)

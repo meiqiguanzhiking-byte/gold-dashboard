@@ -5,6 +5,7 @@ from config import DATA_DIR
 from data_loader import load_tables, now_iso
 from indicators import build_indicators
 from comex import summarize_comex
+from deliveries import build_deliveries
 
 
 class DataStore:
@@ -35,7 +36,7 @@ class DataStore:
                 "missing_indicators": missing, "read_errors": errors,
                 "comex": summarize_comex(groups["inventory"], tables),
             }
-            self._snapshot = {"groups": groups, "meta": meta}
+            self._snapshot = {"groups": groups, "meta": meta, "deliveries": build_deliveries(tables)}
             return meta
 
 
