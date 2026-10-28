@@ -52,14 +52,20 @@ const overseasNote = '北京时间15:30结束的半小时K线收盘价；伦敦�
 const withheldReason = id => item(id)?.metadata.publication_withheld ? '数据暂缺：来源公开使用尚未确认，静态版不发布该指标及派生数值。' : ''
 const spreadNote = computed(() => {
   const m = item('gold_domestic_spread')?.metadata
-  return withheldReason('gold_domestic_spread') || `按相同观察日期匹配Au99.99收盘价、北京时间15:30海外金价及汇率；最新有效观察 ${m?.latest_valid_date || '数据暂缺'}。缺任一项保留断点，不前值填充；折算使用CNH，含CNH/CNY口径差异。`
+  return withheldReason('gold_domestic_spread') || `按相同观察日期匹配Au99.99收盘价、北京时间15:30海外金价及汇率；最新有效观察 ${m?.latest_valid_date || '数据暂缺'}。折线跳过空值连接前后有效数据，不补值；折算使用CNH，含CNH/CNY口径差异。`
 })
 
 const etfTab = ref('weekly'), selectedFunds = ref([]), selectedRegions = ref(regions.map(r => r.id)), flowUnit = ref('tonnes')
 const funds = computed(() => (blocks.etf.data?.indicators || []).filter(i => /^domestic_\d+_assets$/.test(i.metadata.indicator_id)))
 let fundsInitialized = false
 watch(funds, values => { if (!fundsInitialized && values.length) { selectedFunds.value = values.map(i => i.metadata.fund); fundsInitialized = true } })
-const fundLines = computed(() => funds.value.map((i, index) => ({ item: i, name: i.metadata.fund, color: palette[index] })).filter(s => selectedFunds.value.includes(s.item.metadata.fund)))
+const fundShareSeries = computed(() => [
+  ...funds.value.map((fund, index) => ({
+    item: item(fund.metadata.indicator_id.replace('_assets', '_shares')),
+    name: fund.metadata.fund, color: palette[index] + '66', type: 'bar', stack: 'domestic-etf-shares',
+  })).filter(s => selectedFunds.value.includes(s.name)),
+  line('domestic_etf_total_shares', '七只基金总份额', '#287985'),
+])
 const fundPeriod = computed(() => funds.value.map(i => i.latest.observation_date).filter(Boolean).sort().at(-1))
 const fundRanking = computed(() => funds.value.filter(i => selectedFunds.value.includes(i.metadata.fund)).map(i => ({ name: i.metadata.fund, item: i, point: i.history.find(p => p.observation_date === fundPeriod.value) })).filter(r => numeric(r.point)).sort((a, b) => b.point.value - a.point.value))
 const shareLines = computed(() => funds.value.filter(i => selectedFunds.value.includes(i.metadata.fund)).map((i, index) => {
@@ -87,7 +93,10 @@ const reportedCount = computed(() => centralPoint('global_central_bank_reporting
 const centralTooltip = month => `数据月份：${month}；报告机构数：${format(centralPoint('global_central_bank_reporting_count', month), 0)} / ${centralScope.value?.included_entities.length || '未提供'}。基于已报告数据，可能随补报修订；非完整全球总量。`
 
 const healthSearch = ref(''), healthFrequency = ref('全部'), healthStatus = ref('全部'), healthPage = ref(1)
-const orderedHealthMetadata = computed(() => sortHealthSources(allMetadata.value))
+const healthTimedIndicators = new Set(['gold_price_anchor', 'london_gold_spot', 'usdcnh', 'gold_domestic_spread'])
+const orderedHealthMetadata = computed(() => sortHealthSources(allMetadata.value).map(m =>
+  healthTimedIndicators.has(m.indicator_id) ? { ...m, indicator_name: `${m.indicator_name}（15:30）` } : m,
+))
 const healthFiles = computed(() => sortHealthSources(meta.value?.files || []))
 const healthRows = computed(() => orderedHealthMetadata.value.filter(m => (!healthSearch.value || (m.indicator_name + m.source).toLowerCase().includes(healthSearch.value.toLowerCase())) && (healthFrequency.value === '全部' || m.frequency === healthFrequency.value) && (healthStatus.value === '全部' || m.status === healthStatus.value || m.statuses?.includes(healthStatus.value) || m.automation_status === healthStatus.value)))
 const healthPages = computed(() => Math.max(1, Math.ceil(healthRows.value.length / 15)))
@@ -119,9 +128,9 @@ onMounted(loadAll)
         <div class="chart-grid">
           <ChartPanel title="上金所Au99.99收盘价（元/克）" description="上金所交易日期收盘价；人民币元/克" :series="[line('gold_price_anchor', 'Au99.99收盘价', '#287985')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="priceWithheld ? priceNote : ''" :note="priceNote" />
           <ChartPanel title="20日与60日年化历史波动率（%）" description="上游计算结果；切换区间不重新计算波动率" :series="[line('gold_hv20', '20日年化历史波动率', '#287985'), line('gold_hv60', '60日年化历史波动率', '#ad945b')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="priceWithheld ? priceNote : ''" note="缺值或收益窗口不足时显示数据不足；不按零处理，不前值填充" />
-          <ChartPanel class="wide" title="国内外价差（元/克）" description="Au99.99 − 海外金价人民币折算值；同日期匹配，北京时间15:30海外价格及汇率" :series="[line('gold_domestic_spread', '国内外价差', '#287985')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('gold_domestic_spread')" :note="spreadNote" />
+          <ChartPanel class="wide" title="黄金现价价差（元/克）" description="Au99.99 − 海外金价人民币折算值；同日期匹配，北京时间15:30海外价格及汇率" :series="[line('gold_domestic_spread', '黄金现价价差', '#287985', { connectNulls: true })]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('gold_domestic_spread')" :note="spreadNote" />
         </div>
-        <p class="section-footnote">国内外价差＝Au99.99（元/克）−伦敦金现（美元/金衡盎司）×USDCNH（CNH/美元）÷31.1034768。1金衡盎司＝31.1034768克。仅比较同名日期各自收盘，包含CNH/CNY口径差异，不代表同步溢价或可交易套利空间。</p>
+        <p class="section-footnote">黄金现价价差＝Au99.99（元/克）−伦敦金现（美元/金衡盎司）×USDCNH（CNH/美元）÷31.1034768。1金衡盎司＝31.1034768克。仅比较同名日期各自收盘，包含CNH/CNY口径差异，不代表同步溢价或可交易套利空间。</p>
         <p class="section-footnote">方法：日对数收益率、20/60个交易观测收益率、样本标准差（ddof=1）、252日年化；只读取上游结果。窗口不足或源值缺失时保持数据暂缺。</p>
         <p v-if="!priceWithheld" class="section-footnote">来源：黄金现货价格.xlsx / 黄金现货价格 · 文件更新 {{ localTime(item('gold_price_anchor')?.metadata.updated_at) }} · 缓存加载 {{ localTime(blocks.price.data?.loaded_at) }} · 发布日期未知（null）。</p>
       </DashboardSection>
@@ -155,7 +164,7 @@ onMounted(loadAll)
         <div class="chart-grid">
           <ChartPanel title="境内黄金 ETF 总资产规模（亿元）" :series="[line('domestic_etf_total_assets', '七只基金合计', '#ad945b')]" :loading="blocks.etf.loading" :error="blocks.etf.error" note="总量固定覆盖七只基金，不随基金筛选改变" />
           <RankingChart title="境内黄金 ETF 资产规模排名" :rows="fundRanking" :period="fundPeriod" unit="亿元" :loading="blocks.etf.loading" :error="blocks.etf.error" />
-          <ChartPanel title="境内黄金 ETF 分基金资产规模（亿元）" :series="fundLines" :loading="blocks.etf.loading" :error="blocks.etf.error" :reason="!selectedFunds.length ? '请选择至少一只基金' : ''" />
+          <ChartPanel title="境内黄金 ETF 总份额与分基金份额（万份）" description="总份额折线与七只基金浅色堆叠柱状图 · 同单位共用坐标轴" :series="fundShareSeries" :loading="blocks.etf.loading" :error="blocks.etf.error" note="折线固定覆盖七只基金；基金筛选和图例仅调整显示，不改变合计口径。任一基金当日缺失时合计为空，不补零。" />
           <ChartPanel title="境内黄金 ETF 份额较上期变化（万份）" description="原始份额的相邻观察期差额；缺失任一期时不计算" :series="shareLines" :loading="blocks.etf.loading" :error="blocks.etf.error" :reason="!selectedFunds.length ? '请选择至少一只基金' : ''" note="按原始份额做简单差分，不视为净申购金额" />
         </div>
       </DashboardSection>

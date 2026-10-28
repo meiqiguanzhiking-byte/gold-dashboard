@@ -43,7 +43,7 @@ async function draw() {
   const axisCount = Math.max(...available.value.map(s => s.yAxisIndex || 0)) + 1
   const series = available.value.map((s, index) => ({
     name: s.name || s.item.metadata.indicator_name, type: s.type || 'line', stack: s.stack, yAxisIndex: s.yAxisIndex || 0, areaStyle: s.areaStyle,
-    showSymbol: dates.value.length < 20, symbolSize: 4, connectNulls: false, smooth: false,
+    showSymbol: dates.value.length < 20, symbolSize: 4, connectNulls: s.connectNulls ?? false, smooth: false,
     lineStyle: { width: 2 }, itemStyle: { color: s.color || palette[index % palette.length] }, barMaxWidth: 22,
     emphasis: { focus: 'series' },
     data: dates.value.map(date => { const point = pointMaps[index].get(date); return s.signed && point?.value != null ? { value: point.value, itemStyle: { color: point.value >= 0 ? '#278b94' : '#c27e65' } } : point?.value ?? null }),
