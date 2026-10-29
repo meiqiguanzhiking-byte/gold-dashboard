@@ -90,7 +90,7 @@ try {
   for (const checkbox of await fundChecks.all()) await checkbox.uncheck()
   await page.locator('#domestic-etf').getByText('请选择至少一只基金', { exact: true }).first().waitFor()
   await page.locator('#domestic-etf').getByRole('button', { name: '全选', exact: true }).click()
-  await page.locator('[data-chart-title="境内黄金 ETF 分基金资产规模（亿元）"] canvas').waitFor()
+  await page.locator('[data-chart-title="境内黄金 ETF 总份额与分基金份额（万份）"] canvas').waitFor()
   await page.getByRole('tab', { name: '国外' }).click()
   await page.waitForTimeout(250)
   const range = page.getByLabel('SPDR 黄金持仓趋势（吨）时间区间')
@@ -116,7 +116,8 @@ try {
   await page.getByRole('tab', { name: '数据健康度' }).click()
   await page.waitForTimeout(250)
   await page.getByLabel('搜索数据健康度').fill('COMEX')
-  assert.equal(await page.locator('.health-table tbody tr:has(td strong)').count(), 7)
+  const deliverySheets = snapshot.files.find(file => file.source === '黄金交割.xlsx')?.sheets || []
+  assert.equal(await page.locator('.health-table tbody tr:has(td strong)').count(), 7 + deliverySheets.length)
   await page.getByLabel('健康度频率筛选').selectOption('月度')
   assert.equal(await page.locator('.health-table tbody tr:has(td strong)').count(), 0)
   await page.getByLabel('搜索数据健康度').fill('')

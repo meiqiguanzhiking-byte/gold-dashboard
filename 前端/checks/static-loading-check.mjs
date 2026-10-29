@@ -36,7 +36,7 @@ try {
   for (const card of model.cards) for (const row of card.rows) if (!row.stats) {
     assert.ok((await page.locator(`[data-daily-card="${card.id}"]`).textContent()).includes(row.valueText))
   }
-  const daily = await page.locator('.daily-summary').textContent()
+  const daily = await page.locator('.daily-movements').textContent()
   await page.getByRole('tab', { name: '数据健康度', exact: true }).click()
   await ready()
   assert.equal(requests.length, 0, '健康度元信息也应随首屏直接可用')
@@ -50,7 +50,7 @@ try {
   await page.locator('#gold-price canvas').first().waitFor()
   assert.ok(!requests.some(url => /\/(?:cftc|inventory|deliveries)-/.test(url)), '国内页不应下载国外独有分类')
   await page.getByRole('tab', { name: '每日速递', exact: true }).click()
-  assert.equal(await page.locator('.daily-summary').textContent(), daily, '历史加载失败不能清空首屏速递')
+  assert.equal(await page.locator('.daily-movements').textContent(), daily, '历史加载失败不能清空首屏速递')
   const priceRequests = requests.filter(url => /\/price-/.test(url)).length
   failCentral = false
   await page.locator('.alert.error').getByRole('button', { name: '重试此区域' }).click()
@@ -61,7 +61,7 @@ try {
   await page.locator('.refresh-button').click()
   await ready()
   assert.ok((await page.locator('.alert.error').textContent()).includes('重新加载失败'))
-  assert.equal(await page.locator('.daily-summary').textContent(), daily, '刷新失败保留已加载数据')
+  assert.equal(await page.locator('.daily-movements').textContent(), daily, '刷新失败保留已加载数据')
   failRefresh = false
   await page.locator('.refresh-button').click()
   await ready()

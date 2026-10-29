@@ -5,6 +5,7 @@ import { escapeHtml, localTime } from '../data.js'
 import { deliveryColor, deliveryIssuedNumber, deliveryNumber, deliverySideColor, deliveryView } from '../deliveries.js'
 import { deliveryInstitution } from '../delivery-institutions.js'
 import StatusBadge from './StatusBadge.vue'
+import { sourceLabel } from '../source-labels.js'
 
 const props = defineProps({ symbol: String, product: Object, loading: Boolean, error: String })
 const title = computed(() => props.symbol === 'GC' ? '标准黄金期货 GC' : '微型黄金期货 MGC')
@@ -82,7 +83,7 @@ onBeforeUnmount(() => { ++generation; window.removeEventListener('dashboard-page
     <footer class="delivery-footer"><div class="chart-caption">默认最近3个有数据月份；可勾选月份、点击图例，{{ isGc ? '向下滚动查看当前显示的 ' : '显示全部 ' }}{{ view.accounts.length }} 个机构账户<span v-if="isGc">（共 {{ view.totalAccounts }} 个<span v-if="hideNoData">，已隐藏 {{ view.totalAccounts - view.accounts.length }} 个无数据账户</span>）</span>。所选月份 {{ view.missing }} 项 I/S 缺失，空白不补零；悬停可区分真实0与未报告。</div>
     <div v-for="warning in product?.warnings || []" :key="warning" class="delivery-warning">{{ warning }}</div>
     <div v-if="chineseNames" class="delivery-name-note">中文为名称释义；未核实的专名保留英文。会员编号与C/H不变，悬停可查原表名称。</div>
-    <div class="chart-source">来源：黄金交割.xlsx · {{ symbol }} 表 · 文件更新 {{ localTime(product?.updated_at) }} · 发布日期未提供</div></footer>
+    <div class="chart-source">来源：{{ sourceLabel('黄金交割.xlsx') }} · {{ symbol }} · 文件更新 {{ localTime(product?.updated_at) }} · 发布日期未提供</div></footer>
   </article>
 </template>
 

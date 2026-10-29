@@ -1,7 +1,8 @@
 <script setup>
 import { inject, nextTick, onMounted, onBeforeUnmount, provide, ref, shallowRef } from 'vue'
 import SectionPicker from './SectionPicker.vue'
-const props = defineProps({ page: String, label: String, pickable: { type: Boolean, default: true } })
+const props = defineProps({ page: String, label: String, pickable: { type: Boolean, default: true }, pickerOptions: { type: Array, default: null }, pickerSelected: { type: Array, default: null } })
+defineEmits(['picker-update'])
 const activePage = inject('dashboardActivePage')
 const storageKey = `gold-dashboard:sections:v1:${props.page}`
 const sections = shallowRef([])
@@ -31,5 +32,5 @@ provide('dashboardSections', {
   register(section) { sections.value = [...sections.value, section] },
 })
 </script>
-<template><div v-show="activePage === page" :id="'page-panel-' + page" class="page-panel" role="tabpanel" :aria-labelledby="'page-tab-' + page" :aria-label="label"><SectionPicker v-if="pickable" :label="label" /><slot /></div></template>
+<template><div v-show="activePage === page" :id="'page-panel-' + page" class="page-panel" role="tabpanel" :aria-labelledby="'page-tab-' + page" :aria-label="label"><SectionPicker v-if="pickable" :label="label" :options="pickerOptions" :selected="pickerSelected" @update:selected="$emit('picker-update', $event)" /><slot /></div></template>
 <style scoped>.page-panel{min-width:0}</style>

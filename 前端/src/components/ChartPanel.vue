@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import StatusBadge from './StatusBadge.vue'
+import { sourceLabel } from '../source-labels.js'
 import { echarts, axisLabel, tooltipRow, tooltipStyle } from '../charts.js'
 import { filteredHistory, numeric, ranges, palette, escapeHtml } from '../data.js'
 import { adaptiveYAxis, axisTransition, timeZoom } from '../adaptive-axis.js'
@@ -15,7 +16,7 @@ const available = computed(() => props.series.filter(s => s.item))
 const frequency = computed(() => [...new Set(available.value.map(s => s.item.metadata.frequency))])
 const unit = computed(() => [...new Set(available.value.map(s => s.item.metadata.unit))].join(' / ') || '单位未提供')
 const latestDate = computed(() => available.value.map(s => s.item.metadata.coverage_end).filter(Boolean).sort().at(-1))
-const sources = computed(() => [...new Set(available.value.map(s => s.item.metadata.source))].join('；'))
+const sources = computed(() => [...new Set(available.value.map(s => sourceLabel(s.item.metadata)))].join('；'))
 const histories = computed(() => available.value.map(s => filteredHistory(s.item, localRange.value, latestDate.value)))
 const dates = computed(() => [...new Set(histories.value.flatMap(h => h.map(p => p.observation_date)))].sort())
 const validCount = computed(() => histories.value.reduce((sum, h) => sum + h.filter(numeric).length, 0))

@@ -2,6 +2,7 @@
 import DashboardSection from './DashboardSection.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import StatusBadge from './StatusBadge.vue'
+import { sourceLabel } from '../source-labels.js'
 import { echarts, axisLabel, tooltipStyle } from '../charts.js'
 import { escapeHtml } from '../data.js'
 import { comexView, comexColors as colors, stockNumber, validNumber, changeNumber, percentNumber } from '../comex.js'
@@ -30,7 +31,7 @@ let structureChart, indexChart, observer, structureAxis, indexAxis
 const structureInfo = ref(''), indexInfo = ref('')
 const marker = color => `<span style="display:inline-block;width:12px;height:5px;margin-right:6px;background:${color}"></span>`
 const rowLine = (name, value, color, unit = '吨') => `<div>${marker(color)}${escapeHtml(name)}：${validNumber(value) ? stockNumber(value) + ' ' + unit : '数据暂缺'}</div>`
-const footer = () => `<div style="color:#849092;margin-top:6px">单位：吨<br>来源：${escapeHtml(props.summary?.source || 'COMEX金银库存.xlsx')} / ${escapeHtml(props.summary?.sheet || 'COMEX金银库存')}</div>`
+const footer = () => `<div style="color:#849092;margin-top:6px">单位：吨<br>来源：${escapeHtml(sourceLabel(props.summary?.source || 'COMEX金银库存.xlsx'))}</div>`
 const commonXAxis = (dates, boundaryGap) => ({ type: 'category', data: dates, boundaryGap, axisTick: { show: false }, axisLine: { lineStyle: { color: '#d8e0e0' } }, axisLabel: { ...axisLabel, hideOverlap: true }, axisPointer: { show: true, snap: true } })
 function structureTooltip(params) {
   const date = (Array.isArray(params) ? params[0] : params)?.axisValue
@@ -145,7 +146,7 @@ onBeforeUnmount(() => { window.removeEventListener('dashboard-page-visible', ref
 
     <article class="chart-panel comex-relative"><header class="panel-header"><div><h3>注册库存与合格库存相对变化（基期＝100）</h3><p>指数共同基准日期：{{ view.commonBase?.date || '无共同有效日期' }} · 所选区间首个共同有效观察日，与顶部变化比较基准分别计算</p><p v-if="view.commonBase && (!view.commonBase.registered || !view.commonBase.eligible)">部分基准库存为零，对应指数暂不可计算。</p></div></header><div class="comex-chart-stage relative-stage"><div ref="indexEl" class="echart" data-chart-title="COMEX 库存相对变化" /><div v-if="indexEmpty" class="empty-state"><strong>{{ indexEmpty }}</strong></div></div><div class="chart-caption"><span>{{ fact }}</span><span>末端标签为该序列最后有效日较基期变化；空值保留断点</span></div><p v-if="indexInfo" class="comex-axis-note">{{ indexInfo }}</p></article>
 
-    <div class="comex-notes"><p>库存变化可能涉及出入库及库存类别转换，未质押余额不代表持有人即时交割意愿。</p><p>来源：{{ summary?.source || 'COMEX金银库存.xlsx' }} / {{ summary?.sheet || 'COMEX金银库存' }} · 单位：吨。盎司表仅作另一单位口径，不合并；发布日期与采集自动化状态未提供。</p><details v-if="metal === 'gold' && !view.confirmed"><summary>已质押扣减待确认事项</summary><ul><li v-for="note in summary?.definition?.pending || ['原始报告字段映射、子集关系、同日及同范围口径待确认']" :key="note">{{ note }}</li></ul><p>{{ summary?.definition?.exchange_definition }}</p><a v-if="summary?.definition?.reference" :href="summary.definition.reference" target="_blank" rel="noopener noreferrer">CME 官方仓单 FAQ（定义参考）</a></details></div>
+    <div class="comex-notes"><p>库存变化可能涉及出入库及库存类别转换，未质押余额不代表持有人即时交割意愿。</p><p>来源：{{ sourceLabel(summary?.source || 'COMEX金银库存.xlsx') }} · 单位：吨。盎司表仅作另一单位口径，不合并；发布日期与采集自动化状态未提供。</p><details v-if="metal === 'gold' && !view.confirmed"><summary>已质押扣减待确认事项</summary><ul><li v-for="note in summary?.definition?.pending || ['原始报告字段映射、子集关系、同日及同范围口径待确认']" :key="note">{{ note }}</li></ul><p>{{ summary?.definition?.exchange_definition }}</p><a v-if="summary?.definition?.reference" :href="summary.definition.reference" target="_blank" rel="noopener noreferrer">CME 官方仓单 FAQ（定义参考）</a></details></div>
   </DashboardSection>
 </template>
 

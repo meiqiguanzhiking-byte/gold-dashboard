@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { chromium } from 'playwright'
 import { expandSnapshot } from '../src/static-source.js'
-import { beijingDate, briefPoint, buildDailyBrief, numberText } from '../src/daily-brief.js'
+import { beijingDate, briefPoint, buildDailyBrief, dailyThresholdGroups, filterDailyMovements, numberText } from '../src/daily-brief.js'
 
 const live = process.env.GOLD_FRONTEND_URL || 'http://127.0.0.1:5173/'
 const preview = process.env.GOLD_PAGES_URL || 'http://127.0.0.1:4173/pages-preview/'
@@ -12,6 +12,7 @@ const categories = ['price', 'etf', 'au-td', 'futures', 'inventory', 'central-ba
 const dynamic = (await Promise.all(categories.map(async c => (await (await fetch(new URL('api/' + c, live))).json()).indicators))).flat()
 const staticItems = categories.flatMap(c => staticData[c].indicators)
 const today = beijingDate()
+const thresholds = Object.fromEntries(dailyThresholdGroups.map(group => [group.id, group.initial]))
 const browser = await chromium.launch({ channel: 'msedge', headless: true, args: ['--disable-breakpad', '--disable-logging'] })
 const results = []
 async function chartState(page, setZoom = false) {
@@ -33,7 +34,14 @@ try {
     const model = buildDailyBrief(items, today)
     assert.equal(model.cards.length, 9)
     assert.deepEqual(model.cards.map(c => c.id), ['domestic-price', 'international-price', 'volatility', 'spread', 'autd', 'domestic-etf', 'spdr', 'futures', 'comex'])
-    assert.equal(model.summary.length, 3)
+    assert.equal(dailyThresholdGroups.length, 5)
+    assert.ok(model.movements.every(row => !/^domestic_\d+_shares$/.test(row.id)), '国内单只ETF份额不参与阈值筛选')
+    assert.ok(dailyThresholdGroups.find(group => group.id === 'shares').indicators.some(row => row.id === 'domestic_etf_total_shares'), '国内ETF合计份额参与阈值筛选')
+    const expectedMovements = filterDailyMovements(model.movements, thresholds)
+    for (const row of model.movements.filter(row => row.group !== 'direction')) {
+      assert.equal(row.percent, row.change / Math.abs(row.previousValue) * 100)
+      assert.equal(filterDailyMovements([row], { [row.group]: Math.abs(row.percent) }).length, 0, '等于阈值不命中')
+    }
     const price = index.gold_price_anchor
     const oldCutoff = price.history.at(-6).observation_date
     assert.equal(briefPoint(price, oldCutoff).date, oldCutoff, '不得提前展示未来观测')
@@ -43,7 +51,7 @@ try {
     const blankPrevious = { ...price, history: price.history.map((p, n, h) => n === h.length - 2 ? { ...p, value: null } : p) }
     assert.equal(briefPoint(blankPrevious, today).change, null, '比较基准缺失不得跨期寻找')
     const noRelease = items.map(i => ({ ...i, history: i.history.map(({ release_date, ...p }) => p) }))
-    assert.equal(buildDailyBrief(noRelease, today).summary[2], '无最新发布记录', '无可确认发布记录时使用简短提示')
+    assert.ok(buildDailyBrief(noRelease, today).releases.every(group => !group.today.length), '无可确认发布日期时不得标为今日发布')
     const mismatchedShares = items.map(i => i.metadata.indicator_id === 'domestic_etf_total_shares' ? { ...i, history: i.history.slice(0, -1) } : i)
     assert.equal(buildDailyBrief(mismatchedShares, today).cards.find(c => c.id === 'domestic-etf').rows[0].value, null, '份额与规模不能错配观察日')
     const vol = model.cards[2].rows[0]
@@ -89,16 +97,36 @@ try {
         if (!row.stats && typeof row.value !== 'string') assert.ok(text.includes(row.changeText))
       }
     }
-    for (let n = 0; n < 3; n++) assert.equal(await p.locator('.daily-summary p span').nth(n).textContent(), model.summary[n])
+    assert.equal(await p.getByRole('slider').count(), 5)
+    assert.deepEqual(await p.locator('.daily-threshold-column').evaluateAll(columns => columns.map(column => column.querySelectorAll('input').length)), [3, 2])
+    assert.deepEqual(await p.locator('[data-daily-movement]').evaluateAll(rows => rows.map(row => row.dataset.dailyMovement)), expectedMovements.map(row => row.id))
+    for (const group of dailyThresholdGroups) {
+      const slider = p.getByRole('slider', { name: group.label, exact: true })
+      assert.equal(Number(await slider.inputValue()), group.initial)
+      await slider.focus()
+      await slider.press('End')
+    }
+    const maxThresholds = Object.fromEntries(dailyThresholdGroups.map(group => [group.id, group.max]))
+    assert.deepEqual(await p.locator('[data-daily-movement]').evaluateAll(rows => rows.map(row => row.dataset.dailyMovement)), filterDailyMovements(model.movements, maxThresholds).map(row => row.id))
+    await p.reload()
+    await p.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled)
+    for (const group of dailyThresholdGroups) {
+      const slider = p.getByRole('slider', { name: group.label, exact: true })
+      assert.equal(Number(await slider.inputValue()), group.max, '刷新保留阈值')
+      await slider.evaluate((input, value) => {
+        input.value = value
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+      }, String(group.initial))
+    }
     assert.ok((await p.locator('.daily-dates').textContent()).includes(today))
-    // 用浏览器时钟推进一天验证旧快照提示，不修改任何数据或快照。
+    // 推进浏览器时钟验证报告日与快照时间分别显示，不修改数据或快照。
     if (mode === 'static') {
       const later = new Date(Date.parse(snapshot.generated_at) + 86400000)
       await p.clock.setFixedTime(later)
       await p.reload()
       await p.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled)
-      assert.ok((await p.locator('.daily-asof-note').textContent()).includes('早于报告日期'))
       assert.ok((await p.locator('.daily-dates').textContent()).includes(beijingDate(later)))
+      assert.ok((await p.locator('.daily-dates').textContent()).includes('快照生成时间'))
       await p.clock.setFixedTime(new Date())
       await p.reload()
       await p.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled)
@@ -107,7 +135,7 @@ try {
       await p.setViewportSize({ width, height: 1000 })
       await p.waitForTimeout(150)
       const layout = await p.locator('#daily-brief').evaluate(el => ({ width: document.documentElement.scrollWidth,
-        outside: [...el.querySelectorAll('.daily-card,.daily-dates,.daily-summary')].some(n => n.getBoundingClientRect().right > innerWidth + 1),
+        outside: [...el.querySelectorAll('.daily-card,.daily-dates,.daily-thresholds,.daily-movements')].some(n => n.getBoundingClientRect().right > innerWidth + 1),
         clipped: [...el.querySelectorAll('h3,dt,strong,.change,.comparison')].some(n => n.scrollWidth > n.clientWidth + 2),
         thinChange: [...el.querySelectorAll('.daily-fund-metrics .change-group')].some(n => n.clientWidth < 90),
         rows: [...el.querySelectorAll('.daily-card')].map(n => Math.round(n.getBoundingClientRect().top)) }))
@@ -124,7 +152,7 @@ try {
     await p.setViewportSize({ width: 1440, height: 1000 })
     for (const card of model.cards) {
       await p.getByRole('tab', { name: '每日速递', exact: true }).click()
-      await p.getByRole('button', { name: card.title + '查看详情', exact: true }).click()
+      await p.locator(`[data-daily-card="${card.id}"]`).getByRole('button', { name: card.title + '查看详情', exact: true }).click()
       await p.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled)
       await p.waitForTimeout(150)
       assert.equal(await p.locator('.page-panel:visible').getAttribute('id'), 'page-panel-' + card.page)
@@ -145,7 +173,7 @@ try {
     await p.getByRole('button', { name: mode === 'static' ? '重新加载展示数据' : '刷新真实数据' }).click()
     await p.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled)
     assert.equal(await p.locator('.daily-card').count(), 9)
-    assert.equal(await p.locator('.daily-summary p').count(), 3)
+    assert.equal(await p.getByRole('slider').count(), 5)
     assert.deepEqual(errors, [])
     if (mode === 'static') assert.ok(requests.every(u => new URL(u).pathname.startsWith(new URL(preview).pathname) && !/\/api(?:\/|$)/.test(new URL(u).pathname)))
     results.push({ mode, reportDate: today, cards: 9, layouts: [1280, 1440, 1024, 768, 390], autdFourMetrics: true, publicationUnknown: true, errors })

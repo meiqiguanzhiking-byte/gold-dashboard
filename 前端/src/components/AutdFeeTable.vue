@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import StatusBadge from './StatusBadge.vue'
+import { sourceLabel } from '../source-labels.js'
 import { summarizeAutdFees } from '../autd-fees.js'
 
 const props = defineProps({ item: Object, loading: Boolean, error: String })
@@ -29,7 +30,7 @@ const days = (w, side) => w.valid ? w[side] : '数据暂缺'
       </p></div>
     </template>
     <p class="fee-note">“空支付给多”计入空方支付，“多支付给空”计入多方支付。交收平衡及缺失单列，不填补周末和节假日；不代表自然日计费天数或费用金额。统计窗口独立于左侧图表时间区间。</p>
-    <div class="chart-source">来源：{{ item?.metadata.source || 'AuTD.csv' }} · 交收方向</div>
+    <div class="chart-source">来源：{{ sourceLabel(item?.metadata || 'AuTD.csv') }} · 交收方向</div>
   </article>
 </template>
 

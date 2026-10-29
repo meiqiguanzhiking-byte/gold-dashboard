@@ -119,8 +119,13 @@ def export():
                            warnings=["此来源暂不导出，交割数据暂缺"])
     if deliveries:
         months = [month for product in deliveries["contracts"].values() for month in product["available_months"]]
+        delivery_file = next((file for file in files if file["source"] == DELIVERY_SOURCE), {})
+        delivery_public = DELIVERY_SOURCE not in policy["withheld_sources"]
         public_files.append({"source": DELIVERY_SOURCE, "coverage_start": min(months, default=None),
                              "latest_date": max(months, default=None), "status": "正常" if months else "数据缺失",
+                             "updated_at": delivery_file.get("updated_at") if delivery_public else None,
+                             "sheets": [pick(sheet, ("sheet", "coverage_start", "coverage_end", "status"))
+                                        for sheet in delivery_file.get("sheets", []) if sheet["sheet"] in ("GC", "MGC")] if delivery_public else [],
                              "warnings": ["仅导出GC/MGC交割图表所需月度机构数据，原始文件未发布"]})
     snapshot = {
         "schema_version": 1, "generated_at": now_iso(), "groups": exported, "files": public_files, "comex": comex,

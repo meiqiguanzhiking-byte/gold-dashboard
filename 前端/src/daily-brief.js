@@ -1,8 +1,36 @@
 import { summarizeAutdFees } from './autd-fees.js'
+import { sourceLabel } from './source-labels.js'
 // 每日速递复用源序列；报告日、观察日及快照/缓存时间各自独立。
 export const isNumber = value => typeof value === 'number' && Number.isFinite(value)
 export const numberText = (value, digits = 2) => isNumber(value) ? value.toLocaleString('zh-CN', { minimumFractionDigits: digits, maximumFractionDigits: digits }) : '数据暂缺'
 const signedText = value => isNumber(value) ? (value > 0 ? '+' : '') + numberText(value) : '暂不可计算'
+export const dailyThresholdGroups = [
+  { id: 'price', label: '价格阈值', max: 5, step: 0.05, initial: 1, indicators: [
+    { id: 'gold_price_anchor', label: '上金所Au99.99收盘价', category: 'price', page: 'domestic', section: 'gold-price' },
+    { id: 'london_gold_spot', label: '伦敦金现（北京时间15:30）', category: 'price', page: 'foreign', section: 'overseas-price' },
+    { id: 'usdcnh', label: '美元兑离岸人民币', category: 'price', page: 'foreign', section: 'overseas-price' },
+    { id: 'gold_domestic_spread', label: '国内外黄金价差', category: 'price', page: 'domestic', section: 'gold-price' },
+  ] },
+  { id: 'volatility', label: '波动率阈值', max: 5, step: 0.05, initial: 1, description: '按波动率相对上一观察期的百分比变化筛选，同时展示百分点变化。', indicators: [
+    { id: 'gold_hv20', label: '20日年化历史波动率', category: 'price', page: 'domestic', section: 'gold-price' },
+    { id: 'gold_hv60', label: '60日年化历史波动率', category: 'price', page: 'domestic', section: 'gold-price' },
+  ] },
+  { id: 'volume', label: '成交量阈值', max: 10, step: 0.1, initial: 5, indicators: [
+    { id: 'au_td_volume', label: 'Au(T+D) 成交量', category: 'au-td', page: 'domestic', section: 'au-td' },
+    { id: 'futures_volume', label: '上期所黄金期货总成交量', category: 'futures', page: 'domestic', section: 'futures' },
+  ] },
+  { id: 'position', label: '持仓量阈值', max: 1, step: 0.01, initial: 0.2, indicators: [
+    { id: 'au_td_open_interest', label: 'Au(T+D) 持仓量', category: 'au-td', page: 'domestic', section: 'au-td' },
+    { id: 'futures_open_interest', label: '上期所黄金期货总持仓量', category: 'futures', page: 'domestic', section: 'futures' },
+    { id: 'cftc_long', label: 'CFTC 非商业多头持仓', category: 'cftc', page: 'foreign', section: 'positions' },
+    { id: 'cftc_short', label: 'CFTC 非商业空头持仓', category: 'cftc', page: 'foreign', section: 'positions' },
+    { id: 'cftc_net_long', label: 'CFTC 非商业净多头持仓', category: 'cftc', page: 'foreign', section: 'positions' },
+  ] },
+  { id: 'shares', label: '份额阈值', max: 1, step: 0.01, initial: 0.2, description: '包含国内7只黄金ETF合计份额，不含单只基金份额。', indicators: [
+    { id: 'domestic_etf_total_shares', label: '国内7只黄金ETF合计份额', category: 'etf', page: 'domestic', section: 'domestic-etf' },
+    { id: 'spdr_gold_holdings', label: 'SPDR黄金份额', category: 'etf', page: 'foreign', section: 'spdr' },
+  ] },
+]
 export function beijingDate(value = new Date()) {
   if (value == null || value === '') return null
   const date = new Date(value)
@@ -20,7 +48,7 @@ export function briefPoint(item, reportDate, exactDate) {
   // 最新期为空、前一期为空、前值为0均不能跨期寻找另一个有效基准。
   const change = isNumber(current?.value) && isNumber(previous?.value) ? current.value - previous.value : null
   const percent = change != null && previous.value !== 0 ? change / previous.value * 100 : null
-  return { value: current?.value ?? null, date, previousDate: previous?.observation_date || null, change, percent,
+  return { value: current?.value ?? null, date, previousValue: previous?.value ?? null, previousDate: previous?.observation_date || null, change, percent,
     unit: item?.metadata.unit || '', frequency: item?.metadata.frequency || '未提供', releaseDate: current?.release_date || null }
 }
 
@@ -29,19 +57,37 @@ export function briefRow(item, reportDate, label, { exactDate, kind = 'quantity'
   const actualUnit = unit ?? p.unit
   const suffix = kind === 'pp' ? '个百分点' : actualUnit
   const change = isNumber(p.change) ? `${signedText(p.change)} ${suffix}` + (kind === 'percent' ? `（${isNumber(p.percent) ? signedText(p.percent) + '%' : '涨跌幅暂不可计算'}）` : '') : '变化暂不可计算'
-  return { ...p, label, unit: actualUnit, valueText: isNumber(p.value) ? numberText(p.value) : typeof p.value === 'string' && p.value.trim() ? p.value : '数据暂缺',
+  return { ...p, label, source: sourceLabel(item?.metadata), unit: actualUnit, valueText: isNumber(p.value) ? numberText(p.value) : typeof p.value === 'string' && p.value.trim() ? p.value : '数据暂缺',
     changeText: typeof p.value === 'string' ? '变化不适用' : change,
     comparisonText: isNumber(p.change) ? `较 ${p.previousDate}` : '无有效比较基准', reason: p.value == null ? reason || '最新观察期缺失，不以前期值替代。' : '' }
 }
 
-function movement(row, name) {
-  if (!isNumber(row.value)) return `${name}数据暂缺`
-  if (!isNumber(row.change)) return `${name}（${row.date}）变化暂不可计算`
-  const direction = row.change > 0 ? '上涨' : row.change < 0 ? '下跌' : '持平'
-  return `${name}（${row.date}）较${row.previousDate}${direction}${isNumber(row.percent) ? ' ' + numberText(Math.abs(row.percent)) + '%' : '，涨跌幅暂不可计算'}`
+export function buildDailyMovements(items, reportDate) {
+  const byId = Object.fromEntries(items.map(item => [item.metadata.indicator_id, item]))
+  const movements = dailyThresholdGroups.flatMap(group => group.indicators.flatMap(indicator => {
+    const point = briefPoint(byId[indicator.id], reportDate)
+    if (!isNumber(point.change) || !isNumber(point.previousValue) || point.previousValue === 0) return []
+    // 价差与净持仓可能为负；以前值绝对值作分母，保留数值变化方向。
+    const percent = point.change / Math.abs(point.previousValue) * 100
+    if (!isNumber(percent)) return []
+    return [{ ...indicator, ...point, group: group.id, groupLabel: group.label.replace('阈值', ''), percent,
+      changeText: `${signedText(percent)}%`,
+      detail: group.id === 'volatility' ? `${signedText(point.change)} 个百分点` : '',
+      trend: point.change > 0 ? 'up' : point.change < 0 ? 'down' : 'flat' }]
+  }))
+  const direction = briefPoint(byId.au_td_delivery_direction, reportDate)
+  const knownDirections = ['多支付给空', '空支付给多', '交收平衡（无支付方向）']
+  if (knownDirections.includes(direction.value) && knownDirections.includes(direction.previousValue) && direction.value !== direction.previousValue) {
+    movements.push({ ...direction, id: 'au_td_delivery_direction', label: 'Au(T+D) 延期费支付方向',
+      category: 'au-td', page: 'domestic', section: 'au-td', group: 'direction', groupLabel: '方向变化',
+      changeText: `${direction.previousValue} → ${direction.value}`, trend: 'direction' })
+  }
+  return movements
 }
-function quantityMovement(row, name) {
-  return !isNumber(row.change) ? `${name}变化暂不可计算` : `${name}（${row.date}）较${row.previousDate}${row.change > 0 ? '增加' : row.change < 0 ? '减少' : '持平'}${row.change === 0 ? '' : ' ' + numberText(Math.abs(row.change)) + row.unit}`
+
+export function filterDailyMovements(movements, thresholds) {
+  return movements.filter(row => row.group === 'direction' ||
+    (isNumber(thresholds[row.group]) && Math.abs(row.percent) - thresholds[row.group] > 1e-10))
 }
 
 export function buildDailyBrief(items, reportDate) {
@@ -54,7 +100,7 @@ export function buildDailyBrief(items, reportDate) {
   const etfDate = ['domestic_etf_total_shares', 'domestic_etf_total_assets'].map(id => briefPoint(byId[id], reportDate).date).filter(Boolean).sort().at(-1)
   const shares = row('domestic_etf_total_shares', '7只ETF合计份额', { kind: 'percent', unit: '万份', exactDate: etfDate })
   const assets = row('domestic_etf_total_assets', '同范围合计资产规模', { kind: 'percent', unit: '亿元', exactDate: etfDate })
-  const spdr = row('spdr_gold_holdings', 'SPDR黄金持仓', { unit: '吨' })
+  const spdr = row('spdr_gold_holdings', 'SPDR黄金份额', { unit: '吨' })
   const futures = row('futures_open_interest', '上期所黄金期货合计持仓', { kind: 'percent', unit: '吨' })
   const inventory = row('comex_gold_total', 'COMEX黄金总库存', { unit: '吨' })
   const fundRows = [['518880', '华安'], ['159937', '博时'], ['159934', '易方达'], ['518800', '国泰'], ['518850', '华夏'], ['518660', '工银'], ['159812', '前海开源']]
@@ -86,11 +132,8 @@ export function buildDailyBrief(items, reportDate) {
     return { name: group.name, today: today.map(i => i.metadata.indicator_name), status: today.length ? '今日有发布记录' : known ? '暂无今日发布记录' : '发布日期未提供，无法确认今日新发布',
       observations: sources.map(i => `${i.metadata.indicator_name}：${briefPoint(i, reportDate).date || '数据暂缺'}`).join('；') || '数据暂缺' }
   })
-  const publishedToday = releases.flatMap(r => r.today)
-  const releaseSummary = publishedToday.length ? `今日有发布记录：${publishedToday.join('、')}。` : '无最新发布记录'
   return {
-    summary: [movement(price, 'Au99.99') + '；' + movement(international, '伦敦金现15:30') + '。',
-      quantityMovement(shares, '境内7只黄金ETF份额') + '；' + quantityMovement(spdr, 'SPDR持仓') + '；' + quantityMovement(futures, '国内黄金期货持仓') + '。', releaseSummary], releases,
+    movements: buildDailyMovements(items, reportDate), releases,
     cards: [
       { id: 'domestic-price', title: '国内黄金价格', category: 'price', page: 'domestic', section: 'gold-price', rows: [price], note: '上金所Au99.99交易日收盘价；变化基准为上一条交易观测记录。' },
       { id: 'international-price', title: '国际黄金价格', category: 'price', page: 'foreign', section: 'overseas-price', rows: [international], note: 'Barchart精确结束于北京时间15:30的半小时K线close；不是LBMA定盘价。' },
@@ -103,7 +146,7 @@ export function buildDailyBrief(items, reportDate) {
         feeRow,
       ], note: '多空分项持仓数据暂缺；延期费支付方向不代表多空仓位，不推断多空强弱。' },
       { id: 'domestic-etf', layout: 'etf', title: '国内黄金ETF份额', category: 'etf', page: 'domestic', section: 'domestic-etf', rows: [shares, assets], fundRows, note: '固定7只基金、同一观察日；任一基金缺失则合计缺失。份额或规模变化不等同资金净流入。' },
-      { id: 'spdr', layout: 'last', title: 'SPDR黄金持仓', category: 'etf', page: 'foreign', section: 'spdr', rows: [spdr], note: '采用黄金持仓吨数；不以ETF价格、份额替代黄金持仓。' },
+      { id: 'spdr', layout: 'last', title: 'SPDR黄金份额', category: 'etf', page: 'foreign', section: 'spdr', rows: [spdr], note: '采用黄金持仓吨数；不以ETF价格、份额替代黄金持仓。' },
       { id: 'futures', layout: 'last', title: '国内黄金期货持仓', category: 'futures', page: 'domestic', section: 'futures', rows: [futures], note: '上期所表内同日全部黄金期货合约持仓吨数合计，沿用上游单边口径；缺项或重复合约则合计为空。' },
       { id: 'comex', layout: 'last', title: 'COMEX黄金库存', category: 'inventory', page: 'foreign', section: 'comex', rows: [inventory], note: '黄金总库存＝注册库存＋合格库存；已质押库存不重复计入。' },
     ],

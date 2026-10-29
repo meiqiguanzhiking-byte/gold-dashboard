@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { echarts, tooltipStyle, tooltipRow, axisLabel } from '../charts.js'
 import { regions, ranges, filteredHistory, format } from '../data.js'
 import StatusBadge from './StatusBadge.vue'
+import { sourceLabel } from '../source-labels.js'
 const props = defineProps({ items: { type: Array, default: () => [] }, selected: { type: Array, default: () => [] }, loading: Boolean, error: String })
 const range = ref('1Y'), el = ref(null)
 let chart, observer
@@ -48,6 +49,6 @@ onBeforeUnmount(() => { window.removeEventListener('dashboard-page-visible', ref
   <article class="chart-panel wide"><header class="panel-header"><div><h3>全球黄金 ETF 月度地区净流量热力图（吨）</h3><p>横向比较月份，纵向比较地区；灰色表示缺失，与真实零值分开</p></div><StatusBadge :status="status" /></header>
     <div class="chart-toolbar"><span>月度 · 吨 · 最新 {{ latestDate || '未提供' }}</span><select v-model="range" aria-label="热力图时间区间"><option v-for="r in ranges" :key="r.value" :value="r.value">{{ r.label }}</option></select></div>
     <div class="chart-stage heat-stage"><div ref="el" class="echart" data-chart-title="月度地区热力图" /><div v-if="loading || error || !dates.length" class="empty-state"><strong>{{ loading ? '正在读取真实数据…' : error ? '接口请求失败：' + error : selected.length ? '该区间无月度数据' : '请选择至少一个地区' }}</strong></div></div>
-    <div class="chart-caption"><span>{{ dates[0] || '—' }} — {{ dates.at(-1) || '—' }} · {{ dates.length }} 个月度观察期</span><span>悬停查看名称、吨数与日期</span></div><div class="chart-source">来源：全球黄金ETF流量.xlsx / 月度数据</div>
+    <div class="chart-caption"><span>{{ dates[0] || '—' }} — {{ dates.at(-1) || '—' }} · {{ dates.length }} 个月度观察期</span><span>悬停查看名称、吨数与日期</span></div><div class="chart-source">来源：{{ sourceLabel('全球黄金ETF流量.xlsx') }} · 月度数据</div>
   </article>
 </template>

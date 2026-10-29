@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { echarts, axisLabel, tooltipRow, tooltipStyle } from '../charts.js'
 import { escapeHtml, format } from '../data.js'
 import StatusBadge from './StatusBadge.vue'
+import { sourceLabel } from '../source-labels.js'
 const props = defineProps({ title: String, rows: { type: Array, default: () => [] }, period: String, unit: String, error: String, loading: Boolean, note: String, negative: Boolean, nameFormatter: Function })
 const expanded = ref(false), el = ref(null)
 const visible = computed(() => expanded.value ? props.rows : props.rows.slice(0, 5))
@@ -38,6 +39,6 @@ onBeforeUnmount(() => { window.removeEventListener('dashboard-page-visible', ref
   <article class="chart-panel ranking-panel"><header class="panel-header"><div><h3>{{ title }}</h3><p>统计期间：{{ period || '未提供' }} · {{ unit || '单位未提供' }}</p></div><StatusBadge :status="loading ? '加载中' : error ? '接口失败' : rows.length ? unit === '未提供' ? '未确认' : '正常' : '数据缺失'" /></header>
     <div class="chart-stage" :style="{ height: expanded ? Math.max(230, visible.length * 29 + 50) + 'px' : '230px' }"><div ref="el" class="echart" :data-chart-title="title" /><div v-if="loading || error || !rows.length" class="empty-state"><strong>{{ loading ? '正在读取真实数据…' : error ? '接口请求失败：' + error : '该观察期没有可用排名数据' }}</strong><span>{{ note }}</span></div></div>
     <button v-if="rows.length > 5" class="text-button" @click="expanded = !expanded">{{ expanded ? '收起至前 5 名' : '展开全部 ' + rows.length + ' 项' }}</button>
-    <div class="chart-caption">{{ note || '仅比较同一观察期的已披露数据' }}</div><div class="chart-source">{{ rows[0]?.item.metadata.frequency || '频率未提供' }} · 最新观察期 {{ rows[0]?.item.metadata.coverage_end || '未提供' }} · 来源：{{ rows[0]?.item.metadata.source || '未提供' }}</div>
+    <div class="chart-caption">{{ note || '仅比较同一观察期的已披露数据' }}</div><div class="chart-source">{{ rows[0]?.item.metadata.frequency || '频率未提供' }} · 最新观察期 {{ rows[0]?.item.metadata.coverage_end || '未提供' }} · 来源：{{ sourceLabel(rows[0]?.item.metadata) }}</div>
   </article>
 </template>

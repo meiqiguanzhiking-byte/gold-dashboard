@@ -1,5 +1,6 @@
 <script setup>
 import StatusBadge from './StatusBadge.vue'
+import { sourceLabel } from '../source-labels.js'
 import { format, signed } from '../data.js'
 defineProps({ items: { type: Array, default: () => [] }, loading: Boolean, error: String })
 </script>
@@ -12,7 +13,7 @@ defineProps({ items: { type: Array, default: () => [] }, loading: Boolean, error
       <div class="volatility-date">观察日期 {{ item?.latest.observation_date || '未提供' }}</div>
     </div>
     <p v-if="error" class="inline-error">{{ error }}</p><p v-else-if="items.some(item => item?.latest.value == null)" class="inline-note">{{ items.find(item => item?.metadata.publication_withheld)?.warnings[0] || '数据不足：上游缺值或有效收益窗口不足，不回退至早期值。' }}</p>
-    <div class="metric-source">{{ items[0]?.metadata.source || '数据源暂不可用' }} · 日度</div>
+    <div class="metric-source">来源：{{ sourceLabel(items[0]?.metadata) }} · 日度</div>
   </article>
 </template>
 <style scoped>

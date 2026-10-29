@@ -14,6 +14,7 @@ import DashboardPages from './components/DashboardPages.vue'
 import DashboardPage from './components/DashboardPage.vue'
 import DashboardSection from './components/DashboardSection.vue'
 import { centralBankEntityName } from './central-bank-names.js'
+import { sourceLabel } from './source-labels.js'
 import { useDashboard, isStatic, categoryNames, format, localTime, regions, regionColors, palette, numeric, sortHealthSources } from './data.js'
 
 const { blocks, meta, all, dailyItems, dailyBlocks, item, refreshing, reloadError, clientRefreshedAt, notice, loadAll, loadPage, refresh, loadBlock } = useDashboard()
@@ -38,6 +39,34 @@ const tradeCards = [
   { id: 'au_td_delivery_direction', category: 'au-td', label: 'Au(T+D) 交收方向' },
 ]
 const positionCards = [{ id: 'cftc_long', label: '非商业多头持仓' }, { id: 'cftc_short', label: '非商业空头持仓' }, { id: 'cftc_net_long', label: '非商业净多头持仓' }, { id: 'cftc_net_long_ratio', label: '非商业净多头占比' }]
+const healthModuleRules = [
+  { id: 'overview', title: '国内核心指标', ids: ['gold_price_anchor', 'gold_hv20', 'gold_hv60', 'domestic_etf_total_assets'] },
+  { id: 'gold-price', title: '黄金价格与波动率', ids: ['gold_price_anchor', 'gold_hv20', 'gold_hv60', 'london_gold_spot', 'usdcnh', 'gold_domestic_spread'] },
+  { id: 'central-bank', title: '央行购金', sources: ['央行购金.xlsx'] },
+  { id: 'au-td', title: 'Au(T+D)', sources: ['AuTD.csv'] },
+  { id: 'futures', title: '上期所黄金期货', sources: ['黄金期货.csv'] },
+  { id: 'domestic-etf', title: '场内黄金 ETF 份额', sources: ['黄金ETF份额.xlsx'] },
+  { id: 'foreign-overview', title: '国外核心指标', ids: ['london_gold_spot', 'spdr_gold_holdings', 'cftc_net_long', 'global_etf_weekly_total_tonnes', 'global_central_bank_net_purchases'] },
+  { id: 'overseas-price', title: '伦敦金现与汇率', sources: ['伦敦金现与汇率_北京时间1530收盘价.xlsx'] },
+  { id: 'positions', title: 'CFTC 黄金非商业持仓', sources: ['CFTC黄金非商业持仓量.csv', 'CFTC黄金交易量和持仓量.csv'] },
+  { id: 'spdr', title: 'SPDR 黄金 ETF 份额', sources: ['SPDR黄金ETF份额.xlsx'] },
+  { id: 'london', title: '伦敦金银库存', sources: ['伦敦金银库存.xlsx'] },
+  { id: 'global-etf', title: '全球黄金 ETF 流量', sources: ['全球黄金ETF流量.xlsx'] },
+  { id: 'global-central-bank', title: '全球央行购金', sources: ['全球央行购金.csv'] },
+  { id: 'comex-inventory', title: 'COMEX 金银库存与结构', sources: ['COMEX金银库存.xlsx'] },
+  { id: 'comex-delivery', title: 'COMEX实物交割', fileSources: ['黄金交割.xlsx'] },
+]
+const healthPickerOptions = healthModuleRules.map(({ id, title }) => ({ id, title }))
+const healthSelectionKey = 'gold-dashboard:health-modules:v1'
+const selectedHealthModules = ref(healthPickerOptions.map(option => option.id))
+try {
+  const saved = JSON.parse(localStorage.getItem(healthSelectionKey))
+  if (Array.isArray(saved) && saved.every(id => healthPickerOptions.some(option => option.id === id))) selectedHealthModules.value = saved
+} catch { /* 使用默认全选，存储异常时仍可在本次打开期间操作。 */ }
+function updateHealthModules(ids) {
+  selectedHealthModules.value = ids
+  try { localStorage.setItem(healthSelectionKey, JSON.stringify(ids)) } catch { /* 不阻断页面筛选。 */ }
+}
 const allMetadata = computed(() => meta.value?.indicators || all.value.map(i => i.metadata))
 const asOf = computed(() => allMetadata.value.map(m => m.coverage_end).filter(Boolean).sort().at(-1) || '未提供')
 const failures = computed(() => Object.entries(blocks).filter(([, b]) => b.error))
@@ -98,7 +127,22 @@ const orderedHealthMetadata = computed(() => sortHealthSources(allMetadata.value
   healthTimedIndicators.has(m.indicator_id) ? { ...m, indicator_name: `${m.indicator_name}（15:30）` } : m,
 ))
 const healthFiles = computed(() => sortHealthSources(meta.value?.files || []))
-const healthRows = computed(() => orderedHealthMetadata.value.filter(m => (!healthSearch.value || (m.indicator_name + m.source).toLowerCase().includes(healthSearch.value.toLowerCase())) && (healthFrequency.value === '全部' || m.frequency === healthFrequency.value) && (healthStatus.value === '全部' || m.status === healthStatus.value || m.statuses?.includes(healthStatus.value) || m.automation_status === healthStatus.value)))
+const healthRows = computed(() => {
+  if (!selectedHealthModules.value.length) return []
+  const modules = healthModuleRules.filter(module => selectedHealthModules.value.includes(module.id))
+  const indicators = orderedHealthMetadata.value.filter(m => modules.some(module => module.ids?.includes(m.indicator_id) || module.sources?.includes(m.source)))
+  const fileSheets = modules.flatMap(module => (module.fileSources || []).flatMap(source => {
+    const file = healthFiles.value.find(entry => entry.source === source)
+    return (file?.sheets || []).map(sheet => ({
+      indicator_id: `file:${source}:${sheet.sheet}`,
+      indicator_name: module.title,
+      source, sheet: sheet.sheet, frequency: '未提供',
+      coverage_start: sheet.coverage_start, coverage_end: sheet.coverage_end,
+      updated_at: file.updated_at, delay_days: null, automation_status: '未确认', status: sheet.status,
+    }))
+  }))
+  return [...indicators, ...fileSheets].filter(m => m.indicator_id !== 'au_td_close' && (!healthSearch.value || (m.indicator_name + m.source).toLowerCase().includes(healthSearch.value.toLowerCase())) && (healthFrequency.value === '全部' || m.frequency === healthFrequency.value) && (healthStatus.value === '全部' || m.status === healthStatus.value || m.statuses?.includes(healthStatus.value) || m.automation_status === healthStatus.value))
+})
 const healthPages = computed(() => Math.max(1, Math.ceil(healthRows.value.length / 15)))
 const visibleHealth = computed(() => healthRows.value.slice((healthPage.value - 1) * 15, healthPage.value * 15))
 watch([healthSearch, healthFrequency, healthStatus], () => { healthPage.value = 1 })
@@ -132,7 +176,7 @@ onMounted(loadAll)
         </div>
         <p class="section-footnote">黄金现价价差＝Au99.99（元/克）−伦敦金现（美元/金衡盎司）×USDCNH（CNH/美元）÷31.1034768。1金衡盎司＝31.1034768克。仅比较同名日期各自收盘，包含CNH/CNY口径差异，不代表同步溢价或可交易套利空间。</p>
         <p class="section-footnote">方法：日对数收益率、20/60个交易观测收益率、样本标准差（ddof=1）、252日年化；只读取上游结果。窗口不足或源值缺失时保持数据暂缺。</p>
-        <p v-if="!priceWithheld" class="section-footnote">来源：黄金现货价格.xlsx / 黄金现货价格 · 文件更新 {{ localTime(item('gold_price_anchor')?.metadata.updated_at) }} · 缓存加载 {{ localTime(blocks.price.data?.loaded_at) }} · 发布日期未知（null）。</p>
+        <p v-if="!priceWithheld" class="section-footnote">来源：{{ sourceLabel('黄金现货价格.xlsx') }} · 文件更新 {{ localTime(item('gold_price_anchor')?.metadata.updated_at) }} · 缓存加载 {{ localTime(blocks.price.data?.loaded_at) }} · 发布日期未知（null）。</p>
       </DashboardSection>
       <DashboardSection id="central-bank" title="央行购金">
         <div class="section-heading"><div><span class="section-number">01</span><h2>央行购金</h2></div><span>月度储备 · 机构未确认</span></div>
@@ -222,12 +266,13 @@ onMounted(loadAll)
 
       <DashboardSection id="global-central-bank" title="全球央行购金">
         <div class="section-heading"><div><span class="section-number">10</span><h2>全球央行购金</h2></div><StatusBadge status="月度" /></div>
-        <div class="filter-bar country-filter"><label>数据月份<select v-model="countryMonth" aria-label="央行购金排名月份"><option v-for="month in countryMonths" :key="month" :value="month">{{ month }}</option></select></label><label><input v-model="chineseCentralNames" type="checkbox" aria-label="全球央行购金名称翻译中文">国家/地区名称翻译中文</label><span class="central-report-count">报告机构数：{{ format(reportedCount, 0) }} / {{ centralScope?.included_entities.length || '未提供' }}</span><span>纳入范围内 {{ undisclosed }} 个实体该期缺失或未通过核验；不计作零</span></div>
+        <div class="filter-bar country-filter"><label>数据月份<select v-model="countryMonth" aria-label="央行购金排名月份"><option v-for="month in countryMonths" :key="month" :value="month">{{ month }}</option></select></label><span class="central-report-count">报告机构数：{{ format(reportedCount, 0) }} / {{ centralScope?.included_entities.length || '未提供' }}</span><span>纳入范围内 {{ undisclosed }} 个实体该期缺失或未通过核验；不计作零</span></div>
         <p class="central-month-summary">{{ countryMonth || '数据月份暂缺' }} · 买入量 {{ format(centralPoint('global_central_bank_gross_purchases')) }} 吨 · 卖出量 {{ format(centralPoint('global_central_bank_gross_sales')) }} 吨 · 净买入 {{ format(centralPoint('global_central_bank_net_purchases')) }} 吨</p>
         <div class="chart-grid">
           <ChartPanel title="全球黄金储备净变化合计（吨）" description="已报告月度净变化：正值合计在零轴上方、负值合计在下方，折线表示净买入；同一吨数轴" :series="[line('global_central_bank_gross_purchases', '买入量（正变化合计）', '#78b6cf', { type: 'bar', stack: 'official-changes' }), line('global_central_bank_gross_sales', '卖出量（负变化合计）', '#8b72a0', { type: 'bar', stack: 'official-changes' }), line('global_central_bank_net_purchases', '净买入', '#355d7b')]" :loading="blocks['central-bank'].loading" :error="blocks['central-bank'].error" :tooltip-details="centralTooltip" note="基于已报告数据，可能随补报修订；非完整全球总量。买入/卖出为机构净变化分组，并非实际交易流水。" />
         </div>
         <details class="source-details central-scope"><summary>汇总范围与机构名单（固定口径）</summary><p>WGC Changes Monthly 为月度储备净变化，单位吨，不再差分。共纳入 {{ centralScope?.included_entities.length || '未提供' }} 个官方储备实体；{{ centralName('Turkey') }} 采用央行自有黄金＋财政部黄金，剔除商业部门相关黄金。SOFAZ 全历史排除，季度披露不摊入月份；{{ centralName('Euro Area') }} 不与成员国重复计算。</p><p>报告机构数按原始 Monthly 表有数值的机构计数，真实0计入，原表空白不计入。现有CSV曾补零，后台以只读原始表逐月核验并恢复空白；无法核验的月份保持缺失。该范围并非完整全球总量，储备变化可能含调整、掉期及其他非交易因素。</p><p><strong>纳入：</strong>{{ centralScope?.included_entities.map(centralName).join('；') || '数据暂缺' }}</p><p v-for="(reason, entity) in centralScope?.excluded_entities || {}" :key="entity"><strong>排除 {{ centralName(entity) }}：</strong>{{ reason }}</p><p>来源：World Gold Council（WGC），IMF IFS及各官方机构披露。基于已报告数据，可能随补报修订。</p></details>
+        <div class="filter-bar central-ranking-filter"><label><input v-model="chineseCentralNames" type="checkbox" aria-label="全球央行购金名称翻译中文">国家/地区名称翻译中文</label></div>
         <div class="chart-grid">
           <RankingChart title="当月买入国家/地区 · 正变化排序" :rows="buying" :period="countryMonth" unit="吨" :loading="blocks['central-bank'].loading" :error="blocks['central-bank'].error" :name-formatter="centralName" note="与上方汇总使用相同纳入名单；仅列已报告正值，不是交易流水" />
           <RankingChart title="当月卖出国家/地区 · 负变化排序" :rows="selling" :period="countryMonth" unit="吨" negative :loading="blocks['central-bank'].loading" :error="blocks['central-bank'].error" :name-formatter="centralName" note="与上方汇总使用相同纳入名单；缺失不计作零，真实0不列入排名" />
@@ -237,10 +282,10 @@ onMounted(loadAll)
       <ComexDelivery :data="blocks.inventory.data?.deliveries" :loading="blocks.inventory.loading" :error="blocks.inventory.error" />
       </DashboardPage>
 
-      <DashboardPage page="health" label="数据健康度">
+      <DashboardPage page="health" label="数据健康度" :picker-options="healthPickerOptions" :picker-selected="selectedHealthModules" @picker-update="updateHealthModules">
       <DashboardSection id="health" title="数据健康度"><div class="section-heading"><div><span class="section-number">11</span><h2>数据健康度</h2></div><span>{{ allMetadata.length }} 个指标 · {{ meta?.files.length || '—' }} 个文件</span></div><div class="health-filters"><input v-model="healthSearch" placeholder="搜索指标或来源文件" aria-label="搜索数据健康度"><select v-model="healthFrequency" aria-label="健康度频率筛选"><option>全部</option><option>日度</option><option>周度</option><option>月度</option><option>未提供</option></select><select v-model="healthStatus" aria-label="健康度状态筛选"><option>全部</option><option>正常</option><option>滞后</option><option>短历史</option><option>仅最新值</option><option>人工接入</option><option>未确认</option><option>数据缺失</option></select><span>自动化状态按来源披露，不假定已自动接入</span></div>
         <div v-if="blocks.meta.loading" class="table-message">正在读取元数据…</div><div v-else-if="blocks.meta.error" class="alert caution">元信息接口失败，使用已成功接口的指标元数据；文件级信息暂不可用。</div>
-        <div class="health-table"><table><thead><tr><th>数据项 / 来源</th><th>更新频率</th><th>最新观察期</th><th>历史起始</th><th>文件最近更新</th><th>数据延迟</th><th>自动化状态</th><th>数据状态</th></tr></thead><tbody><tr v-for="m in visibleHealth" :key="m.indicator_id"><td><strong>{{ m.indicator_name }}</strong><small>{{ m.source }}{{ m.sheet ? ' / ' + m.sheet : '' }}</small></td><td>{{ m.frequency }}</td><td>{{ m.coverage_end || '未提供' }}</td><td>{{ m.coverage_start || '未提供' }}</td><td>{{ localTime(m.updated_at) }}</td><td>{{ m.delay_days == null ? '未提供' : m.delay_days + ' 天' }}</td><td><StatusBadge :status="m.automation_status" /></td><td><StatusBadge :status="m.status" /><span v-if="m.status !== '滞后' && m.statuses?.includes('滞后')" class="secondary-status">滞后</span></td></tr><tr v-if="!visibleHealth.length"><td colspan="8" class="table-message">{{ pending ? '读取中…' : '没有符合筛选条件的数据项' }}</td></tr></tbody></table></div>
+        <div class="health-table"><table><thead><tr><th>数据项 / 来源</th><th>更新频率</th><th>最新观察期</th><th>历史起始</th><th>文件最近更新</th><th>数据延迟</th><th>自动化状态</th><th>数据状态</th></tr></thead><tbody><tr v-for="m in visibleHealth" :key="m.indicator_id"><td><strong>{{ m.indicator_name }}</strong><small>{{ sourceLabel(m) }}{{ m.indicator_id.startsWith('file:') ? ' · ' + m.sheet : '' }}</small></td><td>{{ m.frequency }}</td><td>{{ m.coverage_end || '未提供' }}</td><td>{{ m.coverage_start || '未提供' }}</td><td>{{ localTime(m.updated_at) }}</td><td>{{ m.delay_days == null ? '未提供' : m.delay_days + ' 天' }}</td><td><StatusBadge :status="m.automation_status" /></td><td><StatusBadge :status="m.status" /><span v-if="m.status !== '滞后' && m.statuses?.includes('滞后')" class="secondary-status">滞后</span></td></tr><tr v-if="!visibleHealth.length"><td colspan="8" class="table-message">{{ pending ? '读取中…' : '没有符合筛选条件的数据项' }}</td></tr></tbody></table></div>
         <div class="pagination"><span>共 {{ healthRows.length }} 项 · 第 {{ healthPage }} / {{ healthPages }} 页</span><button :disabled="healthPage <= 1" @click="healthPage--">上一页</button><button :disabled="healthPage >= healthPages" @click="healthPage++">下一页</button></div>
         <details class="source-details"><summary>查看文件读取状态与数据口径</summary><div v-for="file in healthFiles" :key="file.source" class="file-row"><strong>{{ file.source }}</strong><span>{{ file.coverage_start || '未提供' }} — {{ file.latest_date || '未提供' }}</span><StatusBadge :status="file.status" /><small>{{ file.warnings.join('；') }}</small></div><p>缺失保持空值；真实零值显示为 0。日/周/月延迟阈值为后端配置的提示阈值，不代表发布日历。原始发布日期未提供，数据健康度显示“未提供”。</p></details>
       </DashboardSection>

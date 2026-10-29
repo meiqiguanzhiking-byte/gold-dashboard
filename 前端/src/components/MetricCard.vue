@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import StatusBadge from './StatusBadge.vue'
+import { sourceLabel } from '../source-labels.js'
 import { format, signed } from '../data.js'
 const props = defineProps({ item: Object, label: String, loading: Boolean, error: String, price: Boolean })
 const state = computed(() => props.loading ? '加载中' : props.error ? '接口失败' : props.item?.metadata.status || '数据缺失')
@@ -21,6 +22,6 @@ const change = computed(() => {
     <div class="metric-change" :class="{ positive: item?.latest.change > 0, negative: item?.latest.change < 0 }">较上一期 {{ change }}</div>
     <div class="metric-date"><span>{{ item?.latest.observation_date || '观察日期未提供' }}</span><span>{{ item?.metadata.frequency || '频率未提供' }}</span></div>
     <p v-if="error" class="inline-error">{{ error }}</p>
-    <div v-else class="metric-source">{{ item?.metadata.source === '未提供' ? '价格口径待确认' : item?.metadata.source || '数据源暂不可用' }}<span v-if="item?.latest.value == null"> · 单位{{ item?.metadata.unit || '未提供' }}</span></div>
+    <div v-else class="metric-source">来源：{{ sourceLabel(item?.metadata) }}<span v-if="item?.latest.value == null"> · 单位{{ item?.metadata.unit || '未提供' }}</span></div>
   </article>
 </template>
