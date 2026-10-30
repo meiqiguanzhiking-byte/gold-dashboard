@@ -78,7 +78,6 @@
   ],
   "latest_only": [
     "au_td_close",
-    "domestic_etf_total_shares",
     "futures_main_contract",
     "cftc_net_long_ratio"
   ],

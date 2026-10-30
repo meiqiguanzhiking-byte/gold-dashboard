@@ -91,6 +91,17 @@ try {
   await page.locator('#domestic-etf').getByText('请选择至少一只基金', { exact: true }).first().waitFor()
   await page.locator('#domestic-etf').getByRole('button', { name: '全选', exact: true }).click()
   await page.locator('[data-chart-title="境内黄金 ETF 总份额与分基金份额（万份）"] canvas').waitFor()
+  await page.waitForTimeout(250)
+  const totalCurveSpan = await page.locator('[data-chart-title="境内黄金 ETF 总份额与分基金份额（万份）"] canvas').evaluate(canvas => {
+    const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data
+    const columns = new Set()
+    for (let y = 40; y < canvas.height - 55; y++) for (let x = 0; x < canvas.width; x++) {
+      const i = (y * canvas.width + x) * 4
+      if (pixels[i + 3] > 180 && Math.abs(pixels[i] - 40) < 8 && Math.abs(pixels[i + 1] - 121) < 8 && Math.abs(pixels[i + 2] - 133) < 8) columns.add(x)
+    }
+    return columns.size ? (Math.max(...columns) - Math.min(...columns)) / canvas.width : 0
+  })
+  assert.ok(totalCurveSpan > 0.65, '总份额深色曲线应覆盖一年历史，不能仅在最右侧出现两期短线')
   await page.getByRole('tab', { name: '国外' }).click()
   await page.waitForTimeout(250)
   const range = page.getByLabel('SPDR 黄金持仓趋势（吨）时间区间')

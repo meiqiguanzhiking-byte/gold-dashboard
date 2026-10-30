@@ -57,6 +57,20 @@ for (const rows of Object.values(snapshot.groups)) for (const item of rows) {
 }
 for (const id of ['gold_price_anchor', 'gold_hv20', 'gold_hv60', 'london_gold_spot', 'usdcnh', 'gold_domestic_spread']) assert.ok(ids.has(id), '静态版应保留新指标或明确的缺失占位')
 for (const id of ['domestic_etf_total_shares', 'au_td_close']) assert.ok(ids.has(id), '每日速递应保留合计份额与收盘价缺失占位')
+const totalShares = snapshot.groups.etf.find(item => item.metadata.indicator_id === 'domestic_etf_total_shares')
+if (!totalShares.metadata.publication_withheld) {
+  const funds = policy.fund_codes.map(code => snapshot.groups.etf.find(item => item.metadata.indicator_id === `domestic_${code}_shares`))
+  assert.ok(funds.every(Boolean), '总份额曲线须保留同口径七只基金')
+  const dates = [...new Set(funds.flatMap(item => item.points.map(([date]) => date)))].sort()
+  const maps = funds.map(item => new Map(item.points))
+  assert.deepEqual(totalShares.points.map(([date]) => date), dates, '总份额曲线必须保留与分基金相同的完整历史，不能仅导出最新两期')
+  for (const [date, value] of totalShares.points) {
+    const values = maps.map(points => points.get(date))
+    const complete = values.every(value => typeof value === 'number' && Number.isFinite(value))
+    if (complete) assert.ok(typeof value === 'number' && Math.abs(value - values.reduce((sum, value) => sum + value, 0)) < 1e-6, `总份额须等于同日七只基金之和：${date}`)
+    else assert.equal(value, null, `缺项不补零：${date}`)
+  }
+}
 assert.ok(!ids.has('spdr_close') && !ids.has('spdr_volume') && !ids.has('cftc_trading_volume'))
 assert.ok([...ids].filter(id => /^domestic_/.test(id)).every(id => !id.endsWith('_nav')))
 const prepared = buildPagesData(snapshot)
