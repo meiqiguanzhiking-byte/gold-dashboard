@@ -22,7 +22,7 @@ METADATA_FIELDS = (
     "change_unit", "change_kind", "price_basis", "source_unit", "source_reference", "method",
     "window_observations", "annualization_days", "public_use_status",
     "input_sources", "input_indicators", "cutoff_date", "cutoff_timezone", "comparison_basis", "grams_per_troy_ounce", "latest_valid_date",
-    "display_digits", "observation_time", "observation_timezone",
+    "display_digits", "observation_time", "observation_timezone", "index_symbol", "series_id",
     "aggregation_included", "aggregation_scope", "scope_entity_count", "coverage_basis", "reporting_evidence",
     "calculation",
 )

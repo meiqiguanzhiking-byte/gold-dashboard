@@ -32,7 +32,7 @@ try {
   await page.goto(base)
   await ready()
   assert.equal(requests.length, 0, '首次打开每日速递不得依赖任何JSON下载')
-  assert.equal(await page.locator('.daily-card').count(), 9)
+  assert.equal(await page.locator('.daily-card').count(), 13)
   for (const card of model.cards) for (const row of card.rows) if (!row.stats) {
     assert.ok((await page.locator(`[data-daily-card="${card.id}"]`).textContent()).includes(row.valueText))
   }

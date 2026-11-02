@@ -8,7 +8,7 @@ from config import DATA_DIR
 from data_loader import load_tables
 from indicators import Builder
 from price import add_price_indicators, SOURCE as DOMESTIC_SOURCE, SHEET as DOMESTIC_SHEET
-from international_price import add_international_price_indicators, SOURCE, SHEET
+from international_price import add_international_price_indicators, add_treasury_yield_indicators, SOURCE, SHEET, VOLATILITY_SOURCE, TREASURY_SOURCE
 
 
 class InternationalPriceData(unittest.TestCase):
@@ -20,6 +20,7 @@ class InternationalPriceData(unittest.TestCase):
         builder = Builder(self.tables if tables is None else tables)
         add_price_indicators(builder)
         add_international_price_indicators(builder)
+        add_treasury_yield_indicators(builder)
         return {i['metadata']['indicator_id']: i for i in builder.groups['price']}
 
     def test_source_units_and_all_history(self):
@@ -36,6 +37,41 @@ class InternationalPriceData(unittest.TestCase):
                 else: self.assertAlmostEqual(point['value'], row[column])
             self.assertEqual(item['latest']['value'], raw.iloc[-1][column])
             self.assertAlmostEqual(item['latest']['change_pct'], (raw.iloc[-1][column] / raw.iloc[-2][column] - 1) * 100)
+
+    def test_gold_etf_volatility_index_preserves_source_observations(self):
+        item = self.build()['gold_etf_volatility_index']
+        raw = self.tables[(VOLATILITY_SOURCE, None)].frame.sort_values('时间')
+        self.assertEqual(item['metadata']['unit'], '%')
+        self.assertEqual(item['metadata']['frequency'], '日度')
+        self.assertEqual(item['metadata']['index_symbol'], 'GVZ')
+        self.assertEqual(item['metadata']['source_reference'], 'https://www.cboe.com/us/indices/dashboard/gvz/')
+        self.assertEqual(item['latest']['change_unit'], '百分点')
+        self.assertEqual(len(item['history']), len(raw))
+        for point, (_, row) in zip(item['history'], raw.iterrows()):
+            self.assertEqual(point['observation_date'], row['时间'])
+            if pd.isna(row['波动率']): self.assertIsNone(point['value'])
+            else: self.assertAlmostEqual(point['value'], row['波动率'])
+
+    def test_treasury_yield_series_preserve_fred_source_values_and_gaps(self):
+        items = self.build()
+        raw = self.tables[(TREASURY_SOURCE, '日频美债收益率')].frame.sort_values('时间')
+        columns = {
+            'ust_10y_yield': ('10年美债收益率', '%', 'DGS10'),
+            'ust_2y_yield': ('2年美债收益率', '%', 'DGS2'),
+            'ust_10y_2y_spread': ('10年－2年期限利差', '百分点', 'T10Y2Y'),
+            'ust_10y_real_yield': ('10年实际利率', '%', 'DFII10'),
+            'ust_10y_breakeven_inflation': ('10年盈亏平衡通胀率（BEI）', '%', 'T10YIE'),
+        }
+        for indicator_id, (column, unit, series_id) in columns.items():
+            item = items[indicator_id]
+            self.assertEqual(item['metadata']['unit'], unit)
+            self.assertEqual(item['metadata']['series_id'], series_id)
+            self.assertEqual(item['metadata']['source_reference'], f'https://fred.stlouisfed.org/series/{series_id}')
+            self.assertEqual(len(item['history']), len(raw))
+            for point, (_, row) in zip(item['history'], raw.iterrows()):
+                self.assertEqual(point['observation_date'], row['时间'].strftime('%Y-%m-%d'))
+                if pd.isna(row[column]): self.assertIsNone(point['value'])
+                else: self.assertAlmostEqual(point['value'], row[column])
 
     def test_independent_join_and_conversion(self):
         item = self.build()['gold_domestic_spread']

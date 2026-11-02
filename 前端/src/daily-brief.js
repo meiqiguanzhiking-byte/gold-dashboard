@@ -9,7 +9,6 @@ export const dailyThresholdGroups = [
     { id: 'gold_price_anchor', label: '上金所Au99.99收盘价', category: 'price', page: 'domestic', section: 'gold-price' },
     { id: 'london_gold_spot', label: '伦敦金现（北京时间15:30）', category: 'price', page: 'foreign', section: 'overseas-price' },
     { id: 'usdcnh', label: '美元兑离岸人民币', category: 'price', page: 'foreign', section: 'overseas-price' },
-    { id: 'gold_domestic_spread', label: '国内外黄金价差', category: 'price', page: 'domestic', section: 'gold-price' },
   ] },
   { id: 'volatility', label: '波动率阈值', max: 5, step: 0.05, initial: 1, description: '按波动率相对上一观察期的百分比变化筛选，同时展示百分点变化。', indicators: [
     { id: 'gold_hv20', label: '20日年化历史波动率', category: 'price', page: 'domestic', section: 'gold-price' },
@@ -18,6 +17,15 @@ export const dailyThresholdGroups = [
   { id: 'volume', label: '成交量阈值', max: 10, step: 0.1, initial: 5, indicators: [
     { id: 'au_td_volume', label: 'Au(T+D) 成交量', category: 'au-td', page: 'domestic', section: 'au-td' },
     { id: 'futures_volume', label: '上期所黄金期货总成交量', category: 'futures', page: 'domestic', section: 'futures' },
+  ] },
+  { id: 'rates', label: '利率阈值', max: 5, step: 0.05, initial: 1, description: '按利率指标较上一观察期的相对变动百分比筛选；利差和利率为零或负值时，以比较期绝对值为分母。', indicators: [
+    { id: 'ust_10y_yield', label: '10年美债收益率', category: 'price', page: 'foreign', section: 'treasury-yields' },
+    { id: 'ust_2y_yield', label: '2年美债收益率', category: 'price', page: 'foreign', section: 'treasury-yields' },
+    { id: 'ust_10y_2y_spread', label: '10年－2年期限利差', category: 'price', page: 'foreign', section: 'treasury-yields' },
+    { id: 'ust_10y_breakeven_inflation', label: '10年盈亏平衡通胀率（BEI）', category: 'price', page: 'foreign', section: 'treasury-yields' },
+  ] },
+  { id: 'spread', label: '价差阈值', kind: 'absolute', unit: '元/克', max: 5, step: 0.05, initial: 0, description: '按价差较上一观察期的绝对变动值筛选，单位为元/克，不使用百分比。', indicators: [
+    { id: 'gold_domestic_spread', label: '国内外黄金价差', category: 'price', page: 'domestic', section: 'gold-price' },
   ] },
   { id: 'position', label: '持仓量阈值', max: 1, step: 0.01, initial: 0.2, indicators: [
     { id: 'au_td_open_interest', label: 'Au(T+D) 持仓量', category: 'au-td', page: 'domestic', section: 'au-td' },
@@ -66,28 +74,30 @@ export function buildDailyMovements(items, reportDate) {
   const byId = Object.fromEntries(items.map(item => [item.metadata.indicator_id, item]))
   const movements = dailyThresholdGroups.flatMap(group => group.indicators.flatMap(indicator => {
     const point = briefPoint(byId[indicator.id], reportDate)
-    if (!isNumber(point.change) || !isNumber(point.previousValue) || point.previousValue === 0) return []
-    // 价差与净持仓可能为负；以前值绝对值作分母，保留数值变化方向。
-    const percent = point.change / Math.abs(point.previousValue) * 100
-    if (!isNumber(percent)) return []
+    if (!isNumber(point.change) || !isNumber(point.previousValue)) return []
+    // 百分比以前值绝对值作分母；价差直接使用变动值，前值为0也可比较。
+    const percent = point.previousValue !== 0 ? point.change / Math.abs(point.previousValue) * 100 : null
+    const thresholdValue = group.kind === 'absolute' ? point.change : percent
+    if (!isNumber(thresholdValue)) return []
     return [{ ...indicator, ...point, group: group.id, groupLabel: group.label.replace('阈值', ''), percent,
-      changeText: `${signedText(percent)}%`,
+      thresholdValue, changeText: group.kind === 'absolute' ? `${signedText(point.change)} ${group.unit}` : `${signedText(percent)}%`,
       detail: group.id === 'volatility' ? `${signedText(point.change)} 个百分点` : '',
       trend: point.change > 0 ? 'up' : point.change < 0 ? 'down' : 'flat' }]
   }))
   const direction = briefPoint(byId.au_td_delivery_direction, reportDate)
   const knownDirections = ['多支付给空', '空支付给多', '交收平衡（无支付方向）']
-  if (knownDirections.includes(direction.value) && knownDirections.includes(direction.previousValue) && direction.value !== direction.previousValue) {
-    movements.push({ ...direction, id: 'au_td_delivery_direction', label: 'Au(T+D) 延期费支付方向',
-      category: 'au-td', page: 'domestic', section: 'au-td', group: 'direction', groupLabel: '方向变化',
-      changeText: `${direction.previousValue} → ${direction.value}`, trend: 'direction' })
-  }
+  const comparableDirection = knownDirections.includes(direction.value) && knownDirections.includes(direction.previousValue)
+  movements.push({ ...direction, id: 'au_td_delivery_direction', label: 'Au(T+D) 延期费支付方向',
+    value: typeof direction.value === 'string' && direction.value.trim() ? direction.value : '数据暂缺',
+    category: 'au-td', page: 'domestic', section: 'au-td', group: 'direction', groupLabel: '固定展示',
+    changeText: comparableDirection ? direction.value === direction.previousValue ? '方向未变' : `${direction.previousValue} → ${direction.value}` : '无有效比较基准',
+    trend: comparableDirection && direction.value === direction.previousValue ? 'flat' : 'direction' })
   return movements
 }
 
 export function filterDailyMovements(movements, thresholds) {
   return movements.filter(row => row.group === 'direction' ||
-    (isNumber(thresholds[row.group]) && Math.abs(row.percent) - thresholds[row.group] > 1e-10))
+    (isNumber(thresholds[row.group]) && Math.abs(row.thresholdValue) - thresholds[row.group] > 1e-10))
 }
 
 export function buildDailyBrief(items, reportDate) {
@@ -103,13 +113,11 @@ export function buildDailyBrief(items, reportDate) {
   const spdr = row('spdr_gold_holdings', 'SPDR黄金份额', { unit: '吨' })
   const futures = row('futures_open_interest', '上期所黄金期货合计持仓', { kind: 'percent', unit: '吨' })
   const inventory = row('comex_gold_total', 'COMEX黄金总库存', { unit: '吨' })
-  const fundRows = [['518880', '华安'], ['159937', '博时'], ['159934', '易方达'], ['518800', '国泰'], ['518850', '华夏'], ['518660', '工银'], ['159812', '前海开源']]
-    .map(([code, name]) => row(`domestic_${code}_shares`, `${name} ${code}`, { exactDate: etfDate, unit: '万份' }))
   const directionHistory = (byId.au_td_delivery_direction?.history || []).filter(p => p.observation_date <= reportDate)
     .toSorted((a, b) => a.observation_date.localeCompare(b.observation_date))
   const fee = summarizeAutdFees({ history: directionHistory })[0]
   const previousFee = summarizeAutdFees({ history: directionHistory.slice(0, -1) })[0]
-  const feeRow = { label: '近7个交易观测日多空统计', date: fee.end, stats: [
+  const feeRow = { label: '近7个交易观测日多空统计', date: fee.end, feeWindow: fee, stats: [
     ['long', '多方支付'], ['short', '空方支付'],
   ].map(([key, label]) => {
     const value = fee.count && fee.valid ? fee[key] : null
@@ -145,10 +153,14 @@ export function buildDailyBrief(items, reportDate) {
         row('au_td_delivery_direction', '延期费支付方向', { unit: '' }),
         feeRow,
       ], note: '多空分项持仓数据暂缺；延期费支付方向不代表多空仓位，不推断多空强弱。' },
-      { id: 'domestic-etf', layout: 'etf', title: '国内黄金ETF份额', category: 'etf', page: 'domestic', section: 'domestic-etf', rows: [shares, assets], fundRows, note: '固定7只基金、同一观察日；任一基金缺失则合计缺失。份额或规模变化不等同资金净流入。' },
+      { id: 'domestic-etf', layout: 'etf', title: '国内黄金ETF份额', category: 'etf', page: 'domestic', section: 'domestic-etf', rows: [shares, assets], note: '固定7只基金、同一观察日；任一基金缺失则合计缺失。份额或规模变化不等同资金净流入。' },
       { id: 'spdr', layout: 'last', title: 'SPDR黄金份额', category: 'etf', page: 'foreign', section: 'spdr', rows: [spdr], note: '采用黄金持仓吨数；不以ETF价格、份额替代黄金持仓。' },
       { id: 'futures', layout: 'last', title: '国内黄金期货持仓', category: 'futures', page: 'domestic', section: 'futures', rows: [futures], note: '上期所表内同日全部黄金期货合约持仓吨数合计，沿用上游单边口径；缺项或重复合约则合计为空。' },
       { id: 'comex', layout: 'last', title: 'COMEX黄金库存', category: 'inventory', page: 'foreign', section: 'comex', rows: [inventory], note: '黄金总库存＝注册库存＋合格库存；已质押库存不重复计入。' },
+      { id: 'treasury-10y', layout: 'rate', title: '10年美债收益率', category: 'price', page: 'foreign', section: 'treasury-yields', rows: [row('ust_10y_yield', '10年美债收益率', { kind: 'percent' })], note: 'FRED DGS10 原始日度序列；观察日期以数据标注为准。' },
+      { id: 'treasury-2y', layout: 'rate', title: '2年美债收益率', category: 'price', page: 'foreign', section: 'treasury-yields', rows: [row('ust_2y_yield', '2年美债收益率', { kind: 'percent' })], note: 'FRED DGS2 原始日度序列；观察日期以数据标注为准。' },
+      { id: 'treasury-spread', layout: 'rate', title: '10年－2年期限利差', category: 'price', page: 'foreign', section: 'treasury-yields', rows: [row('ust_10y_2y_spread', '10年－2年期限利差', { kind: 'percent' })], note: '沿用FRED T10Y2Y原始序列，不由10年和2年收益率重算。' },
+      { id: 'treasury-bei', layout: 'rate', title: '10年盈亏平衡通胀率（BEI）', category: 'price', page: 'foreign', section: 'treasury-yields', rows: [row('ust_10y_breakeven_inflation', '10年盈亏平衡通胀率（BEI）', { kind: 'percent' })], note: 'FRED T10YIE 原始日度序列；指标不是对实际通胀的直接预测。' },
     ],
   }
 }

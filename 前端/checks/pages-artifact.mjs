@@ -56,6 +56,7 @@ for (const rows of Object.values(snapshot.groups)) for (const item of rows) {
   }
 }
 for (const id of ['gold_price_anchor', 'gold_hv20', 'gold_hv60', 'london_gold_spot', 'usdcnh', 'gold_domestic_spread']) assert.ok(ids.has(id), '静态版应保留新指标或明确的缺失占位')
+for (const id of ['ust_10y_yield', 'ust_2y_yield', 'ust_10y_2y_spread', 'ust_10y_breakeven_inflation']) assert.ok(ids.has(id), '静态版每日速递应保留四项美债利率序列')
 for (const id of ['domestic_etf_total_shares', 'au_td_close']) assert.ok(ids.has(id), '每日速递应保留合计份额与收盘价缺失占位')
 const totalShares = snapshot.groups.etf.find(item => item.metadata.indicator_id === 'domestic_etf_total_shares')
 if (!totalShares.metadata.publication_withheld) {

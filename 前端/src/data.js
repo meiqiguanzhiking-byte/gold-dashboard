@@ -13,6 +13,8 @@ export const palette = ['#207c88', '#b59b64', '#6d83ab', '#8c6ca0', '#668e6f', '
 const healthSourceGroups = [
   ['黄金现货价格.xlsx'],
   ['伦敦金现与汇率_北京时间1530收盘价.xlsx'],
+  ['黄金ETF波动率指数.csv'],
+  ['美债收益率.xlsx'],
   ['央行购金.xlsx'],
   ['AuTD.csv'],
   ['黄金期货.csv'],

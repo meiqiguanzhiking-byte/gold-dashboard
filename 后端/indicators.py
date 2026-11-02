@@ -9,7 +9,7 @@ from config import LAG_DAYS, LOCAL_TIMEZONE
 from data_loader import parse_dates
 from comex import add_comex_indicators
 from price import add_price_indicators
-from international_price import add_international_price_indicators
+from international_price import add_international_price_indicators, add_treasury_yield_indicators
 from central_banks import add_central_bank_changes
 
 CATEGORIES = ("central-bank", "etf", "inventory", "futures", "cftc", "au-td", "price")
@@ -137,6 +137,7 @@ def build_indicators(tables):
     b = Builder(tables)
     add_price_indicators(b)
     add_international_price_indicators(b)
+    add_treasury_yield_indicators(b)
     b.columns("au-td", "AuTD.csv", None, "日度", [
         ("au_td_open_interest", "Au(T+D) 持仓量", "持仓量（吨）", "吨"),
         ("au_td_volume", "Au(T+D) 成交量", "交易量（吨）", "吨"),

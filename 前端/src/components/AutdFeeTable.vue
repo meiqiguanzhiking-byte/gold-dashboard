@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import StatusBadge from './StatusBadge.vue'
+import FeeWindowDetails from './FeeWindowDetails.vue'
 import { sourceLabel } from '../source-labels.js'
 import { summarizeAutdFees } from '../autd-fees.js'
 
@@ -19,13 +20,13 @@ const days = (w, side) => w.valid ? w[side] : '数据暂缺'
     <template v-else>
       <table class="fee-table" aria-label="Au(T+D) 延期费支付方向统计">
         <thead>
-          <tr><th rowspan="2" scope="col">品种</th><th v-for="w in windows" :key="w.size" colspan="2" scope="colgroup">近{{ w.size }}个交易观测日</th></tr>
+          <tr><th rowspan="2" scope="col">品种</th><th v-for="w in windows" :key="w.size" colspan="2" scope="colgroup"><FeeWindowDetails :window="w" :align="w.size === 30 ? 'end' : 'center'" /></th></tr>
           <tr><template v-for="w in windows" :key="w.size"><th scope="col">空方支付<br>（天）</th><th scope="col">多方支付<br>（天）</th></template></tr>
         </thead>
         <tbody><tr><th scope="row">Au(T+D)</th><template v-for="w in windows" :key="w.size"><td>{{ days(w, 'short') }}</td><td>{{ days(w, 'long') }}</td></template></tr></tbody>
       </table>
       <div class="fee-windows"><p v-for="w in windows" :key="w.size" :data-fee-window="w.size">
-        <strong>近{{ w.size }}个交易观测日</strong><span>{{ w.start || '未提供' }} — {{ w.end || '未提供' }}</span>
+        <strong><FeeWindowDetails :window="w" /></strong><span>{{ w.start || '未提供' }} — {{ w.end || '未提供' }}</span>
         <span>实际 {{ w.count }} 条 · 交收平衡 {{ w.balanced }} 天 · 缺失/未识别 {{ w.unknown }} 天<span v-if="w.incomplete"> · 样本不足{{ w.size }}条</span></span>
       </p></div>
     </template>

@@ -12,7 +12,7 @@ const published = Object.fromEntries(expandSnapshot(snapshot).price.indicators.m
 const titles = {
   london_gold_spot: '伦敦金现（美元/金衡盎司）',
   usdcnh: '美元兑离岸人民币（CNH/美元）',
-  gold_domestic_spread: '国内外价差（元/克）',
+  gold_domestic_spread: '黄金现价价差（元/克）',
 }
 const expanded = expandSnapshot({ schema_version: 1, generated_at: api.loaded_at, files: [], groups: {
   price: Object.keys(titles).map(id => ({ metadata: items[id].metadata, notes: items[id].warnings, points: items[id].history.map(p => [p.observation_date, p.value]) })),
@@ -26,6 +26,13 @@ for (const i of expanded.price.indicators) {
 }
 const meta = await (await fetch(new URL('api/meta', live))).json()
 assert.ok(Object.keys(titles).every(id => meta.indicators.some(m => m.indicator_id === id)))
+const volatilityItem = items.gold_etf_volatility_index
+assert.ok(volatilityItem)
+assert.equal(volatilityItem.metadata.source, '黄金ETF波动率指数.csv')
+assert.equal(volatilityItem.metadata.unit, '%')
+assert.equal(volatilityItem.metadata.source_reference, 'https://www.cboe.com/us/indices/dashboard/gvz/')
+assert.equal(published.gold_etf_volatility_index.metadata.index_symbol, 'GVZ')
+assert.deepEqual(published.gold_etf_volatility_index.history, volatilityItem.history)
 assert.ok(Object.keys(titles).every(id => items[id].metadata.loaded_at === api.loaded_at))
 const browser = await chromium.launch({ channel: 'msedge', headless: true, args: ['--disable-breakpad', '--disable-logging'] })
 const results = []
@@ -54,7 +61,7 @@ async function layout(page) {
     await page.waitForTimeout(180)
     const actual = await page.locator('.page-panel:visible').evaluate(panel => ({
       width: document.documentElement.scrollWidth,
-      clipped: [...panel.querySelectorAll('#foreign-overview h3,#foreign-overview .metric-number,#overseas-price h3,#gold-price h3')].filter(el => el.scrollWidth > el.clientWidth + 2).map(el => el.textContent),
+      clipped: [...panel.querySelectorAll('#foreign-overview h3,#foreign-overview .metric-number,#overseas-price h3,#gold-etf-volatility h3,#gold-price h3')].filter(el => el.scrollWidth > el.clientWidth + 2).map(el => el.textContent),
       outside: [...panel.querySelectorAll('.chart-panel,.metric-card,.section-picker')].filter(el => { const r = el.getBoundingClientRect(); return r.left < -1 || r.right > innerWidth + 1 }).length,
     }))
     assert.equal(actual.width, width)
@@ -83,11 +90,21 @@ try {
     assert.equal(await page.locator('#foreign-overview .metric-card h3').first().textContent(), '伦敦金现')
     const ids = await page.locator('#page-panel-foreign > section').evaluateAll(nodes => nodes.map(n => n.id))
     assert.equal(ids[1], 'overseas-price')
+    assert.equal(ids[2], 'gold-etf-volatility')
+    assert.equal(await page.locator('#page-panel-foreign .section-picker').getByLabel('黄金ETF波动率指数', { exact: true }).count(), 1)
+    assert.equal(await page.locator('#gold-etf-volatility .section-number').textContent(), '05')
+    assert.equal(await page.locator('#gold-etf-volatility .chart-source').textContent(), '来源：Cboe 芝加哥期权交易所')
     const rects = await page.locator('#overseas-price .chart-panel').evaluateAll(nodes => nodes.map(n => { const r = n.getBoundingClientRect(); return { left: r.left, top: r.top, right: r.right } }))
     assert.equal(rects[0].top, rects[1].top)
     assert.ok(rects[0].right < rects[1].left)
     if (showPrices) {
       assert.equal(await page.locator('#overseas-price canvas').count(), 2)
+      assert.equal(await page.locator('#gold-etf-volatility canvas').count(), 1)
+      const gvzChart = await read(page, '黄金ETF波动率指数（GVZ，%）')
+      assert.equal(gvzChart.unit, '%')
+      const volatilityHistory = new Map(volatilityItem.history.map(point => [point.observation_date, point.value]))
+      gvzChart.dates.forEach((date, index) => assert.equal(gvzChart.values[index], volatilityHistory.get(date)))
+      assert.ok((await page.locator('#gold-etf-volatility').textContent()).includes('来源：Cboe 芝加哥期权交易所'))
       const card = await page.locator('#foreign-overview .metric-card').first().textContent()
       assert.ok(card.includes(sourceItems.london_gold_spot.latest.value.toLocaleString('zh-CN', { maximumFractionDigits: 2 })))
       assert.ok(card.includes('%') && card.includes('美元/金衡盎司'))
@@ -100,7 +117,7 @@ try {
           const values = new Map(sourceItems[id].history.map(p => [p.observation_date, p.value]))
           c.dates.forEach((d, index) => assert.equal(c.values[index], values.get(d)))
           assert.equal(c.unit, sourceItems[id].metadata.unit)
-          assert.equal(c.smooth, false); assert.equal(c.connectNulls, false)
+          assert.equal(c.smooth, false); assert.equal(c.connectNulls, id === 'gold_domestic_spread')
           if (id === 'gold_domestic_spread') assert.equal(sourceItems[id].metadata.observation_time, '15:30')
           assert.ok(c.tooltip.includes(c.dates.at(-1)))
         }
@@ -121,6 +138,8 @@ try {
     if (mode === 'static') assert.ok(requests.every(u => new URL(u).pathname.startsWith(new URL(preview).pathname) && !/\/api(?:\/|$)/.test(new URL(u).pathname)))
     await layout(page)
     await page.getByRole('tab', { name: '数据健康度', exact: true }).click()
+    await page.getByLabel('搜索数据健康度').fill('黄金ETF波动率指数.csv')
+    assert.equal(await page.locator('.health-table tbody tr:has(td strong)').count(), 1)
     await page.getByLabel('搜索数据健康度').fill('伦敦金现与汇率_北京时间1530收盘价.xlsx')
     assert.equal(await page.locator('.health-table tbody tr:has(td strong)').count(), 3)
     await page.getByRole('button', { name: mode === 'dynamic' ? '刷新真实数据' : '重新加载展示数据' }).click()

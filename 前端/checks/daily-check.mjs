@@ -32,15 +32,20 @@ try {
   for (const [mode, url, items] of [['dynamic', live, dynamic], ['static', preview, staticItems]]) {
     const index = Object.fromEntries(items.map(i => [i.metadata.indicator_id, i]))
     const model = buildDailyBrief(items, today)
-    assert.equal(model.cards.length, 9)
-    assert.deepEqual(model.cards.map(c => c.id), ['domestic-price', 'international-price', 'volatility', 'spread', 'autd', 'domestic-etf', 'spdr', 'futures', 'comex'])
-    assert.equal(dailyThresholdGroups.length, 5)
+    assert.equal(model.cards.length, 13)
+    assert.deepEqual(model.cards.map(c => c.id), ['domestic-price', 'international-price', 'volatility', 'spread', 'autd', 'domestic-etf', 'spdr', 'futures', 'comex', 'treasury-10y', 'treasury-2y', 'treasury-spread', 'treasury-bei'])
+    assert.equal(dailyThresholdGroups.length, 7)
+    assert.deepEqual(dailyThresholdGroups.find(group => group.id === 'rates').indicators.map(row => row.id), ['ust_10y_yield', 'ust_2y_yield', 'ust_10y_2y_spread', 'ust_10y_breakeven_inflation'])
+    assert.equal(dailyThresholdGroups.find(group => group.id === 'rates').initial, 1)
+    assert.ok(!dailyThresholdGroups.find(group => group.id === 'price').indicators.some(row => row.id === 'gold_domestic_spread'), '价差不再使用价格阈值')
+    assert.deepEqual(dailyThresholdGroups.find(group => group.id === 'spread').indicators.map(row => row.id), ['gold_domestic_spread'])
     assert.ok(model.movements.every(row => !/^domestic_\d+_shares$/.test(row.id)), '国内单只ETF份额不参与阈值筛选')
     assert.ok(dailyThresholdGroups.find(group => group.id === 'shares').indicators.some(row => row.id === 'domestic_etf_total_shares'), '国内ETF合计份额参与阈值筛选')
     const expectedMovements = filterDailyMovements(model.movements, thresholds)
     for (const row of model.movements.filter(row => row.group !== 'direction')) {
-      assert.equal(row.percent, row.change / Math.abs(row.previousValue) * 100)
-      assert.equal(filterDailyMovements([row], { [row.group]: Math.abs(row.percent) }).length, 0, '等于阈值不命中')
+      assert.equal(row.percent, row.previousValue !== 0 ? row.change / Math.abs(row.previousValue) * 100 : null)
+      assert.equal(row.thresholdValue, row.group === 'spread' ? row.change : row.percent)
+      assert.equal(filterDailyMovements([row], { [row.group]: Math.abs(row.thresholdValue) }).length, 0, '等于阈值不命中')
     }
     const price = index.gold_price_anchor
     const oldCutoff = price.history.at(-6).observation_date
@@ -70,9 +75,9 @@ try {
       assert.equal(fee.stats[n].value, feeHistory.filter(p => p.value === value).length)
     }
     const etf = model.cards.find(c => c.id === 'domestic-etf')
-    assert.equal(etf.fundRows.length, 7)
-    assert.ok(Math.abs(etf.fundRows.reduce((sum, r) => sum + r.value, 0) - etf.rows[0].value) < 1e-6)
-    assert.ok(etf.fundRows.every(r => r.date === etf.rows[0].date))
+    assert.equal(etf.fundRows, undefined)
+    assert.deepEqual(etf.rows.map(row => row.label), ['7只ETF合计份额', '同范围合计资产规模'])
+    assert.equal(etf.rows[0].date, etf.rows[1].date)
     assert.equal(model.cards[1].rows[0].unit, '美元/盎司')
     const spreadDate = model.cards[3].rows[0].date
     const onDate = id => index[id].history.find(p => p.observation_date === spreadDate)?.value
@@ -97,8 +102,8 @@ try {
         if (!row.stats && typeof row.value !== 'string') assert.ok(text.includes(row.changeText))
       }
     }
-    assert.equal(await p.getByRole('slider').count(), 5)
-    assert.deepEqual(await p.locator('.daily-threshold-column').evaluateAll(columns => columns.map(column => column.querySelectorAll('input').length)), [3, 2])
+    assert.equal(await p.getByRole('slider').count(), 7)
+    assert.equal(await p.locator('#daily-movement-panel .daily-threshold-grid input').count(), 7)
     assert.deepEqual(await p.locator('[data-daily-movement]').evaluateAll(rows => rows.map(row => row.dataset.dailyMovement)), expectedMovements.map(row => row.id))
     for (const group of dailyThresholdGroups) {
       const slider = p.getByRole('slider', { name: group.label, exact: true })
@@ -137,16 +142,15 @@ try {
       const layout = await p.locator('#daily-brief').evaluate(el => ({ width: document.documentElement.scrollWidth,
         outside: [...el.querySelectorAll('.daily-card,.daily-dates,.daily-thresholds,.daily-movements')].some(n => n.getBoundingClientRect().right > innerWidth + 1),
         clipped: [...el.querySelectorAll('h3,dt,strong,.change,.comparison')].some(n => n.scrollWidth > n.clientWidth + 2),
-        thinChange: [...el.querySelectorAll('.daily-fund-metrics .change-group')].some(n => n.clientWidth < 90),
         rows: [...el.querySelectorAll('.daily-card')].map(n => Math.round(n.getBoundingClientRect().top)) }))
       assert.equal(layout.width, width)
       assert.equal(layout.outside, false)
       assert.equal(layout.clipped, false)
-      assert.equal(layout.thinChange, false, 'ETF变化信息应有足够宽度')
       if (width >= 1280) {
         assert.equal(new Set(layout.rows.slice(0, 4)).size, 1)
-        assert.equal(new Set(layout.rows.slice(6)).size, 1)
+        assert.equal(new Set(layout.rows.slice(6, 9)).size, 1)
         assert.ok(layout.rows[4] > layout.rows[3] && layout.rows[5] > layout.rows[4] && layout.rows[6] > layout.rows[5])
+        assert.equal(new Set(layout.rows.slice(9)).size, 1, '四项美债指标同排显示')
       }
     }
     await p.setViewportSize({ width: 1440, height: 1000 })
@@ -172,11 +176,11 @@ try {
     await p.getByRole('tab', { name: '每日速递', exact: true }).click()
     await p.getByRole('button', { name: mode === 'static' ? '重新加载展示数据' : '刷新真实数据' }).click()
     await p.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled)
-    assert.equal(await p.locator('.daily-card').count(), 9)
-    assert.equal(await p.getByRole('slider').count(), 5)
+    assert.equal(await p.locator('.daily-card').count(), 13)
+    assert.equal(await p.getByRole('slider').count(), 7)
     assert.deepEqual(errors, [])
     if (mode === 'static') assert.ok(requests.every(u => new URL(u).pathname.startsWith(new URL(preview).pathname) && !/\/api(?:\/|$)/.test(new URL(u).pathname)))
-    results.push({ mode, reportDate: today, cards: 9, layouts: [1280, 1440, 1024, 768, 390], autdFourMetrics: true, publicationUnknown: true, errors })
+    results.push({ mode, reportDate: today, cards: 13, layouts: [1280, 1440, 1024, 768, 390], autdFourMetrics: true, treasuryCards: 4, publicationUnknown: true, errors })
     await p.close()
   }
   console.log(JSON.stringify({ passed: true, results }))

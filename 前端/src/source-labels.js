@@ -13,6 +13,8 @@ const sourceLabels = {
   '全球黄金ETF流量.xlsx': 'WGC 世界黄金协会',
   '全球央行购金.csv': 'WGC 世界黄金协会',
   '伦敦金现与汇率_北京时间1530收盘价.xlsx': 'Barchart 官网',
+  '黄金ETF波动率指数.csv': 'Cboe 芝加哥期权交易所',
+  '美债收益率.xlsx': 'FRED 美联储经济数据网站',
   '黄金交割.xlsx': 'CME Group 芝商所',
 }
 

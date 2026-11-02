@@ -123,7 +123,7 @@ onBeforeUnmount(() => { window.removeEventListener('dashboard-page-visible', ref
 
 <template>
   <DashboardSection id="comex" title="COMEX 金银库存与结构" class="comex-section">
-    <div class="section-heading comex-heading"><div><span class="section-number">08</span><h2>COMEX 金银库存与结构</h2></div>
+    <div class="section-heading comex-heading"><div><span class="section-number">10</span><h2>COMEX 金银库存与结构</h2></div>
       <div class="comex-controls"><label>金属<select v-model="metal" aria-label="COMEX 金属"><option value="gold">黄金</option><option value="silver">白银</option></select></label><label>区间<select v-model="range" aria-label="COMEX 时间范围"><option value="30">近30日</option><option value="90">近90日</option><option value="ALL">全部</option></select></label><button class="text-button" aria-label="COMEX 重置缩放" @click="resetZoom">重置缩放</button><span>最新观察 {{ view.lastDate || '未提供' }}</span><StatusBadge :status="state" /></div>
     </div>
     <div class="comex-coverage">吨数口径 · {{ summary?.metals?.[metal]?.coverage_start || '—' }} — {{ summary?.metals?.[metal]?.coverage_end || '—' }} · {{ summary?.metals?.[metal]?.record_count ?? 0 }} 个观察期 / {{ summary?.metals?.[metal]?.valid_record_count ?? 0 }} 个完整有效记录 · 所选区间 {{ view.visible.length }} 期 / {{ view.validCount }} 期完整 · 历史{{ view.historyStatus === '短历史' ? '覆盖较短' : view.historyStatus }}</div>

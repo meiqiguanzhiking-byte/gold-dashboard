@@ -17,7 +17,10 @@ export function summarizeAutdFees(item) {
       else if (direction === '交收平衡（无支付方向）') counts.balanced++
       else counts.unknown++
     }
-    return { size, count: sample.length, start: sample[0]?.[0], end: sample.at(-1)?.[0],
+    const observations = [...sample].reverse().map(([date, value]) => ({
+      date, direction: typeof value === 'string' && value.trim() ? value.trim() : '缺失/未识别',
+    }))
+    return { size, count: sample.length, start: sample[0]?.[0], end: sample.at(-1)?.[0], observations,
       ...counts, valid: sample.length - counts.unknown, incomplete: sample.length < size }
   })
 }

@@ -20,7 +20,7 @@ await page.route('**/*', route => {
   return route.continue()
 })
 async function loaded(p = page) {
-  await p.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled && document.querySelectorAll('#daily-brief .daily-card').length === 9)
+  await p.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled && document.querySelectorAll('#daily-brief .daily-card').length === 13)
 }
 async function layout(width) {
   await page.setViewportSize({ width, height: 1000 })
@@ -63,10 +63,10 @@ try {
   const generatedDate = snapshot.generated_at.slice(0, 10).split('-').map(Number).join('/')
   assert.ok((await page.locator('.data-summary').textContent()).includes(generatedDate))
   assert.equal(await page.getByRole('button', { name: '刷新真实数据', exact: true }).count(), 0)
-  assert.equal(await page.locator('main section.section').count(), 17)
+  assert.equal(await page.locator('main section.section').count(), 19)
   assert.deepEqual(await page.locator('.page-tabs button').allTextContents(), ['每日速递', '国内', '国外', '数据健康度'])
   assert.equal(await page.locator('.page-tabs button[aria-selected="true"]').textContent(), '每日速递')
-  assert.equal(await page.locator('#daily-brief .daily-card').count(), 9)
+  assert.equal(await page.locator('#daily-brief .daily-card').count(), 13)
   await page.getByRole('tab', { name: '国内', exact: true }).click()
   await loaded()
   await page.waitForTimeout(200)
