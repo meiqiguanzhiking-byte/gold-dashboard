@@ -7,7 +7,7 @@ defineProps({ data: Object, loading: Boolean, error: String })
 
 <template>
   <DashboardSection id="comex-delivery" title="COMEX实物交割">
-    <div class="section-heading"><div><span class="section-number">13</span><h2>COMEX实物交割</h2></div><span>月度交割通知 · 吨</span></div>
+    <div class="section-heading"><div><span class="section-number">14</span><h2>COMEX实物交割</h2></div><span>月度交割通知 · 吨</span></div>
     <div class="chart-grid delivery-grid">
       <ComexDeliveryChart v-for="symbol in ['GC', 'MGC']" :key="symbol" :symbol="symbol" :product="data?.contracts?.[symbol]" :loading="loading" :error="error" />
     </div>

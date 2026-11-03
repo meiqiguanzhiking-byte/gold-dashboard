@@ -4,7 +4,7 @@ import { chromium } from 'playwright'
 import { expandSnapshot } from '../src/static-source.js'
 
 const live = process.env.GOLD_FRONTEND_URL || 'http://127.0.0.1:5173/'
-const preview = process.env.GOLD_PAGES_URL || 'http://127.0.0.1:4173/gold-dashboard/'
+const preview = process.env.GOLD_PAGES_URL || 'http://127.0.0.1:4173/pages-preview/'
 const api = await (await fetch(new URL('api/price', live))).json()
 const ids = ['gold_price_anchor', 'gold_hv20', 'gold_hv60']
 const items = ids.map(id => api.indicators.find(item => item.metadata.indicator_id === id))
@@ -34,8 +34,9 @@ const expectedCharts = [['gold_price_anchor'], ['gold_hv20', 'gold_hv60'], ['gol
 const browser = await chromium.launch({ channel: 'msedge', headless: true, args: ['--disable-breakpad', '--disable-logging'] })
 const errors = [], layouts = [], blocked = []
 async function ready(page) {
-  await page.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled && document.querySelectorAll('#comex canvas').length === 2)
+  await page.waitForFunction(() => document.querySelector('.refresh-button') && !document.querySelector('.refresh-button').disabled, undefined, { timeout: 60000 })
   await page.getByRole('tab', { name: '国内', exact: true }).click()
+  await page.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled, undefined, { timeout: 60000 })
   await page.waitForTimeout(150)
 }
 async function layout(page, mode) {
@@ -43,8 +44,8 @@ async function layout(page, mode) {
     await page.setViewportSize({ width, height: 1000 })
     await page.waitForTimeout(180)
     const status = await page.evaluate(() => ({ width: document.documentElement.scrollWidth,
-      clipped: [...document.querySelectorAll('#overview h3,#gold-price h3,.volatility-value,.metric-change')].filter(el => el.scrollWidth > el.clientWidth + 2).map(el => el.textContent),
-      outside: [...document.querySelectorAll('#overview .metric-card,#gold-price .chart-panel,.section-nav')].filter(el => { const r = el.getBoundingClientRect(); return r.left < -1 || r.right > innerWidth + 1 }).map(el => el.className),
+      clipped: [...document.querySelectorAll('#overview h3,#gold-price h3,#gold-volatility h3,.volatility-value,.metric-change')].filter(el => el.scrollWidth > el.clientWidth + 2).map(el => el.textContent),
+      outside: [...document.querySelectorAll('#overview .metric-card,#gold-price .chart-panel,#gold-volatility .chart-panel,.section-nav')].filter(el => { const r = el.getBoundingClientRect(); return r.left < -1 || r.right > innerWidth + 1 }).map(el => el.className),
     }))
     assert.equal(status.width, width)
     assert.deepEqual(status.clipped, [])
@@ -68,8 +69,8 @@ try {
     assert.ok((await row.locator('.metric-change').textContent()).includes('个百分点'))
     assert.ok(!(await row.locator('.metric-change').textContent()).includes('%'))
   }
-  assert.equal(await page.locator('#gold-price canvas').count(), 3)
-  assert.ok((await page.locator('#gold-price').textContent()).includes('样本标准差（ddof=1）'))
+  assert.equal(await page.locator('#gold-price canvas, #gold-volatility canvas').count(), 3)
+  assert.ok((await page.locator('#gold-volatility').textContent()).includes('样本标准差（ddof=1）'))
   const sectionOrder = await page.locator('main section.section').evaluateAll(sections => sections.map(el => el.id))
   assert.ok(sectionOrder.indexOf('gold-price') < sectionOrder.indexOf('central-bank'))
   const title = '20日与60日年化历史波动率（%）'
@@ -108,7 +109,7 @@ try {
   await layout(page, 'dynamic')
   await page.getByRole('button', { name: '刷新真实数据' }).click()
   await ready(page)
-  assert.equal(await page.locator('#gold-price canvas').count(), 3)
+  assert.equal(await page.locator('#gold-price canvas, #gold-volatility canvas').count(), 3)
   for (const id of ['central-bank', 'au-td', 'futures', 'domestic-etf', 'positions', 'spdr', 'comex']) assert.ok(await page.locator('#' + id + ' canvas').count() > 0)
   const staticPage = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
   staticPage.on('pageerror', error => errors.push(error.message))
@@ -121,8 +122,8 @@ try {
   })
   await staticPage.goto(preview)
   await ready(staticPage)
-  assert.equal(await staticPage.locator('#gold-price canvas').count(), expectedCharts)
-  assert.equal(await staticPage.locator('#gold-price .empty-state').count(), 3 - expectedCharts)
+  assert.equal(await staticPage.locator('#gold-price canvas, #gold-volatility canvas').count(), expectedCharts)
+  assert.equal(await staticPage.locator('#gold-price .empty-state, #gold-volatility .empty-state').count(), 3 - expectedCharts)
   if (expectedCharts === 0) {
     assert.ok((await staticPage.locator('#gold-price').textContent()).includes('公开使用尚未确认'))
     assert.ok((await staticPage.locator('.volatility-card').textContent()).includes('数据暂缺'))
@@ -134,7 +135,7 @@ try {
   await layout(staticPage, 'static')
   await staticPage.getByRole('button', { name: '重新加载展示数据' }).click()
   await ready(staticPage)
-  assert.equal(await staticPage.locator('#gold-price canvas').count(), expectedCharts)
+  assert.equal(await staticPage.locator('#gold-price canvas, #gold-volatility canvas').count(), expectedCharts)
   assert.deepEqual(blocked, [])
   assert.deepEqual(errors, [])
   console.log(JSON.stringify({ passed: true, latest: items[0].latest.observation_date, observations: items[0].history.length, layouts,

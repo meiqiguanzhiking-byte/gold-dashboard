@@ -11,8 +11,8 @@ export const dailyThresholdGroups = [
     { id: 'usdcnh', label: '美元兑离岸人民币', category: 'price', page: 'foreign', section: 'overseas-price' },
   ] },
   { id: 'volatility', label: '波动率阈值', max: 5, step: 0.05, initial: 1, description: '按波动率相对上一观察期的百分比变化筛选，同时展示百分点变化。', indicators: [
-    { id: 'gold_hv20', label: '20日年化历史波动率', category: 'price', page: 'domestic', section: 'gold-price' },
-    { id: 'gold_hv60', label: '60日年化历史波动率', category: 'price', page: 'domestic', section: 'gold-price' },
+    { id: 'gold_hv20', label: '20日年化历史波动率', category: 'price', page: 'domestic', section: 'gold-volatility' },
+    { id: 'gold_hv60', label: '60日年化历史波动率', category: 'price', page: 'domestic', section: 'gold-volatility' },
   ] },
   { id: 'volume', label: '成交量阈值', max: 10, step: 0.1, initial: 5, indicators: [
     { id: 'au_td_volume', label: 'Au(T+D) 成交量', category: 'au-td', page: 'domestic', section: 'au-td' },
@@ -145,7 +145,7 @@ export function buildDailyBrief(items, reportDate) {
     cards: [
       { id: 'domestic-price', title: '国内黄金价格', category: 'price', page: 'domestic', section: 'gold-price', rows: [price], note: '上金所Au99.99交易日收盘价；变化基准为上一条交易观测记录。' },
       { id: 'international-price', title: '国际黄金价格', category: 'price', page: 'foreign', section: 'overseas-price', rows: [international], note: 'Barchart精确结束于北京时间15:30的半小时K线close；不是LBMA定盘价。' },
-      { id: 'volatility', title: '黄金历史波动率', category: 'price', page: 'domestic', section: 'gold-price', rows: [vol], note: '20个交易观测收益率、样本标准差、252日年化；只读上游结果，不代表未来涨跌方向。' },
+      { id: 'volatility', title: '黄金历史波动率', category: 'price', page: 'domestic', section: 'gold-volatility', rows: [vol], note: '20个交易观测收益率、样本标准差、252日年化；只读上游结果，不代表未来涨跌方向。' },
       { id: 'spread', title: '国内外黄金价差', category: 'price', page: 'domestic', section: 'gold-price', rows: [spread], note: '同日期、北京时间15:30海外金价及汇率折算；美元/金衡盎司 × USDCNH ÷ 31.1034768，价差单位为元/克。' },
       { id: 'autd', layout: 'autd', title: 'Au(T+D)', category: 'au-td', page: 'domestic', section: 'au-td', rows: [
         row('au_td_volume', '成交量', { kind: 'percent', unit: '吨' }),

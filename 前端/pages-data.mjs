@@ -11,12 +11,21 @@ export function buildPagesData(snapshot) {
   for (const [category, items] of Object.entries(snapshot.groups)) {
     const batches = []
     let batch = [], bytes = 0
-    for (const item of items) for (let offset = 0; offset < item.points.length; offset += 1000) {
-      const segment = { id: item.metadata.indicator_id, offset, points: item.points.slice(offset, offset + 1000) }
-      const length = Buffer.byteLength(encode(segment))
+    for (const item of items) for (let offset = 0; offset < item.points.length;) {
+      let count = Math.min(1000, item.points.length - offset)
+      let segment, length
+      // 合约悬浮明细含较长中文文本，按实际UTF-8字节限制拆分。
+      do {
+        segment = { id: item.metadata.indicator_id, offset, points: item.points.slice(offset, offset + count) }
+        length = Buffer.byteLength(encode(segment))
+        if (length <= chunkLimit - 1024) break
+        if (count === 1) throw new Error('单条静态数据超出分片大小上限')
+        count = Math.max(1, Math.floor(count / 2))
+      } while (true)
       if (bytes + length > chunkLimit - 1024 && batch.length) { batches.push(batch); batch = []; bytes = 0 }
       batch.push(segment)
       bytes += length + 1
+      offset += count
     }
     if (batch.length) batches.push(batch)
     categories[category] = batches.map(segments => {

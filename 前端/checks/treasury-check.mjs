@@ -24,9 +24,9 @@ for (const id of ids) {
   assert.equal(dynamicItems[id].metadata.source_reference, `https://fred.stlouisfed.org/series/${dynamicItems[id].metadata.series_id}`)
   assert.deepEqual(publishedItems[id].history, dynamicItems[id].history)
 }
-assert.equal(dynamicItems.ust_10y_yield.latest.observation_date, '2026-10-29')
-assert.equal(dynamicItems.ust_10y_yield.latest.value, 4.98)
-assert.equal(dynamicItems.ust_10y_2y_spread.latest.value, 0.37)
+assert.equal(dynamicItems.ust_10y_yield.history.find(point => point.observation_date === '2026-10-29').value, 4.98)
+assert.equal(dynamicItems.ust_10y_2y_spread.history.find(point => point.observation_date === '2026-10-29').value, 0.37)
+assert.ok(dynamicItems.ust_10y_yield.latest.observation_date >= '2026-10-29')
 
 const browser = await chromium.launch({ channel: 'msedge', headless: true, args: ['--disable-breakpad', '--disable-logging'] })
 try {
@@ -43,12 +43,12 @@ try {
     const section = page.locator('#treasury-yields')
     await section.locator('canvas').first().waitFor()
     const sectionIds = await page.locator('#page-panel-foreign > section').evaluateAll(nodes => nodes.map(node => node.id))
-    assert.equal(sectionIds[3], 'treasury-yields')
-    assert.equal(await section.locator('.section-number').textContent(), '06')
-    assert.equal(await page.locator('#positions .section-number').textContent(), '07')
-    assert.equal(await page.locator('#global-etf .section-number').textContent(), '11')
-    assert.equal(await page.locator('#global-central-bank .section-number').textContent(), '12')
-    assert.equal(await page.locator('#comex-delivery .section-number').textContent(), '13')
+    assert.equal(sectionIds[4], 'treasury-yields')
+    assert.equal(await section.locator('.section-number').textContent(), '07')
+    assert.equal(await page.locator('#positions .section-number').textContent(), '08')
+    assert.equal(await page.locator('#global-etf .section-number').textContent(), '12')
+    assert.equal(await page.locator('#global-central-bank .section-number').textContent(), '13')
+    assert.equal(await page.locator('#comex-delivery .section-number').textContent(), '14')
     assert.deepEqual(await section.locator('.chart-panel').evaluateAll(nodes => nodes.map(node => node.querySelector('h3').textContent)), [
       '美债收益率与期限利差（%）', '10年美债收益率、实际利率与盈亏平衡通胀率（%）',
     ])
@@ -69,11 +69,19 @@ try {
           init = Object.values(await import(core)).find(value => typeof value === 'function' && value.toString().includes('afterinit'))
         }
         const option = init(document.querySelector(`[data-chart-title="${chartTitle}"]`)).getOption()
-        return { dates: option.xAxis[0].data, series: option.series.map(series => ({ name: series.name, data: series.data, connectNulls: series.connectNulls })) }
+        return { dates: option.xAxis[0].data, axes: option.yAxis.map(axis => ({ position: axis.position, name: axis.name, min: axis.min, max: axis.max })), series: option.series.map(series => ({ name: series.name, data: series.data, connectNulls: series.connectNulls, yAxisIndex: series.yAxisIndex })) }
       }, chartTitle)
       const expectedIds = chartTitle.startsWith('美债收益率与') ? ids.slice(0, 3) : [ids[0], ids[3], ids[4]]
       assert.equal(result.series.length, 3)
       assert.ok(result.series.every(series => series.connectNulls))
+      assert.deepEqual(result.series.map(series => series.yAxisIndex), [0, 0, 1])
+      assert.deepEqual(result.axes.map(axis => axis.position), ['left', 'right'])
+      assert.deepEqual(result.axes.map(axis => axis.name), ['%', chartTitle.startsWith('美债收益率与') ? '百分点' : '%'])
+      for (let axisIndex = 0; axisIndex < 2; axisIndex++) {
+        const values = result.series.filter(series => series.yAxisIndex === axisIndex).flatMap(series => series.data).filter(value => value != null)
+        assert.ok(result.axes[axisIndex].min <= Math.min(...values))
+        assert.ok(result.axes[axisIndex].max >= Math.max(...values))
+      }
       assert.equal(result.dates.length, sourceItems[expectedIds[0]].history.length)
       assert.deepEqual(result.series.map(series => series.name), expectedIds.map(id => names[id]))
       for (let index = 0; index < expectedIds.length; index++) {
