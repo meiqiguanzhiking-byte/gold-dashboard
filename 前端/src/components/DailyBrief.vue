@@ -2,16 +2,18 @@
 import { computed, inject, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import StatusBadge from './StatusBadge.vue'
 import DailyBriefMetric from './DailyBriefMetric.vue'
+import DailyTermStructure from './DailyTermStructure.vue'
 import { isStatic, localTime } from '../data.js'
-import { beijingDate, buildDailyBrief, dailyThresholdGroups, filterDailyMovements, numberText } from '../daily-brief.js'
+import { beijingDate, buildDailyBrief, dailyIndicatorGroups, dailyThresholdGroups, filterDailyMovements, numberText } from '../daily-brief.js'
 
 const props = defineProps({ items: { type: Array, default: () => [] }, meta: Object, blocks: Object })
 const navigate = inject('dashboardNavigate')
 const { register, hidden } = inject('dashboardSections')
 for (const section of [
+  { id: 'daily-term-structure', title: '价差期限结构' },
   { id: 'daily-movements', title: '指标变动' },
   { id: 'daily-thresholds', title: '阈值筛选' },
-  { id: 'daily-indicators', title: '每日指标' },
+  { id: 'daily-indicators', title: '每日指标', links: dailyIndicatorGroups.map(group => ({ id: 'daily-group-' + group.id, title: group.title })) },
 ]) register(section)
 const now = ref(new Date())
 let clock
@@ -36,8 +38,7 @@ try {
 watch(thresholds, value => {
   try { localStorage.setItem(thresholdKey, JSON.stringify(value)) } catch { /* 保留本次打开期间的筛选。 */ }
 }, { deep: true })
-const thresholdGroups = ['price', 'rates', 'volatility', 'volume', 'spread', 'position', 'shares']
-  .map(id => dailyThresholdGroups.find(group => group.id === id))
+const thresholdGroups = dailyThresholdGroups
 const movements = computed(() => filterDailyMovements(brief.value.movements.filter(row => {
   const block = props.blocks?.[row.category]
   return row.group === 'direction' || (!block?.loading && !block?.error)
@@ -59,6 +60,9 @@ function state(card) {
 <template>
   <section id="daily-brief" class="section daily-brief" aria-labelledby="daily-title">
     <header class="daily-heading"><h2 id="daily-title">每日速递</h2><div class="daily-dates"><strong>报告日期 {{ reportDate }}</strong><span>{{ isStatic ? '快照生成时间' : '缓存加载时间' }} {{ cutoff ? localTime(cutoff) : '未提供' }}（北京时间）</span></div></header>
+    <section id="daily-term-structure" v-show="!hidden.includes('daily-term-structure')" aria-labelledby="daily-term-structure-title" class="daily-term-section">
+      <DailyTermStructure :model="brief.termStructure" :loading="!!blocks?.price?.loading" :error="blocks?.price?.error" />
+    </section>
     <section id="daily-movement-panel" v-show="!hidden.includes('daily-movements') || !hidden.includes('daily-thresholds')" class="daily-movements" aria-labelledby="daily-movements-title" :aria-busy="loading">
       <div class="daily-movements-heading"><h3 id="daily-movements-title">指标变动 <span>{{ movements.length }} 项</span></h3></div>
     <div id="daily-thresholds" v-show="!hidden.includes('daily-thresholds')" class="daily-thresholds" role="group" aria-label="指标变动阈值筛选">
@@ -80,7 +84,7 @@ function state(card) {
       <ul v-if="movements.length" id="daily-movements" v-show="!hidden.includes('daily-movements')" class="daily-movement-list">
         <li v-for="row in movements" :key="row.id" :data-daily-movement="row.id">
           <button type="button" class="daily-movement" :aria-label="row.label + '查看详情'" @click="navigate(row.page, row.section)">
-            <span class="movement-name"><small>{{ row.groupLabel }}</small><strong>{{ row.label }}</strong><span class="movement-current" :class="{ 'current-direction': row.group === 'direction' }"><b>{{ row.group === 'direction' ? row.value : numberText(row.value) }}</b><small v-if="row.unit && row.unit !== '文本'">{{ row.unit }}</small></span></span>
+            <span class="movement-name"><small>{{ row.groupLabel }}</small><strong>{{ row.label }}</strong><span class="movement-current" :class="{ 'current-direction': row.group === 'direction' }"><b>{{ row.group === 'direction' ? row.value : numberText(row.value, row.digits) }}</b><small v-if="row.unit && row.unit !== '文本'">{{ row.unit }}</small></span></span>
             <span class="movement-value" :class="row.trend"><span><span v-if="row.group !== 'direction'" aria-hidden="true">{{ movementArrow(row) }} </span>{{ row.changeText }}</span><small v-if="row.detail">{{ row.detail }}</small></span>
             <span class="movement-dates">观察日期 {{ row.date || '未提供' }} <span>{{ row.previousDate ? '较 ' + row.previousDate : '无有效比较基准' }}</span></span>
           </button>
@@ -89,8 +93,10 @@ function state(card) {
     </section>
     <section id="daily-indicators" v-show="!hidden.includes('daily-indicators')" aria-label="每日指标">
     <p v-if="failed" class="section-footnote" role="status">部分数据读取失败，相应指标显示数据暂缺；其他指标可继续查看。</p>
-    <div class="daily-card-grid">
-      <article v-for="card in brief.cards" :key="card.id" class="daily-card" :class="card.layout" :data-daily-card="card.id">
+    <section v-for="group in brief.groups" :key="group.id" class="daily-indicator-group" :data-daily-group="group.id" :aria-labelledby="'daily-group-' + group.id">
+    <h3 :id="'daily-group-' + group.id" class="daily-group-title" tabindex="-1">{{ group.title }}<span>{{ group.cards.length }} 项</span></h3>
+    <div class="daily-card-grid" :style="{ '--card-span': 12 / Math.min(group.cards.length, 4) }">
+      <article v-for="card in group.cards" :key="card.id" class="daily-card" :class="card.layout" :data-daily-card="card.id">
         <header><h3>{{ card.title }}</h3><StatusBadge :status="state(card)" /></header>
         <div class="daily-card-content">
           <dl class="daily-main-metrics"><DailyBriefMetric v-for="row in card.rows" :key="row.label" :row="row" :loading="blocks?.[card.category]?.loading" :failed="!!blocks?.[card.category]?.error" /></dl>
@@ -100,12 +106,14 @@ function state(card) {
         <button type="button" class="daily-detail" :aria-label="card.title + '查看详情'" @click="navigate(card.page, card.section)">查看{{ card.page === 'domestic' ? '国内' : '国外' }}详情 <span aria-hidden="true">↗</span></button>
       </article>
     </div>
+    </section>
     <details class="daily-release-notes"><summary>查看央行、库存与CFTC最新观察期及发布依据</summary><p v-for="release in brief.releases" :key="release.name"><strong>{{ release.name }}：{{ release.status }}</strong><br>{{ release.observations }}</p><p>观察日期、文件更新时间、缓存加载时间或快照生成时间都不等于发布日期。仅有可核实的发布日期时才标记“今日新发布”，不会因今日重载而称为今日发布。</p></details>
     </section>
   </section>
 </template>
 
 <style scoped>
+.daily-term-section{margin-bottom:18px;scroll-margin-top:72px}
 .daily-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:14px}
 .daily-heading h2{font-size:20px;color:#344e58;margin:0;font-weight:600}
 .daily-dates{display:flex;flex-direction:column;gap:6px;max-width:480px;text-align:right;font-size:11px;color:#687d80;line-height:1.7}
@@ -128,44 +136,38 @@ function state(card) {
 .daily-threshold input[type="range"]{appearance:none;-webkit-appearance:none;display:block;box-sizing:border-box;width:100%;height:4px;border:0;border-radius:3px;background:linear-gradient(to right,#b39b61 var(--threshold-fill),#e3e9e4 var(--threshold-fill));cursor:pointer;margin:7px 0 6px;touch-action:pan-y}
 .daily-threshold input[type="range"]::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:12px;height:12px;border:2px solid #fff;border-radius:50%;background:#a48c52;box-shadow:0 0 0 1px #b39b61}.daily-threshold input[type="range"]::-moz-range-thumb{width:8px;height:8px;border:2px solid #fff;border-radius:50%;background:#a48c52;box-shadow:0 0 0 1px #b39b61}.daily-threshold input[type="range"]:focus-visible{outline:2px solid #9a7b38;outline-offset:5px}
 .threshold-bounds{display:flex;justify-content:space-between;color:#95a19b;font-size:9px;line-height:1.6}
+.daily-indicator-group{margin:24px 0 0}.daily-group-title{display:flex;align-items:center;gap:12px;margin:0 0 12px;color:#48646b;font-size:16px;font-weight:600;border-bottom:1px solid #dfe7e1;padding:0 0 9px}.daily-group-title:before{content:'';width:3px;height:16px;background:#b39b61}.daily-group-title span{font-size:10px;color:#94a19b;font-weight:400}
 .daily-card-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px;align-items:stretch}
-.daily-card{grid-column:span 3;min-width:0;border:1px solid #e1e8e3;border-radius:5px;background:#fff;padding:18px;display:flex;flex-direction:column}
-.daily-card.autd,.daily-card.etf{grid-column:1/-1}.daily-card.last{grid-column:span 4}.daily-card.rate{grid-column:span 3}
+.daily-card{grid-column:span var(--card-span);min-width:0;border:1px solid #e1e8e3;border-radius:5px;background:#fff;padding:16px;display:flex;flex-direction:column}
+.daily-card.autd,.daily-card.wide{grid-column:1/-1}
+[data-daily-group="trading"] .daily-card:not(.autd):not(.wide),[data-daily-group="inventory"] .daily-card:not(.wide){grid-column:span 6}
 .daily-card-source{font-size:10px;line-height:1.8;color:#8b9997;margin:0 0 8px;overflow-wrap:anywhere}
 .daily-card header{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
 .daily-card h3{font-size:17px;line-height:1.6;color:#3e5860;font-weight:600;margin:0}
 .daily-card-content{margin:20px 0 16px;min-width:0}.daily-card dl{margin:0;min-width:0}
-.daily-card[data-daily-card="international-price"] :deep(.value-line){flex-wrap:nowrap;align-items:flex-start}
-.daily-card[data-daily-card="international-price"] :deep(.value-line strong){flex-shrink:0;white-space:nowrap}
-.daily-card[data-daily-card="international-price"] :deep(.value-line small){display:block;margin-left:0}
-.daily-card[data-daily-card="international-price"] :deep(.change-group){flex:1;min-width:0;padding-top:4px}
-.daily-card[data-daily-card="international-price"] :deep(.trend-arrow){display:inline-block;width:14px}
-.daily-card[data-daily-card="international-price"] :deep(.comparison){padding-left:14px}
-.daily-card:not([data-daily-card="international-price"]) :deep(.value-line){flex-wrap:nowrap;align-items:flex-start}
-.daily-card:not([data-daily-card="international-price"]) :deep(.value-line strong){flex-shrink:0;white-space:nowrap}
-.daily-card:not([data-daily-card="international-price"]) :deep(.value-line small){display:inline;margin-left:5px}
-.daily-card:not([data-daily-card="international-price"]) :deep(.change-group){flex:1;min-width:0;padding-top:0}
-.daily-card:not([data-daily-card="international-price"]) :deep(.change){display:block;line-height:18px;box-sizing:border-box}
-.daily-card:not([data-daily-card="international-price"]) :deep(.trend-arrow){display:inline-block;width:14px}
-.daily-card:not([data-daily-card="international-price"]) :deep(.comparison){padding-left:14px;line-height:18px}
-.daily-card.autd :deep(.fee-stat),.daily-card.autd :deep(.fee-stat .value-line){align-items:center}
-.daily-card.autd :deep(.fee-stat .value-line strong){display:inline-flex;align-items:center}
-.daily-card.autd :deep(.fee-stat){justify-content:flex-start;gap:16px}
-.daily-card.autd :deep(.fee-stat .value-line){justify-content:flex-start}
+.daily-card :deep(.value-line){flex-wrap:wrap;align-items:last baseline}.daily-card :deep(.value-line strong){max-width:100%;font-size:24px;white-space:normal}
+.daily-card :deep(.change-group){position:relative;flex:1 0 max-content;min-width:0;box-sizing:border-box;padding:0 0 0 14px}
+.daily-card :deep(.trend-arrow){position:absolute;left:0;top:50%;transform:translateY(-50%);display:inline-block;width:14px}
+.daily-card :deep(.change){display:block;line-height:18px;box-sizing:border-box}
+.daily-card :deep(.comparison){line-height:18px}
+.daily-card.autd :deep(.fee-stat){justify-content:flex-start;gap:16px}.daily-card.autd :deep(.fee-stat .value-line){justify-content:flex-start}
+.wide .daily-main-metrics{grid-template-columns:repeat(4,minmax(0,1fr))}
 .daily-main-metrics{display:grid;gap:20px}
+.daily-card:is([data-daily-card="futures-spread"],[data-daily-card="volatility"]) .daily-main-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.daily-card:is([data-daily-card="futures-spread"],[data-daily-card="volatility"]) :deep(.daily-metric + .daily-metric){border-left:1px solid #e5eae6;padding-left:12px}
 .autd .daily-main-metrics{grid-template-columns:repeat(4,minmax(0,1fr));gap:0}
 .autd .daily-main-metrics :deep(.daily-metric){padding:0 20px;border-left:1px solid #e5eae6}
 .autd .daily-main-metrics :deep(.daily-metric:first-child){padding-left:0;border-left:0}
 .autd .daily-main-metrics :deep(.daily-metric:last-child){padding-right:0}
-.etf .daily-main-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
+
 .daily-card-note{font-size:10px;line-height:1.8;color:#8a9895;margin:auto 0 12px;overflow-wrap:anywhere}
 .daily-detail{border:0;border-top:1px solid #edf1ee;background:transparent;text-align:left;padding:10px 0 0;color:#607978;font-size:11px;display:flex;justify-content:space-between}
 .daily-detail:hover{color:#857448}.daily-release-notes{font-size:11px;line-height:1.9;color:#83918e;margin:20px 0 0}
 .daily-release-notes summary{cursor:pointer;color:#607878}.daily-release-notes strong{font-weight:500}.daily-release-notes p{overflow-wrap:anywhere}
 @media(min-width:1101px){.daily-threshold:nth-last-child(-n+2) .threshold-tooltip{left:auto;right:0}}
 @media(max-width:1100px){.daily-threshold-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.daily-card{padding:15px}.autd .daily-main-metrics :deep(.daily-metric){padding:0 13px}}
-@media(max-width:900px){.daily-heading{flex-direction:column;gap:10px}.daily-dates{text-align:left}.daily-movement-list{grid-template-columns:minmax(0,1fr)}.daily-card{grid-column:span 6}.daily-card.last{grid-column:span 12}.daily-card.rate{grid-column:span 6}.autd .daily-main-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 0}.autd .daily-main-metrics :deep(.daily-metric:nth-child(3)){padding-left:0;border-left:0}}
+@media(max-width:900px){.daily-heading{flex-direction:column;gap:10px}.daily-dates{text-align:left}.daily-movement-list{grid-template-columns:minmax(0,1fr)}.daily-card{grid-column:span 6}.wide .daily-main-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.autd .daily-main-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 0}.autd .daily-main-metrics :deep(.daily-metric:nth-child(3)){padding-left:0;border-left:0}}
 @media(min-width:601px) and (max-width:1100px){.daily-movement-list{grid-template-columns:repeat(2,minmax(0,1fr))}.daily-threshold:nth-child(3n) .threshold-tooltip{left:auto;right:0}}
 @media(max-width:600px){.daily-threshold-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 18px}.daily-threshold:nth-child(2n) .threshold-tooltip{left:auto;right:0}.daily-movement-list{grid-template-columns:minmax(0,1fr)}.daily-movements{padding:14px 12px}.daily-movement{grid-template-columns:minmax(0,1fr);padding:12px}.movement-value{align-items:flex-start}.movement-value.direction{max-width:none}}
-@media(max-width:520px){.daily-card,.daily-card.rate{grid-column:1/-1}.autd .daily-main-metrics{grid-template-columns:minmax(0,1fr)}.autd .daily-main-metrics :deep(.daily-metric){padding:0 0 16px!important;border-left:0;border-bottom:1px solid #e5eae6}.autd .daily-main-metrics :deep(.daily-metric:last-child){border-bottom:0;padding-bottom:0!important}.etf .daily-main-metrics{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:520px){.daily-card,.daily-card.rate,[data-daily-group] .daily-card{grid-column:1/-1}.wide .daily-main-metrics{grid-template-columns:minmax(0,1fr)}.autd .daily-main-metrics{grid-template-columns:minmax(0,1fr)}.autd .daily-main-metrics :deep(.daily-metric){padding:0 0 16px!important;border-left:0;border-bottom:1px solid #e5eae6}.autd .daily-main-metrics :deep(.daily-metric:last-child){border-bottom:0;padding-bottom:0!important}.etf .daily-main-metrics{grid-template-columns:minmax(0,1fr)}}
 </style>

@@ -91,7 +91,7 @@ def export():
             metadata["published_record_count"] = len(history)
             metadata["published_history"] = "未获准公开，未导出历史" if reason else "最新两期，仅供当前值和环比" if key in policy["latest_only"] else "页面所用完整历史"
             if history_limit and not reason:
-                metadata["published_history"] = f"最近{history_limit}个交易观测日，供延期费方向统计"
+                metadata["published_history"] = f"最近{history_limit}个交易观测日，" + ("供延期费方向统计" if key == "au_td_delivery_direction" else "供每日指标及合约明细展示")
             points = [[point["observation_date"], point["value"]] for point in history]
             point_count += len(points)
             exported[category].append({"metadata": metadata, "points": points, "notes": notes})
@@ -115,7 +115,7 @@ def export():
         public_files.append({"source": file["source"], "coverage_start": min(dates, default=None), "latest_date": max(dates, default=None),
                              "status": "数据缺失" if not dates else file["status"],
                              "warnings": ["相关来源公开使用尚未确认，未导出价格、汇率及派生指标"] if not dates else ["仅发布页面白名单指标，原始文件未发布"]})
-        if file["source"] == "COMEX黄金与汇率期货.csv":
+        if file["source"] == "COMEX黄金与汇率期货_北京时间15收盘价.csv":
             public_files[-1].update(updated_at=file.get("updated_at") if dates else None,
                                     sheets=[pick(sheet, ("sheet", "coverage_start", "coverage_end", "status"))
                                             for sheet in file.get("sheets", [])] if dates else [])

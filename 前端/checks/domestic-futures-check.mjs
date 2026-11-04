@@ -6,7 +6,7 @@ import { filteredHistory } from '../src/data.js'
 
 const live = process.env.GOLD_FRONTEND_URL || 'http://127.0.0.1:5173/'
 const preview = process.env.GOLD_PAGES_URL || 'http://127.0.0.1:4173/pages-preview/'
-const ids = ['gold_futures_close', 'gold_futures_spread', 'gold_futures_contract']
+const ids = ['gold_futures_close', 'gold_futures_spread', 'gold_futures_secondary_spread', 'gold_futures_contract', 'gold_futures_spread_details']
 const titles = ['黄金期货（元/克）', '黄金期货价差（元/克）']
 const api = await (await fetch(new URL('api/price', live))).json()
 const items = ids.map(id => api.indicators.find(item => item.metadata.indicator_id === id))
@@ -50,17 +50,23 @@ try {
           return titles.map(title => {
             const chart = echarts.getInstanceByDom(document.querySelector(`[data-chart-title="${title}"]`)), o = chart.getOption()
             const date = o.xAxis[0].data.at(-1)
-            return { dates: o.xAxis[0].data, unit: o.yAxis[0].name, data: o.series[0].data,
-              tooltip: o.tooltip[0].formatter([{ seriesIndex: 0, axisValue: date, color: '#287985' }]) }
+            return { dates: o.xAxis[0].data, unit: o.yAxis[0].name,
+              series: o.series.map(s => ({ name: s.name, data: s.data, connectNulls: s.connectNulls })),
+              tooltip: o.tooltip[0].formatter(o.series.map((s, seriesIndex) => ({ seriesIndex, axisValue: date, color: s.itemStyle.color }))) }
           })
         }, titles)
         for (const [index, chart] of charts.entries()) {
           const expected = filteredHistory(items[index], range)
           assert.deepEqual(chart.dates, expected.map(p => p.observation_date))
-          assert.deepEqual(chart.data, expected.map(p => p.value))
+          assert.deepEqual(chart.series[0].data, expected.map(p => p.value))
           assert.equal(chart.unit, '元/克')
-          const detail = items[2].history.find(point => point.observation_date === chart.dates.at(-1))?.value
-          assert.ok(chart.tooltip.includes(detail || '当日无可用共同到期合约报价'))
+          const detail = items[index === 0 ? 3 : 4].history.find(point => point.observation_date === chart.dates.at(-1))?.value
+          assert.ok(chart.tooltip.includes(detail || '当日无可用偶数月主力合约报价'))
+          if (index === 1) {
+            assert.deepEqual(chart.series.map(s => s.name), ['主力合约价差', '次主力合约价差'])
+            assert.ok(chart.series.every(s => s.connectNulls === true))
+            assert.deepEqual(chart.series[1].data, filteredHistory(items[2], range).map(p => p.value))
+          }
         }
       }
     }
@@ -87,11 +93,12 @@ try {
     const healthPicker = page.getByRole('group', { name: '数据健康度显示版块', exact: true })
     await healthPicker.getByRole('button', { name: '清空', exact: true }).click()
     await healthPicker.getByLabel('黄金期货与价差', { exact: true }).check()
-    assert.equal(await page.locator('.health-table tbody tr strong').count(), 3)
+    assert.equal(await page.locator('.health-table tbody tr strong').count(), 5)
     assert.deepEqual(errors, [])
     assert.deepEqual(blocked, [])
     results.push({ mode, ranges: ['1M', '1Y', 'ALL'], widths: [1440, 1280, 390] })
     await page.close()
   }
-  console.log(JSON.stringify({ passed: true, observations: items[0].history.length, validSpreads: items[1].metadata.valid_count, results }))
+  console.log(JSON.stringify({ passed: true, observations: items[0].history.length,
+    validSpreads: [items[1].metadata.valid_count, items[2].metadata.valid_count], results }))
 } finally { await browser.close() }

@@ -10,7 +10,10 @@
     "gold_domestic_spread",
     "gold_futures_close",
     "gold_futures_spread",
+    "gold_futures_secondary_spread",
     "gold_futures_contract",
+    "gold_futures_spread_details",
+    "gold_futures_daily_quotes",
     "gold_etf_volatility_index",
     "ust_10y_yield",
     "ust_2y_yield",
@@ -91,10 +94,11 @@
     "cftc_net_long_ratio"
   ],
   "history_limits": {
+    "gold_futures_daily_quotes": 2,
     "au_td_delivery_direction": 30
   },
   "source_permissions": {
-    "COMEX黄金与汇率期货.csv": "approved",
+    "COMEX黄金与汇率期货_北京时间15收盘价.csv": "approved",
     "黄金现货价格.xlsx": "approved",
     "伦敦金现与汇率_北京时间1530收盘价.xlsx": "approved",
     "黄金ETF波动率指数.csv": "approved",

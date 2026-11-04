@@ -20,7 +20,7 @@ await page.route('**/*', route => {
   return route.continue()
 })
 async function loaded(p = page) {
-  await p.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled && document.querySelectorAll('#daily-brief .daily-card').length === 13)
+  await p.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled && document.querySelectorAll('#daily-brief .daily-card').length === 25)
 }
 async function layout(width) {
   await page.setViewportSize({ width, height: 1000 })
@@ -63,10 +63,10 @@ try {
   const generatedDate = snapshot.generated_at.slice(0, 10).split('-').map(Number).join('/')
   assert.ok((await page.locator('.data-summary').textContent()).includes(generatedDate))
   assert.equal(await page.getByRole('button', { name: '刷新真实数据', exact: true }).count(), 0)
-  assert.equal(await page.locator('main section.section').count(), 22)
+  assert.equal(await page.locator('main section.section').count(), 20)
   assert.deepEqual(await page.locator('.page-tabs button').allTextContents(), ['每日速递', '国内', '国外', '数据健康度'])
   assert.equal(await page.locator('.page-tabs button[aria-selected="true"]').textContent(), '每日速递')
-  assert.equal(await page.locator('#daily-brief .daily-card').count(), 13)
+  assert.equal(await page.locator('#daily-brief .daily-card').count(), 25)
   await page.getByRole('tab', { name: '国内', exact: true }).click()
   await loaded()
   await page.waitForTimeout(200)
@@ -134,7 +134,7 @@ try {
   const deliverySheets = snapshot.files.find(file => file.source === '黄金交割.xlsx')?.sheets || []
   assert.equal(await page.locator('.health-table tbody tr:has(td strong)').count(), 7 + deliverySheets.length)
   await page.getByLabel('健康度频率筛选').selectOption('月度')
-  assert.equal(await page.locator('.health-table tbody tr:has(td strong)').count(), 0)
+  assert.equal(await page.locator('.health-table tbody tr:has(td strong)').count(), deliverySheets.length)
   await page.getByLabel('搜索数据健康度').fill('')
   await page.getByLabel('健康度频率筛选').selectOption('全部')
   await healthPicker.getByRole('button', { name: '全选', exact: true }).click()

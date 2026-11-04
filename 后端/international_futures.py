@@ -3,7 +3,7 @@ import re
 
 import pandas as pd
 
-SOURCE = "COMEX黄金与汇率期货.csv"
+SOURCE = "COMEX黄金与汇率期货_北京时间15收盘价.csv"
 PRODUCTS = (
     ("comex", "COMEX黄金期货", "黄金期货价格", "美元/金衡盎司", "CME 芝商所", 2),
     ("sgx_usdcnh", "美元兑离岸人民币期货", "USDCNH期货价格", "CNH/美元", "SGX 新加坡交易所", 4),
@@ -26,6 +26,6 @@ def add_international_futures(builder):
             builder.add("price", f"intl_futures_{product}_{contract}_{str(expiry).replace('-', '')}",
                         f"{name} · {expiry}", unit, "日度", SOURCE, column=column, frame=rows, values=values,
                         futures_product=product, contract_expiry=str(expiry), source_contract=str(contract),
-                        exchange=exchange, display_digits=digits,
-                        warnings=["原始数据按合约保存；页面按到期顺序以最后报价日换约，原价直连，不复权、不补值。",
+                        exchange=exchange, display_digits=digits, observation_time="15:00", observation_timezone="Asia/Shanghai",
+                        warnings=["北京时间15:00收盘价；页面按最近偶数月合约衔接，以最近共同报价日价差累计后复权，保留早期价格基准。",
                                   "原表合约代码为数据关联标识，不视为境外交易所官方代码。"])

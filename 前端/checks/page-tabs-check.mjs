@@ -66,7 +66,7 @@ try {
     page.on('console', m => { if (m.type() === 'error') errors.push(m.text()) })
     page.on('request', r => requests.push(r.url()))
     await page.goto(target.url)
-    await page.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled && document.querySelectorAll('#daily-brief .daily-card').length === 13)
+    await page.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled && document.querySelectorAll('#daily-brief .daily-card').length === 25)
     assert.deepEqual(await page.locator('.page-tabs button').allTextContents(), ['每日速递', '国内', '国外', '数据健康度'])
     assert.equal(await page.locator('.page-tabs [aria-selected="true"]').textContent(), '每日速递')
     await select(page, '国内')

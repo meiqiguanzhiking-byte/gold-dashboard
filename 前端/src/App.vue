@@ -8,7 +8,6 @@ import FlowHeatmap from './components/FlowHeatmap.vue'
 import ComexInventory from './components/ComexInventory.vue'
 import ComexDelivery from './components/ComexDelivery.vue'
 import InternationalFutures from './components/InternationalFutures.vue'
-import VolatilityCard from './components/VolatilityCard.vue'
 import AutdFeeTable from './components/AutdFeeTable.vue'
 import DailyBrief from './components/DailyBrief.vue'
 import DashboardPages from './components/DashboardPages.vue'
@@ -16,21 +15,9 @@ import DashboardPage from './components/DashboardPage.vue'
 import DashboardSection from './components/DashboardSection.vue'
 import { centralBankEntityName } from './central-bank-names.js'
 import { sourceLabel } from './source-labels.js'
-import { useDashboard, isStatic, categoryNames, format, localTime, regions, regionColors, palette, numeric, sortHealthSources } from './data.js'
+import { useDashboard, isStatic, categoryNames, format, localTime, regions, regionColors, palette, numeric, sortHealthSources, dateNumber } from './data.js'
 
 const { blocks, meta, all, dailyItems, dailyBlocks, item, refreshing, reloadError, clientRefreshedAt, notice, loadAll, loadPage, refresh, loadBlock } = useDashboard()
-const coreCards = [
-  { id: 'gold_price_anchor', category: 'price', label: '上金所Au99.99收盘价', price: true },
-  { id: 'gold-volatility', category: 'price', volatility: true },
-  { id: 'domestic_etf_total_assets', category: 'etf', label: '境内黄金 ETF 总资产规模' },
-  { id: 'london_gold_spot', category: 'price', label: '伦敦金现', price: true },
-  { id: 'spdr_gold_holdings', category: 'etf', label: 'SPDR 黄金持仓' },
-  { id: 'cftc_net_long', category: 'cftc', label: 'CFTC 非商业净多头' },
-  { id: 'global_etf_weekly_total_tonnes', category: 'etf', label: '全球黄金 ETF 周度净流入' },
-  { id: 'global_central_bank_net_purchases', category: 'central-bank', label: '全球黄金储备净变化合计（已报告）' },
-]
-const domesticCards = coreCards.filter(card => ['gold_price_anchor', 'gold-volatility', 'domestic_etf_total_assets'].includes(card.id))
-const foreignCards = coreCards.filter(card => !domesticCards.includes(card))
 const tradeCards = [
   { id: 'futures_volume', category: 'futures', label: '黄金期货总成交量' },
   { id: 'futures_open_interest', category: 'futures', label: '黄金期货总持仓量' },
@@ -41,17 +28,15 @@ const tradeCards = [
 ]
 const positionCards = [{ id: 'cftc_long', label: '非商业多头持仓' }, { id: 'cftc_short', label: '非商业空头持仓' }, { id: 'cftc_net_long', label: '非商业净多头持仓' }, { id: 'cftc_net_long_ratio', label: '非商业净多头占比' }]
 const healthModuleRules = [
-  { id: 'overview', title: '国内核心指标', ids: ['gold_price_anchor', 'gold_hv20', 'gold_hv60', 'domestic_etf_total_assets'] },
   { id: 'gold-price', title: '黄金价格与价差', ids: ['gold_price_anchor', 'london_gold_spot', 'usdcnh', 'gold_domestic_spread'] },
-  { id: 'domestic-futures', title: '黄金期货与价差', ids: ['gold_futures_close', 'gold_futures_spread', 'gold_futures_contract'] },
+  { id: 'domestic-futures', title: '黄金期货与价差', ids: ['gold_futures_close', 'gold_futures_spread', 'gold_futures_secondary_spread', 'gold_futures_contract', 'gold_futures_spread_details'] },
   { id: 'gold-volatility', title: '20日与60日年化历史波动率', ids: ['gold_hv20', 'gold_hv60'] },
   { id: 'central-bank', title: '央行购金', sources: ['央行购金.xlsx'] },
   { id: 'au-td', title: 'Au(T+D)', sources: ['AuTD.csv'] },
   { id: 'futures', title: '上期所黄金期货', ids: ['futures_volume', 'futures_open_interest', 'futures_main_contract'] },
   { id: 'domestic-etf', title: '场内黄金 ETF 份额', sources: ['黄金ETF份额.xlsx'] },
-  { id: 'foreign-overview', title: '国外核心指标', ids: ['london_gold_spot', 'spdr_gold_holdings', 'cftc_net_long', 'global_etf_weekly_total_tonnes', 'global_central_bank_net_purchases'] },
   { id: 'overseas-price', title: '伦敦金现与汇率', sources: ['伦敦金现与汇率_北京时间1530收盘价.xlsx'] },
-  { id: 'overseas-futures', title: 'COMEX期货与汇率期货', fileSources: ['COMEX黄金与汇率期货.csv'] },
+  { id: 'overseas-futures', title: 'COMEX期货与汇率期货', fileSources: ['COMEX黄金与汇率期货_北京时间15收盘价.csv'] },
   { id: 'gold-etf-volatility', title: '黄金ETF波动率指数', sources: ['黄金ETF波动率指数.csv'] },
   { id: 'treasury-yields', title: '美债收益率', sources: ['美债收益率.xlsx'] },
   { id: 'positions', title: 'CFTC 黄金非商业持仓', sources: ['CFTC黄金非商业持仓量.csv', 'CFTC黄金交易量和持仓量.csv'] },
@@ -92,9 +77,15 @@ const spreadNote = computed(() => {
 })
 const futuresDetails = computed(() => {
   const points = new Map((item('gold_futures_contract')?.history || []).map(point => [point.observation_date, point.value]))
-  return date => points.get(date) || '当日无可用共同到期合约报价'
+  return date => points.get(date) || '当日无可用偶数月主力合约报价'
 })
-const futuresNote = computed(() => `三项共同到期合约 · 按到期顺序、最后共同报价日之后换约；原价不复权。最新有效价差 ${item('gold_futures_spread')?.metadata.latest_valid_date || '数据暂缺'}；缺项不补值。`)
+const futuresSpreadDetails = computed(() => {
+  const points = new Map((item('gold_futures_spread_details')?.history || []).map(point => [point.observation_date, point.value]))
+  return date => points.get(date) || '当日无可用同日同月价差报价'
+})
+const futuresNote = '最近到期的偶数月主力合约 · 国内最后报价日之后换约；价格采用差额后复权。'
+const futuresSpreadNote = computed(() => '主力与次主力各自按同日重叠价差累计差额后复权；最新有效主力价差 '
+  + (item('gold_futures_spread')?.metadata.latest_valid_date || '数据暂缺') + '；缺值不补，图线跨空值连接。')
 
 const etfTab = ref('weekly'), selectedFunds = ref([]), selectedRegions = ref(regions.map(r => r.id)), flowUnit = ref('tonnes')
 const funds = computed(() => (blocks.etf.data?.indicators || []).filter(i => /^domestic_\d+_assets$/.test(i.metadata.indicator_id)))
@@ -139,21 +130,35 @@ const orderedHealthMetadata = computed(() => sortHealthSources(allMetadata.value
   healthTimedIndicators.has(m.indicator_id) ? { ...m, indicator_name: `${m.indicator_name}（15:30）` } : m,
 ))
 const healthFiles = computed(() => sortHealthSources(meta.value?.files || []))
+const beijingToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+function healthDelayDays(observation, monthly = false) {
+  if (!observation) return null
+  const [year, month] = observation.split('-').map(Number)
+  const observed = monthly ? Date.UTC(year, month, 0) : dateNumber(observation)
+  const today = dateNumber(beijingToday())
+  return Number.isFinite(observed) ? Math.max(0, Math.round((today - observed) / 86400000)) : null
+}
 const healthRows = computed(() => {
   if (!selectedHealthModules.value.length) return []
   const modules = healthModuleRules.filter(module => selectedHealthModules.value.includes(module.id))
   const indicators = orderedHealthMetadata.value.filter(m => modules.some(module => module.ids?.includes(m.indicator_id) || module.sources?.includes(m.source)))
   const fileSheets = modules.flatMap(module => (module.fileSources || []).flatMap(source => {
     const file = healthFiles.value.find(entry => entry.source === source)
-    return (file?.sheets || []).map(sheet => ({
+    return (file?.sheets || []).map(sheet => {
+      const delivery = source === '黄金交割.xlsx' ? blocks.inventory.data?.deliveries?.contracts?.[sheet.sheet] || meta.value?.delivery_coverage?.[sheet.sheet] : null
+      const monthly = source === '黄金交割.xlsx'
+      const coverageStart = monthly ? delivery?.coverage_start : sheet.coverage_start
+      const coverageEnd = monthly ? delivery?.coverage_end : sheet.coverage_end
+      return {
       indicator_id: `file:${source}:${sheet.sheet}`,
       indicator_name: module.title,
-      source, sheet: sheet.sheet, frequency: '未提供',
-      coverage_start: sheet.coverage_start, coverage_end: sheet.coverage_end,
-      updated_at: file.updated_at, delay_days: null, automation_status: '未确认', status: sheet.status,
-    }))
+      source, sheet: sheet.sheet, frequency: monthly ? '月频' : '日频',
+      coverage_start: coverageStart, coverage_end: coverageEnd,
+      updated_at: file.updated_at, delay_days: healthDelayDays(coverageEnd, monthly), automation_status: '未确认', status: sheet.status,
+      }
+    })
   }))
-  return [...indicators, ...fileSheets].filter(m => m.indicator_id !== 'au_td_close' && (!healthSearch.value || (m.indicator_name + m.source).toLowerCase().includes(healthSearch.value.toLowerCase())) && (healthFrequency.value === '全部' || m.frequency === healthFrequency.value) && (healthStatus.value === '全部' || m.status === healthStatus.value || m.statuses?.includes(healthStatus.value) || m.automation_status === healthStatus.value))
+  return [...indicators, ...fileSheets].filter(m => m.indicator_id !== 'au_td_close' && (!healthSearch.value || (m.indicator_name + m.source).toLowerCase().includes(healthSearch.value.toLowerCase())) && (healthFrequency.value === '全部' || m.frequency === healthFrequency.value || (healthFrequency.value === '日度' && m.frequency === '日频') || (healthFrequency.value === '月度' && m.frequency === '月频')) && (healthStatus.value === '全部' || m.status === healthStatus.value || m.statuses?.includes(healthStatus.value) || m.automation_status === healthStatus.value))
 })
 const healthPages = computed(() => Math.max(1, Math.ceil(healthRows.value.length / 15)))
 const visibleHealth = computed(() => healthRows.value.slice((healthPage.value - 1) * 15, healthPage.value * 15))
@@ -175,27 +180,26 @@ onMounted(loadAll)
 
       <DashboardPage page="daily" label="每日速递"><DailyBrief :items="dailyItems" :meta="meta" :blocks="dailyBlocks" /></DashboardPage>
       <DashboardPage page="domestic" label="国内">
-      <DashboardSection id="overview" title="国内核心指标"><div class="section-heading"><div><span class="section-number">概览</span><h2>国内核心指标</h2></div><span>不同观察频率独立显示</span></div><div class="metric-grid core-grid"><template v-for="card in domesticCards" :key="card.id"><VolatilityCard v-if="card.volatility" :items="[item('gold_hv20'), item('gold_hv60')]" :loading="blocks.price.loading" :error="blocks.price.error" /><MetricCard v-else :item="item(card.id)" :label="card.label" :price="card.price" :loading="blocks[card.category].loading" :error="blocks[card.category].error" /></template></div><p class="section-footnote">卡片日期为各指标观察日期，刷新时间不代表数据发布日期。</p></DashboardSection>
 
       <DashboardSection id="gold-price" title="黄金价格与价差">
         <div class="section-heading"><div><span class="section-number">现价</span><h2>黄金价格与价差</h2></div><span>上金所Au99.99 · 日度</span></div>
         <p class="section-footnote">{{ priceNote }}</p>
         <div class="chart-grid">
-          <ChartPanel title="上金所Au99.99收盘价（元/克）" description="上金所交易日期收盘价；人民币元/克" :series="[line('gold_price_anchor', 'Au99.99收盘价', '#287985')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="priceWithheld ? priceNote : ''" :note="priceNote" />
-          <ChartPanel title="黄金现价价差（元/克）" description="Au99.99 − 海外金价人民币折算值；同日期匹配，北京时间15:30海外价格及汇率" :series="[line('gold_domestic_spread', '黄金现价价差', '#287985', { connectNulls: true })]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('gold_domestic_spread')" :note="spreadNote" />
+          <ChartPanel title="上金所Au99.99收盘价（元/克）" latest-time="15:30" description="上金所交易日期收盘价；人民币元/克" :series="[line('gold_price_anchor', 'Au99.99收盘价', '#287985')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="priceWithheld ? priceNote : ''" :note="priceNote" />
+          <ChartPanel title="黄金现价价差（元/克）" latest-time="15:30" description="Au99.99 − 海外金价人民币折算值；同日期匹配，北京时间15:30海外价格及汇率" :series="[line('gold_domestic_spread', '黄金现价价差', '#287985', { connectNulls: true })]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('gold_domestic_spread')" :note="spreadNote" />
         </div>
         <p class="section-footnote">黄金现价价差＝Au99.99（元/克）−伦敦金现（美元/金衡盎司）×USDCNH（CNH/美元）÷31.1034768。1金衡盎司＝31.1034768克。仅比较同名日期各自收盘，包含CNH/CNY口径差异，不代表同步溢价或可交易套利空间。</p>
         <p v-if="!priceWithheld" class="section-footnote">来源：{{ sourceLabel('黄金现货价格.xlsx') }} · 文件更新 {{ localTime(item('gold_price_anchor')?.metadata.updated_at) }} · 缓存加载 {{ localTime(blocks.price.data?.loaded_at) }} · 发布日期未知（null）。</p>
       </DashboardSection>
 
       <DashboardSection id="domestic-futures" title="黄金期货与价差">
-        <div class="section-heading"><div><span class="section-number">远期</span><h2>黄金期货与价差</h2></div><span>共同到期合约 · 日度</span></div>
+        <div class="section-heading"><div><span class="section-number">远期</span><h2>黄金期货与价差</h2></div><span>最近偶数月主力合约 · 日度</span></div>
         <div class="chart-grid">
-          <ChartPanel title="黄金期货（元/克）" description="上期所收盘价；共同到期合约连续曲线，横轴日期、纵轴价格" :series="[line('gold_futures_close', '黄金期货', '#287985')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('gold_futures_close')" :note="futuresNote" :tooltip-details="futuresDetails" />
-          <ChartPanel title="黄金期货价差（元/克）" description="国内黄金期货 − COMEX同到期合约 × USDCNH同到期合约期货 ÷ 31.1034768" :series="[line('gold_futures_spread', '黄金期货价差', '#287985')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('gold_futures_spread')" :note="futuresNote" :tooltip-details="futuresDetails" />
+          <ChartPanel title="黄金期货（元/克）" latest-time="15:00" description="最近到期偶数月主力连续价格 · 差额后复权，保留早期价格" :series="[line('gold_futures_close', '黄金期货（差额后复权）', '#287985')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('gold_futures_close')" :note="futuresNote" :tooltip-details="futuresDetails" />
+          <ChartPanel title="黄金期货价差（元/克）" latest-time="15:00" description="最近及第二近偶数月合约；两条价差曲线分别差额后复权" :series="[line('gold_futures_spread', '主力合约价差', '#287985', { connectNulls: true }), line('gold_futures_secondary_spread', '次主力合约价差', '#ad945b', { connectNulls: true })]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('gold_futures_spread') || withheldReason('gold_futures_secondary_spread')" :note="futuresSpreadNote" :tooltip-details="futuresSpreadDetails" />
         </div>
-        <p class="section-footnote">两图共用国内、COMEX黄金及USDCNH期货均有报价的共同到期合约；以当前合约最后一条同日三项齐全的报价为换约边界，当日仍使用原合约，随后切换下一到期合约。中途缺项保留空值，不提前换约；完整历史选约后再筛选区间。</p>
-        <p class="section-footnote">价差＝国内黄金期货（元/克）− COMEX期货（美元/金衡盎司）× USDCNH期货（CNH/美元）÷31.1034768。仅匹配相同观察日期、原表合约标识和到期月份；含CNH/CNY口径差异及收盘时点差异，不代表同步可交易套利空间。原表au标识用于关联，不视为境外交易所官方合约代码。</p>
+        <p class="section-footnote">主力定义为距离观察日最近的偶数交割月合约，当前国内合约最后有效报价当日仍使用旧约，之后换约；中途缺项不提前换约。左图差额后复权：保留早期价格，后续价格加上累计换约差额（旧约末日旧约价格−同日新约价格）；缺少复权依据时保持缺失。完整历史选约及复权后再筛选区间。</p>
+        <p class="section-footnote">主力为最近到期偶数月合约，次主力为第二近到期偶数月合约。两条原始价差各按国内期货原价（元/克）− COMEX同月期货（美元/金衡盎司）× USDCNH同月期货（CNH/美元）÷31.1034768计算，再分别按换约前最近同日双合约有效价差作差额后复权。以COMEX及汇率期货报价日期为横轴，国内价格按同日、同月右连接；缺项保留空值，折线跨过空值连接前后有效点，不前填或错移日期。含CNH/CNY口径及收盘时点差异，不代表同步可交易套利空间；原表au标识仅用于同月份关联。</p>
       </DashboardSection>
 
       <DashboardSection id="gold-volatility" title="20日与60日年化历史波动率">
@@ -245,18 +249,17 @@ onMounted(loadAll)
       </DashboardPage>
 
       <DashboardPage page="foreign" label="国外">
-      <DashboardSection id="foreign-overview" title="国外核心指标"><div class="section-heading"><div><span class="section-number">概览</span><h2>国外核心指标</h2></div><span>不同观察频率独立显示</span></div><div class="metric-grid core-grid"><MetricCard v-for="card in foreignCards" :key="card.id" :item="item(card.id)" :label="card.label" :price="card.price" :loading="blocks[card.category].loading" :error="blocks[card.category].error" /></div><p class="section-footnote">伦敦金现及汇率采用北京时间15:30半小时K线收盘价；全球黄金储备净变化仅汇总已报告机构，不代表完整全球总量。</p></DashboardSection>
 
       <DashboardSection id="overseas-price" title="伦敦金现与汇率">
         <div class="section-heading"><div><span class="section-number">现价</span><h2>伦敦金现与汇率</h2></div><span>北京时间15:30 · 半小时K线收盘价</span></div>
         <div class="chart-grid">
-          <ChartPanel title="伦敦金现（美元/金衡盎司）" :description="overseasNote" :series="[line('london_gold_spot', '伦敦金现', '#ad945b')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('london_gold_spot')" note="来源：Barchart ^XAUUSD北京时间15:30半小时K线close" />
-          <ChartPanel title="美元兑离岸人民币（CNH/美元）" description="1美元对应的离岸人民币数量；不等于在岸CNY或人民币中间价" :series="[line('usdcnh', '美元兑离岸人民币', '#287985')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('usdcnh')" note="来源：Barchart ^USDCNH北京时间15:30半小时K线close；缺失保留空值" />
+          <ChartPanel title="伦敦金现（美元/金衡盎司）" :description="overseasNote" :series="[line('london_gold_spot', '伦敦金现', '#ad945b')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('london_gold_spot')" latest-time="15:30" note="来源：Barchart ^XAUUSD北京时间15:30半小时K线close" />
+          <ChartPanel title="美元兑离岸人民币（CNH/美元）" description="1美元对应的离岸人民币数量；不等于在岸CNY或人民币中间价" :series="[line('usdcnh', '美元兑离岸人民币', '#287985')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('usdcnh')" latest-time="15:30" note="来源：Barchart ^USDCNH北京时间15:30半小时K线close；缺失保留空值" />
         </div>
       </DashboardSection>
 
       <DashboardSection id="overseas-futures" title="COMEX期货与汇率期货">
-        <div class="section-heading"><div><span class="section-number">远期</span><h2>COMEX期货与汇率期货</h2></div><span>单合约连续 · 日度</span></div>
+        <div class="section-heading"><div><span class="section-number">远期</span><h2>COMEX期货与汇率期货</h2></div><span>主力连续 · 后复权 · 日度</span></div>
         <InternationalFutures :items="blocks.price.data?.indicators || []" :loading="blocks.price.loading" :error="blocks.price.error" />
       </DashboardSection>
 
@@ -334,9 +337,9 @@ onMounted(loadAll)
       <DashboardPage page="health" label="数据健康度" :picker-options="healthPickerOptions" :picker-selected="selectedHealthModules" @picker-update="updateHealthModules">
       <DashboardSection id="health" title="数据健康度"><div class="section-heading"><div><span class="section-number">15</span><h2>数据健康度</h2></div><span>{{ allMetadata.length }} 个指标 · {{ meta?.files.length || '—' }} 个文件</span></div><div class="health-filters"><input v-model="healthSearch" placeholder="搜索指标或来源文件" aria-label="搜索数据健康度"><select v-model="healthFrequency" aria-label="健康度频率筛选"><option>全部</option><option>日度</option><option>周度</option><option>月度</option><option>未提供</option></select><select v-model="healthStatus" aria-label="健康度状态筛选"><option>全部</option><option>正常</option><option>滞后</option><option>短历史</option><option>仅最新值</option><option>人工接入</option><option value="未确认">每日17点更新</option><option>数据缺失</option></select><span>数据更新计划：每日17点</span></div>
         <div v-if="blocks.meta.loading" class="table-message">正在读取元数据…</div><div v-else-if="blocks.meta.error" class="alert caution">元信息接口失败，使用已成功接口的指标元数据；文件级信息暂不可用。</div>
-        <div class="health-table"><table><thead><tr><th>数据项 / 来源</th><th>更新频率</th><th>最新观察期</th><th>历史起始</th><th>文件最近更新</th><th>数据延迟</th><th>自动化状态</th><th>数据状态</th></tr></thead><tbody><tr v-for="m in visibleHealth" :key="m.indicator_id"><td><strong>{{ m.indicator_name }}</strong><small>{{ sourceLabel(m) }}{{ m.indicator_id.startsWith('file:') ? ' · ' + m.sheet : '' }}</small></td><td>{{ m.frequency }}</td><td>{{ m.coverage_end || '未提供' }}</td><td>{{ m.coverage_start || '未提供' }}</td><td>{{ localTime(m.updated_at) }}</td><td>{{ m.delay_days == null ? '未提供' : m.delay_days + ' 天' }}</td><td><StatusBadge :status="automationStatusLabel(m.automation_status)" /></td><td><StatusBadge :status="m.status" /><span v-if="m.status !== '滞后' && m.statuses?.includes('滞后')" class="secondary-status">滞后</span></td></tr><tr v-if="!visibleHealth.length"><td colspan="8" class="table-message">{{ pending ? '读取中…' : '没有符合筛选条件的数据项' }}</td></tr></tbody></table></div>
+        <div class="health-table"><table><thead><tr><th>数据项 / 来源</th><th>更新频率</th><th>最新观察期</th><th>历史起始</th><th>文件最近更新</th><th>数据延迟</th><th>自动化状态</th><th>数据状态</th></tr></thead><tbody><tr v-for="m in visibleHealth" :key="m.indicator_id"><td><strong>{{ m.indicator_name }}</strong><small>{{ sourceLabel(m) }}{{ m.indicator_id.startsWith('file:') && m.sheet ? ' · ' + m.sheet : '' }}</small></td><td>{{ m.frequency }}</td><td>{{ m.coverage_end || '未提供' }}</td><td>{{ m.coverage_start || '未提供' }}</td><td>{{ localTime(m.updated_at) }}</td><td>{{ m.delay_days == null ? '未提供' : m.delay_days + ' 天' }}</td><td><StatusBadge :status="automationStatusLabel(m.automation_status)" /></td><td><StatusBadge :status="m.status" /><span v-if="m.status !== '滞后' && m.statuses?.includes('滞后')" class="secondary-status">滞后</span></td></tr><tr v-if="!visibleHealth.length"><td colspan="8" class="table-message">{{ pending ? '读取中…' : '没有符合筛选条件的数据项' }}</td></tr></tbody></table></div>
         <div class="pagination"><span>共 {{ healthRows.length }} 项 · 第 {{ healthPage }} / {{ healthPages }} 页</span><button :disabled="healthPage <= 1" @click="healthPage--">上一页</button><button :disabled="healthPage >= healthPages" @click="healthPage++">下一页</button></div>
-        <details class="source-details"><summary>查看文件读取状态与数据口径</summary><div v-for="file in healthFiles" :key="file.source" class="file-row"><strong>{{ file.source }}</strong><span>{{ file.coverage_start || '未提供' }} — {{ file.latest_date || '未提供' }}</span><StatusBadge :status="file.status" /><small>{{ file.warnings.join('；') }}</small></div><p>缺失保持空值；真实零值显示为 0。日/周/月延迟阈值为后端配置的提示阈值，不代表发布日历。原始发布日期未提供，数据健康度显示“未提供”。</p></details>
+        <details class="source-details"><summary>查看文件读取状态与数据口径</summary><div v-for="file in healthFiles" :key="file.source" class="file-row"><strong>{{ file.source }}</strong><span>{{ file.coverage_start || '未提供' }} — {{ file.latest_date || '未提供' }}</span><StatusBadge :status="file.status" /><small>{{ file.warnings.join('；') }}</small></div><p>缺失保持空值；真实零值显示为 0。日/周/月延迟阈值为后端配置的提示阈值，不代表发布日历。交割观察期仅计有有效报告值的月份，月频延迟按北京时间当日减去最新观察月月末计算。原始发布日期未提供，数据健康度显示“未提供”。</p></details>
       </DashboardSection>
       </DashboardPage>
       </DashboardPages><footer class="page-footer"><span>黄金市场指标看板 · {{ isStatic ? '静态展示版' : '本地真实文件' }}</span><span>不插值 · 不前值填充 · 不生成虚构数据</span></footer>

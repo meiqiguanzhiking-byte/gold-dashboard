@@ -32,16 +32,44 @@ try {
   for (const [mode, url, items] of [['dynamic', live, dynamic], ['static', preview, staticItems]]) {
     const index = Object.fromEntries(items.map(i => [i.metadata.indicator_id, i]))
     const model = buildDailyBrief(items, today)
-    assert.equal(model.cards.length, 13)
-    assert.deepEqual(model.cards.map(c => c.id), ['domestic-price', 'international-price', 'volatility', 'spread', 'autd', 'domestic-etf', 'spdr', 'futures', 'comex', 'treasury-10y', 'treasury-2y', 'treasury-spread', 'treasury-bei'])
+    assert.equal(model.cards.length, 25)
+    assert.deepEqual(model.groups.map(group => group.title), ['价差', '现期', '远期', '风险波动', '宏观', 'ETF份额', '交易与持仓', '库存与交割'])
     assert.equal(dailyThresholdGroups.length, 7)
+    assert.deepEqual(dailyThresholdGroups.map(group => group.id), ['spread', 'price', 'volatility', 'rates', 'shares', 'volume', 'position'])
     assert.deepEqual(dailyThresholdGroups.find(group => group.id === 'rates').indicators.map(row => row.id), ['ust_10y_yield', 'ust_2y_yield', 'ust_10y_2y_spread', 'ust_10y_breakeven_inflation'])
     assert.equal(dailyThresholdGroups.find(group => group.id === 'rates').initial, 1)
     assert.ok(!dailyThresholdGroups.find(group => group.id === 'price').indicators.some(row => row.id === 'gold_domestic_spread'), '价差不再使用价格阈值')
-    assert.deepEqual(dailyThresholdGroups.find(group => group.id === 'spread').indicators.map(row => row.id), ['gold_domestic_spread'])
+    assert.deepEqual(dailyThresholdGroups.find(group => group.id === 'spread').indicators.map(row => row.id), ['gold_domestic_spread', 'gold_futures_spread', 'gold_futures_secondary_spread'])
     assert.ok(model.movements.every(row => !/^domestic_\d+_shares$/.test(row.id)), '国内单只ETF份额不参与阈值筛选')
     assert.ok(dailyThresholdGroups.find(group => group.id === 'shares').indicators.some(row => row.id === 'domestic_etf_total_shares'), '国内ETF合计份额参与阈值筛选')
     const expectedMovements = filterDailyMovements(model.movements, thresholds)
+    const orderedGroups = [...dailyThresholdGroups.map(group => group.id), 'direction']
+    assert.deepEqual(model.movements.map(row => orderedGroups.indexOf(row.group)), model.movements.map(row => orderedGroups.indexOf(row.group)).toSorted((a, b) => a - b))
+    const newSeries = ['gold_futures_spread', 'gold_futures_secondary_spread', 'gold_etf_volatility_index', 'comex_gold_registered', 'comex_gold_pledged', 'comex_gold_eligible', 'comex_gold_total']
+    for (const id of newSeries) {
+      const movement = model.movements.find(row => row.id === id)
+      const point = briefPoint(index[id], today)
+      assert.equal(movement.value, point.value, id)
+      assert.equal(movement.change, point.change, id)
+    }
+    for (const [id, cardId, rank] of [
+      ['daily_domestic_futures_close', 'domestic-futures', 0],
+      ['daily_comex_0', 'international-futures', 0], ['daily_comex_1', 'international-futures', 1],
+      ['daily_sgx_usdcnh_0', 'fx-futures', 0], ['daily_sgx_usdcnh_1', 'fx-futures', 1],
+    ]) {
+      const movement = model.movements.find(row => row.id === id)
+      const cardRow = model.cards.find(card => card.id === cardId).rows[rank]
+      assert.equal(movement.value, cardRow.value, id)
+      assert.equal(movement.change, cardRow.change, '期货变动比较当前合约自身的上一观察期')
+      assert.equal(movement.previousDate, cardRow.previousDate)
+      assert.ok(movement.label.includes(cardRow.label))
+    }
+    const missingContractBaseline = items.map(item => item.metadata.indicator_id === 'gold_futures_daily_quotes' ? {
+      ...item, history: item.history.map((point, index, history) => index === history.length - 1 ? {
+        ...point, value: JSON.stringify({ ...JSON.parse(point.value), quotes: JSON.parse(point.value).quotes.map(quote => ({ ...quote, previous_close: null })) }),
+      } : point),
+    } : item)
+    assert.ok(!buildDailyBrief(missingContractBaseline, today).movements.some(row => row.id === 'daily_domestic_futures_close'), '当前合约缺少比较价时不能改用连续复权价或其他合约')
     for (const row of model.movements.filter(row => row.group !== 'direction')) {
       assert.equal(row.percent, row.previousValue !== 0 ? row.change / Math.abs(row.previousValue) * 100 : null)
       assert.equal(row.thresholdValue, row.group === 'spread' ? row.change : row.percent)
@@ -57,9 +85,7 @@ try {
     assert.equal(briefPoint(blankPrevious, today).change, null, '比较基准缺失不得跨期寻找')
     const noRelease = items.map(i => ({ ...i, history: i.history.map(({ release_date, ...p }) => p) }))
     assert.ok(buildDailyBrief(noRelease, today).releases.every(group => !group.today.length), '无可确认发布日期时不得标为今日发布')
-    const mismatchedShares = items.map(i => i.metadata.indicator_id === 'domestic_etf_total_shares' ? { ...i, history: i.history.slice(0, -1) } : i)
-    assert.equal(buildDailyBrief(mismatchedShares, today).cards.find(c => c.id === 'domestic-etf').rows[0].value, null, '份额与规模不能错配观察日')
-    const vol = model.cards[2].rows[0]
+    const vol = model.cards.find(card => card.id === 'volatility').rows[0]
     const hv = index.gold_hv20.history
     const expectedVolChange = hv.at(-1).value - hv.at(-2).value
     assert.ok(Math.abs(vol.change - expectedVolChange) < 1e-12)
@@ -76,12 +102,21 @@ try {
     }
     const etf = model.cards.find(c => c.id === 'domestic-etf')
     assert.equal(etf.fundRows, undefined)
-    assert.deepEqual(etf.rows.map(row => row.label), ['7只ETF合计份额', '同范围合计资产规模'])
-    assert.equal(etf.rows[0].date, etf.rows[1].date)
-    assert.equal(model.cards[1].rows[0].unit, '美元/盎司')
-    const spreadDate = model.cards[3].rows[0].date
+    assert.deepEqual(etf.rows.map(row => row.label), ['7只ETF合计份额'])
+    assert.equal(model.cards.find(card => card.id === 'international-price').rows[0].unit, '美元/盎司')
+    const spreadDate = model.cards.find(card => card.id === 'spread').rows[0].date
     const onDate = id => index[id].history.find(p => p.observation_date === spreadDate)?.value
-    assert.ok(Math.abs(model.cards[3].rows[0].value - (onDate('gold_price_anchor') - onDate('london_gold_spot') * onDate('usdcnh') / 31.1034768)) < 1e-6)
+    assert.ok(Math.abs(model.cards.find(card => card.id === 'spread').rows[0].value - (onDate('gold_price_anchor') - onDate('london_gold_spot') * onDate('usdcnh') / 31.1034768)) < 1e-6)
+    const raw = model.cards.find(card => card.id === 'domestic-futures').rows[0]
+    const rawSource = JSON.parse(index.gold_futures_daily_quotes.history.at(-1).value)
+    const selected = rawSource.quotes.find(quote => quote.contract === rawSource.main_contract)
+    assert.equal(raw.value, selected.close)
+    assert.equal(raw.change, selected.close - selected.previous_close)
+    assert.deepEqual(raw.contractQuotes.quotes, rawSource.quotes)
+    assert.equal(model.cards.find(card => card.id === 'cftc').rows.length, 4)
+    const inventoryRows = model.cards.find(card => card.id === 'comex').rows
+    assert.equal(new Set(inventoryRows.map(row => row.date)).size, 1)
+    assert.ok(Math.abs(inventoryRows[3].value - inventoryRows[0].value - inventoryRows[2].value) < 1e-8)
     const p = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
     const errors = [], requests = []
     p.on('pageerror', e => errors.push(e.message))
@@ -102,7 +137,14 @@ try {
         if (!row.stats && typeof row.value !== 'string') assert.ok(text.includes(row.changeText))
       }
     }
+    await p.locator('.contract-trigger').hover()
+    const quotePopup = p.locator('.contract-popup')
+    await quotePopup.waitFor({ state: 'visible' })
+    assert.equal(await quotePopup.locator('.contract-quote').count(), rawSource.quotes.length)
+    for (const quote of rawSource.quotes) assert.ok((await quotePopup.textContent()).includes(quote.contract))
+    await p.mouse.move(0, 0)
     assert.equal(await p.getByRole('slider').count(), 7)
+    assert.deepEqual(await p.locator('[data-threshold]').evaluateAll(nodes => nodes.map(node => node.dataset.threshold)), dailyThresholdGroups.map(group => group.id))
     assert.equal(await p.locator('#daily-movement-panel .daily-threshold-grid input').count(), 7)
     assert.deepEqual(await p.locator('[data-daily-movement]').evaluateAll(rows => rows.map(row => row.dataset.dailyMovement)), expectedMovements.map(row => row.id))
     for (const group of dailyThresholdGroups) {
@@ -147,10 +189,9 @@ try {
       assert.equal(layout.outside, false)
       assert.equal(layout.clipped, false)
       if (width >= 1280) {
-        assert.equal(new Set(layout.rows.slice(0, 4)).size, 1)
-        assert.equal(new Set(layout.rows.slice(6, 9)).size, 1)
-        assert.ok(layout.rows[4] > layout.rows[3] && layout.rows[5] > layout.rows[4] && layout.rows[6] > layout.rows[5])
-        assert.equal(new Set(layout.rows.slice(9)).size, 1, '四项美债指标同排显示')
+        const macro = await p.locator('[data-daily-group="macro"] .daily-card').evaluateAll(cards => cards.map(card => Math.round(card.getBoundingClientRect().top)))
+        assert.equal(new Set(macro).size, 1, '四项宏观指标同排显示')
+        assert.equal(await p.locator('[data-daily-group]').count(), 8)
       }
     }
     await p.setViewportSize({ width: 1440, height: 1000 })
@@ -176,11 +217,11 @@ try {
     await p.getByRole('tab', { name: '每日速递', exact: true }).click()
     await p.getByRole('button', { name: mode === 'static' ? '重新加载展示数据' : '刷新真实数据' }).click()
     await p.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled, undefined, { timeout: 60000 })
-    assert.equal(await p.locator('.daily-card').count(), 13)
+    assert.equal(await p.locator('.daily-card').count(), 25)
     assert.equal(await p.getByRole('slider').count(), 7)
     assert.deepEqual(errors, [])
     if (mode === 'static') assert.ok(requests.every(u => new URL(u).pathname.startsWith(new URL(preview).pathname) && !/\/api(?:\/|$)/.test(new URL(u).pathname)))
-    results.push({ mode, reportDate: today, cards: 13, layouts: [1280, 1440, 1024, 768, 390], autdFourMetrics: true, treasuryCards: 4, publicationUnknown: true, errors })
+    results.push({ mode, reportDate: today, cards: 25, layouts: [1280, 1440, 1024, 768, 390], autdFourMetrics: true, treasuryCards: 4, publicationUnknown: true, errors })
     await p.close()
   }
   console.log(JSON.stringify({ passed: true, results }))

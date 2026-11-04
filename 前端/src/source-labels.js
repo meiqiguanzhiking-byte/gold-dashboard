@@ -16,11 +16,11 @@ const sourceLabels = {
   '黄金ETF波动率指数.csv': 'Cboe 芝加哥期权交易所',
   '美债收益率.xlsx': 'FRED 美联储经济数据网站',
   '黄金交割.xlsx': 'CME Group 芝商所',
-  'COMEX黄金与汇率期货.csv': 'Barchart 官网 → CME 芝商所 / SGX 新加坡交易所',
+  'COMEX黄金与汇率期货_北京时间15收盘价.csv': 'Barchart 官网 → CME 芝商所 / SGX 新加坡交易所',
 }
 
 export function sourceLabel(metadataOrSource) {
-  if (['gold_futures_spread', 'gold_futures_contract'].includes(metadataOrSource?.indicator_id)) return '上海期货交易所；Barchart 官网 → CME 芝商所 / SGX 新加坡交易所（同日同到期合约折算）'
+  if (['gold_futures_spread', 'gold_futures_secondary_spread', 'gold_futures_contract', 'gold_futures_spread_details'].includes(metadataOrSource?.indicator_id)) return '上海期货交易所；Barchart 官网 → CME 芝商所 / SGX 新加坡交易所（同日同到期合约折算）'
   if (metadataOrSource?.futures_product === 'comex') return 'Barchart 官网 → CME 芝商所'
   if (metadataOrSource?.futures_product === 'sgx_usdcnh') return 'Barchart 官网 → SGX 新加坡交易所'
   if (metadataOrSource?.indicator_id === 'gold_domestic_spread') return '上海黄金交易所；Barchart 官网（同日价格及汇率折算）'

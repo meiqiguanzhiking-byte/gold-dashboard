@@ -27,12 +27,12 @@ await page.route('**/data/*.json', async route => {
     return await route.continue()
   } finally { active-- }
 })
-async function ready() { await page.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled, null, { timeout: 60000 }) }
+async function ready() { await page.waitForFunction(() => document.querySelectorAll('.daily-card').length === 25 && document.querySelector('.refresh-button') && !document.querySelector('.refresh-button').disabled, null, { timeout: 60000 }) }
 try {
   await page.goto(base)
   await ready()
   assert.equal(requests.length, 0, '首次打开每日速递不得依赖任何JSON下载')
-  assert.equal(await page.locator('.daily-card').count(), 13)
+  assert.equal(await page.locator('.daily-card').count(), 25)
   for (const card of model.cards) for (const row of card.rows) if (!row.stats) {
     assert.ok((await page.locator(`[data-daily-card="${card.id}"]`).textContent()).includes(row.valueText))
   }

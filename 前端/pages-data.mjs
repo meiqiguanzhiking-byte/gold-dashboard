@@ -37,10 +37,22 @@ export function buildPagesData(snapshot) {
       return name
     })
   }
-  // 首屏随HTML携带最新两期，延期费保留30期；全量元信息供健康度页直接使用。
+  // 首屏保留期限结构T-10所需11期，延期费30期，其余最新两期。
+  const briefHistoryLimits = { au_td_delivery_direction: 30, gold_futures_spread: 11, gold_futures_secondary_spread: 11, gold_futures_spread_details: 11 }
+  const futuresDates = new Set((snapshot.groups.price?.find(item => item.metadata.indicator_id === 'gold_futures_daily_quotes')?.points || []).slice(-2).flatMap(point => {
+    let quotes = []
+    try { quotes = JSON.parse(point[1])?.quotes || [] } catch { /* 保留缺失明细，不另取价格基准。 */ }
+    return [point[0], ...quotes.map(quote => quote.previous_date).filter(Boolean)]
+  }))
+  const briefPoints = item => item.metadata.indicator_id === 'gold_price_anchor'
+    ? item.points.filter((point, index) => index >= item.points.length - 2 || futuresDates.has(point[0]))
+    : item.points.slice(-(briefHistoryLimits[item.metadata.indicator_id] || 2))
   const compact = { ...snapshot, groups: Object.fromEntries(Object.entries(snapshot.groups).map(([key, items]) => [key,
-    items.map(item => ({ ...item, points: item.points.slice(item.metadata.indicator_id === 'au_td_delivery_direction' ? -30 : -2) })),
+    items.map(item => ({ ...item, points: briefPoints(item) })),
   ])) }
+  compact.delivery_coverage = Object.fromEntries(Object.entries(snapshot.deliveries?.contracts || {}).map(([symbol, contract]) => [symbol,
+    { coverage_start: contract.coverage_start, coverage_end: contract.coverage_end },
+  ]))
   delete compact.deliveries
   const inventory = encode({ generated_at: snapshot.generated_at, deliveries: snapshot.deliveries ?? null })
   const inventoryName = `data/deliveries-${createHash('sha256').update(inventory).digest('hex').slice(0, 16)}.json`

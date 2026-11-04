@@ -61,7 +61,7 @@ async function layout(page) {
     await page.waitForTimeout(180)
     const actual = await page.locator('.page-panel:visible').evaluate(panel => ({
       width: document.documentElement.scrollWidth,
-      clipped: [...panel.querySelectorAll('#foreign-overview h3,#foreign-overview .metric-number,#overseas-price h3,#gold-etf-volatility h3,#gold-price h3')].filter(el => el.scrollWidth > el.clientWidth + 2).map(el => el.textContent),
+      clipped: [...panel.querySelectorAll('#overseas-price h3,#gold-etf-volatility h3,#gold-price h3')].filter(el => el.scrollWidth > el.clientWidth + 2).map(el => el.textContent),
       outside: [...panel.querySelectorAll('.chart-panel,.metric-card,.section-picker')].filter(el => { const r = el.getBoundingClientRect(); return r.left < -1 || r.right > innerWidth + 1 }).length,
     }))
     assert.equal(actual.width, width)
@@ -87,10 +87,9 @@ try {
     assert.equal(domesticRects[2].left, domesticRects[0].left)
     assert.equal(domesticRects[2].right, domesticRects[1].right)
     await page.getByRole('tab', { name: '国外', exact: true }).click()
-    assert.equal(await page.locator('#foreign-overview .metric-card h3').first().textContent(), '伦敦金现')
     const ids = await page.locator('#page-panel-foreign > section').evaluateAll(nodes => nodes.map(n => n.id))
-    assert.equal(ids[1], 'overseas-price')
-    assert.equal(ids[2], 'gold-etf-volatility')
+    assert.equal(ids[0], 'overseas-price')
+    assert.equal(ids[ids.indexOf('overseas-futures') + 1], 'gold-etf-volatility')
     assert.equal(await page.locator('#page-panel-foreign .section-picker').getByLabel('黄金ETF波动率指数', { exact: true }).count(), 1)
     assert.equal(await page.locator('#gold-etf-volatility .section-number').textContent(), '05')
     assert.equal(await page.locator('#gold-etf-volatility .chart-source').textContent(), '来源：Cboe 芝加哥期权交易所')
@@ -105,9 +104,6 @@ try {
       const volatilityHistory = new Map(volatilityItem.history.map(point => [point.observation_date, point.value]))
       gvzChart.dates.forEach((date, index) => assert.equal(gvzChart.values[index], volatilityHistory.get(date)))
       assert.ok((await page.locator('#gold-etf-volatility').textContent()).includes('来源：Cboe 芝加哥期权交易所'))
-      const card = await page.locator('#foreign-overview .metric-card').first().textContent()
-      assert.ok(card.includes(sourceItems.london_gold_spot.latest.value.toLocaleString('zh-CN', { maximumFractionDigits: 2 })))
-      assert.ok(card.includes('%') && card.includes('美元/金衡盎司'))
       for (const [id, title] of Object.entries(titles)) {
         await page.getByRole('tab', { name: id === 'gold_domestic_spread' ? '国内' : '国外', exact: true }).click()
         for (const range of ['1M', '3M', '1Y', '5Y', 'ALL']) {

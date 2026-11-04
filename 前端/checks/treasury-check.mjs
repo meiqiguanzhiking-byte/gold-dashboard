@@ -43,7 +43,7 @@ try {
     const section = page.locator('#treasury-yields')
     await section.locator('canvas').first().waitFor()
     const sectionIds = await page.locator('#page-panel-foreign > section').evaluateAll(nodes => nodes.map(node => node.id))
-    assert.equal(sectionIds[4], 'treasury-yields')
+    assert.equal(sectionIds[sectionIds.indexOf('gold-etf-volatility') + 1], 'treasury-yields')
     assert.equal(await section.locator('.section-number').textContent(), '07')
     assert.equal(await page.locator('#positions .section-number').textContent(), '08')
     assert.equal(await page.locator('#global-etf .section-number').textContent(), '12')

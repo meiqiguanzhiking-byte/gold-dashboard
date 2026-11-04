@@ -1,6 +1,7 @@
 <script setup>
-import { isNumber } from '../daily-brief.js'
+import { isNumber, numberText } from '../daily-brief.js'
 import FeeWindowDetails from './FeeWindowDetails.vue'
+import FuturesBasisDetails from './FuturesBasisDetails.vue'
 defineProps({ row: Object, loading: Boolean, failed: Boolean })
 const arrow = change => change > 0 ? '▲' : change < 0 ? '▼' : '→'
 const trend = change => change > 0 ? 'up' : change < 0 ? 'down' : 'flat'
@@ -8,7 +9,7 @@ const trend = change => change > 0 ? 'up' : change < 0 ? 'down' : 'flat'
 
 <template>
   <div class="daily-metric">
-    <dt><FeeWindowDetails v-if="row.feeWindow && !loading && !failed" :window="row.feeWindow" align="end">{{ row.label }}</FeeWindowDetails><template v-else>{{ row.label }}</template></dt>
+    <dt><FeeWindowDetails v-if="row.feeWindow && !loading && !failed" :window="row.feeWindow" align="end">{{ row.label }}</FeeWindowDetails><FuturesBasisDetails v-else-if="row.basisRates && !loading && !failed" :details="row.basisRates" /><span v-else-if="row.contractQuotes && !loading && !failed" class="contract-detail" tabindex="0"><span class="contract-trigger">{{ row.label }} ⓘ</span><span class="contract-popup" role="tooltip"><strong>{{ row.contractQuotes.date || '未提供' }} · 全部合约收盘价</strong><span v-for="quote in row.contractQuotes.quotes" :key="quote.contract" class="contract-quote"><span>{{ quote.contract }} · {{ quote.expiry }}</span><span>{{ numberText(quote.close) }} 元/克</span></span><span v-if="!row.contractQuotes.quotes.length">数据暂缺</span></span></span><template v-else>{{ row.label }}</template></dt>
     <template v-if="row.stats">
       <dd v-for="stat in row.stats" :key="stat.label" class="fee-stat">
         <span>{{ stat.label }}</span>
@@ -19,15 +20,17 @@ const trend = change => change > 0 ? 'up' : change < 0 ? 'down' : 'flat'
     <template v-else>
       <dd class="value-line">
         <strong :class="{ unavailable: row.value == null }">{{ loading ? '读取中…' : failed ? '数据暂缺' : row.valueText }}<small v-if="row.unit && row.unit !== '文本'">{{ row.unit }}</small></strong>
-        <span v-if="!loading && !failed && typeof row.value !== 'string'" class="change-group"><span class="change" :class="trend(row.change)"><span v-if="isNumber(row.change)" class="trend-arrow">{{ arrow(row.change) }} </span>{{ row.changeText }}</span><span class="comparison">{{ row.comparisonText }}</span></span>
+        <span v-if="!loading && !failed && !row.hideChange && typeof row.value !== 'string'" class="change-group"><span class="change" :class="trend(row.change)"><span v-if="isNumber(row.change)" class="trend-arrow">{{ arrow(row.change) }} </span>{{ row.changeText }}</span><span class="comparison">{{ row.comparisonText }}</span></span>
       </dd>
       <dd class="meta">数据日期：{{ row.date || '未提供' }}</dd>
+      <dd v-if="row.detailText" class="meta">{{ row.detailText }}</dd>
     </template>
     <dd v-if="row.reason" class="meta">{{ row.reason }}</dd>
   </div>
 </template>
 
 <style scoped>
+.contract-detail{position:relative;display:inline-block;max-width:100%;cursor:help}.contract-trigger{text-decoration:underline dotted #9dafad;text-underline-offset:4px}.contract-popup{display:none;position:absolute;z-index:25;top:100%;left:0;width:310px;max-width:calc(100vw - 70px);box-sizing:border-box;background:#fff;padding:12px;border:1px solid #dfe7e3;border-radius:5px;box-shadow:0 5px 18px #29434a20;font-size:11px;font-weight:400;color:#536970;max-height:350px;overflow-y:auto}.contract-popup>strong{display:block;font-size:11px;margin-bottom:6px}.contract-quote{display:flex;justify-content:space-between;gap:12px;border-top:1px solid #edf1ef;padding:5px 0;font-variant-numeric:tabular-nums}.contract-detail:hover .contract-popup,.contract-detail:focus-within .contract-popup{display:block}
 .change-group{display:inline-flex;flex-direction:column;align-items:flex-start;max-width:100%;vertical-align:baseline}.comparison{font-size:10px;font-weight:400;line-height:1.8;color:#8b9997;overflow-wrap:anywhere}
 .daily-metric{min-width:0}dt{font-size:13px;color:#9a7b38;font-weight:700;line-height:1.7;margin-bottom:8px}dd{margin:0}.value-line{display:flex;align-items:baseline;gap:6px 12px;flex-wrap:wrap;min-width:0}.value-line strong{font-size:25px;color:#314f59;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.45;overflow-wrap:anywhere}.value-line small{font-size:11px;font-weight:400;color:#81928f;margin-left:5px}.change{font-size:11px;font-weight:600;line-height:1.8;overflow-wrap:anywhere}.up{color:#bd4c48}.down{color:#37846a}.flat{color:#7d8d8b}.meta{font-size:10px;color:#8b9997;line-height:1.8;margin-top:6px;overflow-wrap:anywhere}.unavailable{font-size:16px!important;color:#93a29e!important;font-weight:400!important}.fee-stat{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-top:5px;font-size:11px;color:#687e83}.fee-stat .value-line{justify-content:flex-end;gap:6px}.fee-stat strong{font-size:17px}.fee-stat .change{font-size:10px}
 @media(max-width:520px){.daily-metric :deep(.fee-detail-popup){left:0;right:auto}}

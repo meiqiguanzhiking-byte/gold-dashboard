@@ -35,22 +35,30 @@ class InternationalFuturesData(unittest.TestCase):
             self.assertEqual(len(rows), len(item['history']))
             for point, (_, row) in zip(item['history'], rows.iterrows()):
                 self.assertEqual(point['observation_date'], row['日期'])
-                self.assertEqual(point['value'], row[spec[2]])
+                if pd.isna(row[spec[2]]):
+                    self.assertIsNone(point['value'])
+                else:
+                    self.assertEqual(point['value'], row[spec[2]])
+            self.assertEqual(m['source'], SOURCE)
+            self.assertEqual(m['observation_time'], '15:00')
+            self.assertEqual(m['observation_timezone'], 'Asia/Shanghai')
 
     def test_conflict_and_missing_price_stay_in_own_contract(self):
         raw = self.tables[(SOURCE, None)].frame.copy()
-        target = raw.iloc[0]
-        duplicate = pd.concat([raw, raw.iloc[[0]]], ignore_index=True)
+        target_index = raw.dropna(subset=['黄金期货价格', 'USDCNH期货价格']).index[0]
+        target = raw.loc[target_index]
+        duplicate = pd.concat([raw, raw.loc[[target_index]]], ignore_index=True)
         items = self.build(duplicate)
         for item in items:
             point = next((p for p in item['history'] if p['observation_date'] == target['日期']), None)
             if point:
                 self.assertEqual(point['value'] is None, item['metadata']['source_contract'] == target['合约'])
-        raw.loc[0, '黄金期货价格'] = float('nan')
+        raw.loc[target_index, '黄金期货价格'] = float('nan')
         items = self.build(raw)
         target_items = [i for i in items if i['metadata']['source_contract'] == target['合约']]
-        self.assertIsNone(next(i for i in target_items if i['metadata']['futures_product'] == 'comex')['history'][0]['value'])
-        self.assertEqual(next(i for i in target_items if i['metadata']['futures_product'] == 'sgx_usdcnh')['history'][0]['value'], target['USDCNH期货价格'])
+        for item in target_items:
+            point = next(p for p in item['history'] if p['observation_date'] == target['日期'])
+            self.assertEqual(point['value'], None if item['metadata']['futures_product'] == 'comex' else target['USDCNH期货价格'])
 
 
 if __name__ == '__main__':
