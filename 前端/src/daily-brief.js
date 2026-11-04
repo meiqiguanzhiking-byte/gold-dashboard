@@ -238,7 +238,7 @@ export function buildDailyBrief(items, reportDate) {
   const cards = [
     { id: 'futures-spread', title: '黄金期货价差', category: 'price', page: 'domestic', section: 'domestic-futures', rows: [
       ...futuresData.spreadRows,
-    ], note: '国内期货原价减同月COMEX及汇率期货折算值；沿用差额后复权价差。' },
+    ], note: '国内期货原价减同月COMEX及汇率期货折算值；采用原始价差，不复权。' },
     { id: 'usdcnh', title: '美元兑离岸人民币', category: 'price', page: 'foreign', section: 'overseas-price', rows: [row('usdcnh', '即期汇率 · 北京时间15:30', { kind: 'percent', digits: 4 })], note: '沿用北京时间15:30收盘报价。' },
     ...futuresData.internationalCards,
     { id: 'gvz', title: '黄金ETF波动率指数（GVZ）', category: 'price', page: 'foreign', section: 'gold-etf-volatility', rows: [row('gold_etf_volatility_index', 'GVZ', { kind: 'pp' })], note: '沿用黄金ETF波动率指数源序列。' },

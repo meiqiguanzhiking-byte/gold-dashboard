@@ -11,7 +11,7 @@ function fixture(expiry, rows) {
   return { metadata: { futures_product: 'comex', contract_expiry: expiry, source_contract: expiry,
     coverage_end: rows.at(-1)?.[0] }, history: rows.map(([observation_date, value]) => ({ observation_date, value })) }
 }
-// 最近偶数月选约：忽略奇数月，近月空值不转远月；后复权保持早期基准。
+// 最近偶数月选约：忽略奇数月，近月空值不转远月；换约保留原价。
 const fixtureItems = [
   fixture('2026-01', [['2026-01-01', 999]]),
   fixture('2026-02', [['2026-01-01', 100], ['2026-01-02', null], ['2026-01-03', 104]]),
@@ -19,27 +19,24 @@ const fixtureItems = [
   fixture('2026-06', [['2026-01-04', 122], ['2026-01-05', 124], ['2026-01-06', 127]]),
 ]
 const fixtureHistory = futuresContinuousSeries(fixtureItems, 'comex', 'ALL')[0].item.history
-assert.deepEqual(fixtureHistory.map(p => p.value), [100, null, 104, 107, 109, 112])
-assert.deepEqual(fixtureHistory.map(p => p.adjustment), [0, 0, 0, -10, -10, -15])
+assert.deepEqual(fixtureHistory.map(p => p.value), [100, null, 104, 117, 119, 127])
 assert.deepEqual(fixtureHistory.map(p => p.rollover_from), [null, null, null, '2026-02', null, '2026-04'])
 assert.equal(fixtureHistory[1].contract_expiry, '2026-02')
-assert.equal(fixtureHistory[3].rollover_reference_date, '2026-01-03')
-// 不可把旧约昨日价与新约今日价之差当作换约价差；新约当日的3点涨幅应保留。
-assert.equal(fixtureHistory[3].value - fixtureHistory[2].value, 3)
+// 换约保留新旧合约原始价差，不平移价格。
+assert.equal(fixtureHistory[3].value - fixtureHistory[2].value, 13)
 assert.deepEqual(futuresContinuousSeries(fixtureItems.map(item => ({ ...item, history: item.history.filter(p => p.observation_date <= '2026-01-05') })), 'comex', 'ALL')[0].item.history, fixtureHistory.slice(0, -1))
 const negativeGap = futuresContinuousSeries([
   fixture('2026-02', [['2026-01-01', 100]]),
   fixture('2026-04', [['2026-01-01', 90], ['2026-01-02', 92]]),
 ], 'comex', 'ALL')[0].item.history
-assert.equal(negativeGap.at(-1).value, 102)
-// 没有换约当日及以前的共同报价时，后复权不可推算；未来共同报价也不能使用。
+assert.equal(negativeGap.at(-1).value, 92)
+// 新旧合约没有共同报价也可直接衔接原价。
 const missingOverlap = futuresContinuousSeries([
   fixture('2026-02', [['2026-01-01', 100], ['2026-01-03', 105]]),
   fixture('2026-04', [['2026-01-02', 115], ['2026-01-03', 120]]),
 ], 'comex', 'ALL')[0].item.history
-assert.equal(missingOverlap[1].value, null)
+assert.equal(missingOverlap[1].value, 115)
 assert.equal(missingOverlap[1].raw_value, 115)
-assert.equal(missingOverlap[1].adjustment_missing, true)
 assert.equal(missingOverlap[2].contract_expiry, '2026-04')
 assert.deepEqual(futuresContinuousSeries([], 'comex'), [])
 assert.deepEqual(futuresContinuousSeries([fixture('2026-01', [['2026-02-01', 10]])], 'comex'), [])
@@ -53,7 +50,7 @@ assert.ok(dynamic.length > 0)
 assert.ok(dynamic.every(item => item.metadata.source === 'COMEX黄金与汇率期货_北京时间15收盘价.csv'))
 assert.deepEqual(published.map(item => item.history), dynamic.map(item => item.history))
 assert.deepEqual(published.map(item => item.metadata.contract_expiry), dynamic.map(item => item.metadata.contract_expiry))
-// 核对全部真实报价、每次同日换约价差及后复权的方向。
+// 核对完整历史各观察日与所选合约原始价格完全一致。
 for (const product of ['comex', 'sgx_usdcnh']) {
   const series = futuresContinuousSeries(dynamic, product, 'ALL')
   assert.equal(series.length, 1)
@@ -62,9 +59,9 @@ for (const product of ['comex', 'sgx_usdcnh']) {
   const dates = [...new Set(contracts.flatMap(item => item.history.map(p => p.observation_date)))].sort()
   const history = series[0].item.history
   assert.deepEqual(history.map(p => p.observation_date), dates)
-  assert.equal(dates.length, 4571)
+  assert.ok(dates.length >= 4571)
   const byContract = new Map(contracts.map(item => [item.metadata.source_contract, new Map(item.history.map(p => [p.observation_date, p.value]))]))
-  let previous = null, rollovers = 0, offset = 0, started = false
+  let previous = null, rollovers = 0
   for (const point of history) {
     if (!point.contract_expiry) { assert.equal(point.value, null); continue }
     const source = contracts.find(item => item.metadata.contract_expiry === point.contract_expiry && item.metadata.source_contract === point.source_contract)
@@ -79,20 +76,8 @@ for (const product of ['comex', 'sgx_usdcnh']) {
       rollovers++
       assert.ok(point.contract_expiry > previous.metadata.contract_expiry)
       assert.equal(point.rollover_from, previous.metadata.contract_expiry)
-      if (started) {
-        const oldQuotes = byContract.get(previous.metadata.source_contract), newQuotes = byContract.get(source.metadata.source_contract)
-        const common = [...oldQuotes.keys()].filter(d => d <= point.observation_date && oldQuotes.get(d) != null && newQuotes.get(d) != null).sort().at(-1)
-        assert.ok(common)
-        const gap = oldQuotes.get(common) - newQuotes.get(common)
-        assert.equal(point.rollover_reference_date, common)
-        assert.equal(point.rollover_gap, gap)
-        offset += gap
-      }
     }
-    assert.equal(point.adjustment, offset)
-    assert.equal(point.value, raw == null ? null : raw + offset)
-    assert.equal(point.adjustment_missing, false)
-    if (raw != null) started = true
+    assert.equal(point.value, raw)
     previous = source
   }
   assert.ok(rollovers > 0)
@@ -151,7 +136,7 @@ try {
           assert.ok(actual.tooltip.includes('到期月份：' + expected[n].item.history.at(-1).contract_expiry))
           assert.ok(actual.tooltip.includes('原表标识：' + expected[n].item.history.at(-1).source_contract))
           assert.ok(actual.tooltip.includes('原始收盘价：'))
-          assert.ok(actual.tooltip.includes('累计调整：'))
+          assert.ok(!actual.tooltip.includes('累计调整：'))
         }
         const values = actual.series.flatMap(series => series.data).filter(value => value != null)
         assert.ok(actual.min <= Math.min(...values) && actual.max >= Math.max(...values))

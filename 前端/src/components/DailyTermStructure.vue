@@ -75,7 +75,7 @@ onBeforeUnmount(() => {
       <div v-if="emptyText" class="term-empty" role="status">{{ emptyText }}</div>
     </div>
     <div class="term-dates"><span v-for="history in historyDates" :key="history.name">{{ history.name }}：{{ history.dates }}</span></div>
-    <p>沿用每日指标卡的主力、次主力复权价差；T-5、T-10分别回看前5、10个交易观察日，缺失不补值。</p>
+    <p>沿用每日指标卡的主力、次主力原始价差（不复权）；T-5、T-10分别回看前5、10个交易观察日，缺失不补值。</p>
   </article>
 </template>
 

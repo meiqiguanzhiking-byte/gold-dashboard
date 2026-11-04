@@ -84,8 +84,8 @@ const futuresSpreadDetails = computed(() => {
   const points = new Map((item('gold_futures_spread_details')?.history || []).map(point => [point.observation_date, point.value]))
   return date => points.get(date) || '当日无可用同日同月价差报价'
 })
-const futuresNote = '最近到期的偶数月主力合约 · 国内最后报价日之后换约；价格采用差额后复权。'
-const futuresSpreadNote = computed(() => '主力与次主力各自按同日重叠价差累计差额后复权；最新有效主力价差 '
+const futuresNote = '最近到期的偶数月主力合约 · 国内最后报价日之后换约；价格不复权。'
+const futuresSpreadNote = computed(() => '主力与次主力均采用同日同月原始价差，不复权；最新有效主力价差 '
   + (item('gold_futures_spread')?.metadata.latest_valid_date || '数据暂缺') + '；缺值不补，图线跨空值连接。')
 
 const etfTab = ref('weekly'), selectedFunds = ref([]), selectedRegions = ref(regions.map(r => r.id)), flowUnit = ref('tonnes')
@@ -196,11 +196,11 @@ onMounted(loadAll)
       <DashboardSection id="domestic-futures" title="黄金期货与价差">
         <div class="section-heading"><div><span class="section-number">远期</span><h2>黄金期货与价差</h2></div><span>最近偶数月主力合约 · 日度</span></div>
         <div class="chart-grid">
-          <ChartPanel title="黄金期货（元/克）" latest-time="15:00" description="最近到期偶数月主力连续价格 · 差额后复权，保留早期价格" :series="[line('gold_futures_close', '黄金期货（差额后复权）', '#287985')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('gold_futures_close')" :note="futuresNote" :tooltip-details="futuresDetails" />
-          <ChartPanel title="黄金期货价差（元/克）" latest-time="15:00" description="最近及第二近偶数月合约；两条价差曲线分别差额后复权" :series="[line('gold_futures_spread', '主力合约价差', '#287985', { connectNulls: true }), line('gold_futures_secondary_spread', '次主力合约价差', '#ad945b', { connectNulls: true })]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('gold_futures_spread') || withheldReason('gold_futures_secondary_spread')" :note="futuresSpreadNote" :tooltip-details="futuresSpreadDetails" />
+          <ChartPanel title="黄金期货（元/克）" latest-time="15:00" description="最近到期偶数月主力连续价格 · 原始收盘价，不复权" :series="[line('gold_futures_close', '黄金期货', '#287985')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('gold_futures_close')" :note="futuresNote" :tooltip-details="futuresDetails" />
+          <ChartPanel title="黄金期货价差（元/克）" latest-time="15:00" description="最近及第二近偶数月合约；两条价差曲线均不复权" :series="[line('gold_futures_spread', '主力合约价差', '#287985', { connectNulls: true }), line('gold_futures_secondary_spread', '次主力合约价差', '#ad945b', { connectNulls: true })]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('gold_futures_spread') || withheldReason('gold_futures_secondary_spread')" :note="futuresSpreadNote" :tooltip-details="futuresSpreadDetails" />
         </div>
-        <p class="section-footnote">主力定义为距离观察日最近的偶数交割月合约，当前国内合约最后有效报价当日仍使用旧约，之后换约；中途缺项不提前换约。左图差额后复权：保留早期价格，后续价格加上累计换约差额（旧约末日旧约价格−同日新约价格）；缺少复权依据时保持缺失。完整历史选约及复权后再筛选区间。</p>
-        <p class="section-footnote">主力为最近到期偶数月合约，次主力为第二近到期偶数月合约。两条原始价差各按国内期货原价（元/克）− COMEX同月期货（美元/金衡盎司）× USDCNH同月期货（CNH/美元）÷31.1034768计算，再分别按换约前最近同日双合约有效价差作差额后复权。以COMEX及汇率期货报价日期为横轴，国内价格按同日、同月右连接；缺项保留空值，折线跨过空值连接前后有效点，不前填或错移日期。含CNH/CNY口径及收盘时点差异，不代表同步可交易套利空间；原表au标识仅用于同月份关联。</p>
+        <p class="section-footnote">主力定义为距离观察日最近的偶数交割月合约，当前国内合约最后有效报价当日仍使用旧约，之后换约；中途缺项不提前换约。左图直接使用所选合约原始收盘价，不复权，保留换约价差。完整历史选约后再筛选区间。</p>
+        <p class="section-footnote">主力为最近到期偶数月合约，次主力为第二近到期偶数月合约。两条原始价差各按国内期货原价（元/克）− COMEX同月期货（美元/金衡盎司）× USDCNH同月期货（CNH/美元）÷31.1034768计算，不复权，保留换约价差。以COMEX及汇率期货报价日期为横轴，国内价格按同日、同月右连接；缺项保留空值，折线跨过空值连接前后有效点，不前填或错移日期。含CNH/CNY口径及收盘时点差异，不代表同步可交易套利空间；原表au标识仅用于同月份关联。</p>
       </DashboardSection>
 
       <DashboardSection id="gold-volatility" title="20日与60日年化历史波动率">
@@ -260,7 +260,7 @@ onMounted(loadAll)
       </DashboardSection>
 
       <DashboardSection id="overseas-futures" title="COMEX期货与汇率期货">
-        <div class="section-heading"><div><span class="section-number">远期</span><h2>COMEX期货与汇率期货</h2></div><span>主力连续 · 后复权 · 日度</span></div>
+        <div class="section-heading"><div><span class="section-number">远期</span><h2>COMEX期货与汇率期货</h2></div><span>主力连续 · 不复权 · 日度</span></div>
         <InternationalFutures :items="blocks.price.data?.indicators || []" :loading="blocks.price.loading" :error="blocks.price.error" />
       </DashboardSection>
 

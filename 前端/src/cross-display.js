@@ -20,7 +20,7 @@ function dailySeries(base, id, name, unit, history, note) {
     coverage_start: history[0]?.observation_date || null, coverage_end: history.at(-1)?.observation_date || null }, history, crossNote: note }
 }
 
-// 将每日指标既有的期货展示规则逐观察日应用于原表，不用后复权连续价格替代当日原价。
+// 将每日指标既有的期货展示规则逐观察日应用于原表，连续曲线与每日指标均不复权。
 export function crossItems(items) {
   const byId = new Map(items.map(item => [item.metadata.indicator_id, item]))
   const result = items.filter(item => crossGroup(item.metadata.indicator_id))

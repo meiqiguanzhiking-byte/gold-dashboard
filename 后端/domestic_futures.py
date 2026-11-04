@@ -11,8 +11,8 @@ from contract_expiry import contract_expiries
 
 DOMESTIC_SOURCE = "黄金期货.csv"
 GRAMS_PER_TROY_OUNCE = 31.1034768
-PRICE_METHOD = "最近偶数月主力按国内最后报价日换约；国内价格用旧约末日旧价减同日新价累计差额后复权"
-METHOD = "最近及第二近偶数月合约分别计算同日同月原始价差；以海外报价日期右连接国内价格，换约取最近同日双合约有效价差之差累计后复权；缺项不补值"
+PRICE_METHOD = "最近偶数月主力按国内最后报价日换约；使用国内原始收盘价，不复权"
+METHOD = "最近及第二近偶数月合约分别计算同日同月原始价差；以海外报价日期右连接国内价格，不复权；缺项不补值"
 
 
 def contract_quotes(frame, date_column, expiry_column, price_columns):
@@ -52,7 +52,6 @@ def continuous_futures_rows(domestic, overseas):
         return []
     start = min(first for _, first, _ in contracts)
     rows, active = [], -1
-    adjustment = 0.0
     for date in dates:
         if date < start:
             continue
@@ -63,27 +62,20 @@ def continuous_futures_rows(domestic, overseas):
                                and key[1] >= date[:7]
                                and local[key].get(date, (None,))[0] is not None), None)
             if next_index is None:
-                rows.append({"时间": date, "close": None, "raw_close": None, "adjustment": adjustment, "spread": None, "contract": None,
+                rows.append({"时间": date, "close": None, "raw_close": None, "spread": None, "contract": None,
                              "expiry": None, "comex": None, "fx": None, "rollover_from": None, "detail": None})
                 continue
             rollover = contracts[active][0][0] if active >= 0 else None
-            if active >= 0:
-                old_key, _, end = contracts[active]
-                new_key = contracts[next_index][0]
-                old_quote = local[old_key].get(end, (None,))[0]
-                new_quote = local[new_key].get(end, (None,))[0]
-                # 必须使用旧约末日两份同日真实报价，缺项时不猜复权差额。
-                adjustment = adjustment + old_quote - new_quote if adjustment is not None and old_quote is not None and new_quote is not None else None
             active = next_index
         key = contracts[active][0]
         raw_close = local[key].get(date, (None,))[0]
-        close = raw_close + adjustment if raw_close is not None and adjustment is not None else None
+        close = raw_close
         gold, fx = foreign.get(key, {}).get(date, (None, None))
         spread = raw_close - gold * fx / GRAMS_PER_TROY_OUNCE if all(v is not None for v in (raw_close, gold, fx)) else None
-        detail = f"合约：{key[0]} · 到期月份：{key[1]} · 国内原始收盘价：{raw_close if raw_close is not None else '缺失'} 元/克 · 累计后复权差额：{round(adjustment, 6) if adjustment is not None else '缺失'} 元/克 · COMEX：{gold if gold is not None else '缺失'} 美元/金衡盎司 · USDCNH期货：{fx if fx is not None else '缺失'} CNH/美元"
+        detail = f"合约：{key[0]} · 到期月份：{key[1]} · 国内原始收盘价：{raw_close if raw_close is not None else '缺失'} 元/克 · COMEX：{gold if gold is not None else '缺失'} 美元/金衡盎司 · USDCNH期货：{fx if fx is not None else '缺失'} CNH/美元"
         if rollover:
             detail += f" · 换约：{rollover} → {key[0]}"
-        rows.append({"时间": date, "close": close, "raw_close": raw_close, "adjustment": adjustment, "spread": spread, "contract": key[0], "expiry": key[1],
+        rows.append({"时间": date, "close": close, "raw_close": raw_close, "spread": spread, "contract": key[0], "expiry": key[1],
                      "comex": gold, "fx": fx, "rollover_from": rollover, "detail": detail})
     return rows
 
@@ -108,73 +100,50 @@ def spread_curve_rows(domestic, overseas):
             value is not None for value in (domestic_close, gold, fx)) else None
         return raw, domestic_close, gold, fx
 
-    states = [{"index": -1, "adjustment": 0.0, "seen_quote": False} for _ in range(2)]
+    states = [{"index": -1} for _ in range(2)]
     output = []
     for date in dates:
         selected, rollovers = [], []
         for rank, state in enumerate(states):
             minimum = selected[0] + 1 if rank and selected[0] >= 0 else (len(contracts) if rank else 0)
             previous = state["index"]
-            rollover, anchor = None, None
+            rollover = None
             if previous < minimum or previous < 0 or date > contracts[previous][1]:
                 next_index = next((index for index, (key, end) in enumerate(contracts)
                                    if index >= minimum and index > previous and date <= end
                                    and key[1] >= date[:7] and local[key].get(date, (None,))[0] is not None), -1)
                 if next_index >= 0:
                     rollover = contracts[previous][0][0] if previous >= 0 else None
-                    if previous >= 0 and state["seen_quote"]:
-                        old_key, old_end = contracts[previous]
-                        new_key = contracts[next_index][0]
-                        overlaps = sorted(day for day in local[old_key].keys() & local[new_key].keys()
-                                          if day <= old_end and quote(old_key, day)[0] is not None
-                                          and quote(new_key, day)[0] is not None)
-                        if overlaps and state["adjustment"] is not None:
-                            anchor = overlaps[-1]
-                            state["adjustment"] += quote(old_key, anchor)[0] - quote(new_key, anchor)[0]
-                        else:
-                            # 无同日双合约报价不能推算换约差额；后续复权值保持缺失。
-                            state["adjustment"] = None
                     state["index"] = next_index
             selected.append(state["index"] if state["index"] >= minimum
                             and date <= contracts[state["index"]][1] else -1)
-            rollovers.append((rollover, anchor))
+            rollovers.append(rollover)
 
-        values, raw_values, adjustments, details = [], [], [], []
+        values, details = [], []
         for rank, index in enumerate(selected):
             if index < 0:
                 values.append(None)
-                raw_values.append(None)
-                adjustments.append(None)
                 details.append(("主力" if rank == 0 else "次主力") + "：无可用偶数月合约")
                 continue
             key = contracts[index][0]
             raw, domestic_close, gold, fx = quote(key, date)
-            state = states[rank]
-            if raw is not None:
-                state["seen_quote"] = True
-            adjusted = raw + state["adjustment"] if raw is not None and state["adjustment"] is not None else None
-            values.append(adjusted)
-            raw_values.append(raw)
-            adjustments.append(state["adjustment"])
+            values.append(raw)
             detail = (f"{'主力' if rank == 0 else '次主力'}：{key[0]}（{key[1]}）"
                       f" · 国内原价 {domestic_close if domestic_close is not None else '缺失'} 元/克"
                       f" · COMEX {gold if gold is not None else '缺失'} 美元/金衡盎司"
-                      f" · USDCNH期货 {fx if fx is not None else '缺失'} CNH/美元"
-                      f" · 累计价差复权额 {round(state['adjustment'], 6) if state['adjustment'] is not None else '缺失'} 元/克")
-            rollover, anchor = rollovers[rank]
+                      f" · USDCNH期货 {fx if fx is not None else '缺失'} CNH/美元")
+            rollover = rollovers[rank]
             if rollover:
-                detail += f" · 换约 {rollover}→{key[0]}" + (f"（复权锚点 {anchor}）" if anchor else "（无同日复权锚点）")
+                detail += f" · 换约 {rollover}→{key[0]}"
             details.append(detail)
         output.append({"时间": date, "main_spread": values[0], "secondary_spread": values[1],
-                       "main_raw_spread": raw_values[0], "secondary_raw_spread": raw_values[1],
-                       "main_adjustment": adjustments[0], "secondary_adjustment": adjustments[1],
+                       "main_raw_spread": values[0], "secondary_raw_spread": values[1],
                        "spread_detail": "；".join(details),
                        "main_contract": contracts[selected[0]][0][0] if selected[0] >= 0 else None,
                        "secondary_contract": contracts[selected[1]][0][0] if selected[1] >= 0 else None,
                        "main_expiry": contracts[selected[0]][0][1] if selected[0] >= 0 else None,
                        "secondary_expiry": contracts[selected[1]][0][1] if selected[1] >= 0 else None,
-                       "main_rollover_from": rollovers[0][0], "secondary_rollover_from": rollovers[1][0],
-                       "main_roll_anchor": rollovers[0][1], "secondary_roll_anchor": rollovers[1][1]})
+                       "main_rollover_from": rollovers[0], "secondary_rollover_from": rollovers[1]})
     return output
 
 
@@ -204,9 +173,9 @@ def add_domestic_futures(builder):
                                     (overseas_missing, overseas, ["日期", "合约", "到期期限", "黄金期货价格", "USDCNH期货价格"])]:
         target.extend(required if table is None else [column for column in required if column not in table.frame])
     for indicator_id, name, column, unit, target_frame in [
-        ("gold_futures_close", "黄金期货连续价格（差额后复权）", "close", "元/克", frame),
-        ("gold_futures_spread", "主力黄金期货价差（差额后复权）", "main_spread", "元/克", spread_frame),
-        ("gold_futures_secondary_spread", "次主力黄金期货价差（差额后复权）", "secondary_spread", "元/克", spread_frame),
+        ("gold_futures_close", "黄金期货连续价格（不复权）", "close", "元/克", frame),
+        ("gold_futures_spread", "主力黄金期货价差（不复权）", "main_spread", "元/克", spread_frame),
+        ("gold_futures_secondary_spread", "次主力黄金期货价差（不复权）", "secondary_spread", "元/克", spread_frame),
         ("gold_futures_contract", "黄金期货合约与折算明细", "detail", "文本", frame),
         ("gold_futures_spread_details", "主力及次主力期货价差合约明细", "spread_detail", "文本", spread_frame),
     ]:
@@ -214,7 +183,7 @@ def add_domestic_futures(builder):
         builder.add("price", indicator_id, name, unit, "日度", DOMESTIC_SOURCE, column=column, frame=target_frame,
                     input_sources=[DOMESTIC_SOURCE] if column == "close" else [DOMESTIC_SOURCE, OVERSEAS_SOURCE],
                     method=PRICE_METHOD if column in ("close", "detail") else METHOD,
-                    calculation="连续价格＝国内原始收盘价＋累计换约差额（旧约末日旧价−同日新价）" if column == "close" else "原始价差＝国内期货原价 − COMEX同月原价 × USDCNH同月期货价 ÷ 31.1034768；换约后累计旧约−新约同日原始价差",
+                    calculation="连续价格＝所选合约国内原始收盘价，不复权" if column == "close" else "原始价差＝国内期货原价 − COMEX同月原价 × USDCNH同月期货价 ÷ 31.1034768；不复权",
                     comparison_basis="海外报价日期为右表；相同观察日期、相同原表合约标识与到期月份；交易所收盘时点可能不同，含CNH/CNY口径差异",
                     grams_per_troy_ounce=GRAMS_PER_TROY_OUNCE, latest_valid_date=valid_dates[-1] if valid_dates else None,
                     display_digits=2, missing_fields=domestic_missing if column == "close" else domestic_missing + overseas_missing,

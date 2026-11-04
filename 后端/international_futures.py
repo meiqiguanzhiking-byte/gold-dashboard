@@ -27,5 +27,5 @@ def add_international_futures(builder):
                         f"{name} · {expiry}", unit, "日度", SOURCE, column=column, frame=rows, values=values,
                         futures_product=product, contract_expiry=str(expiry), source_contract=str(contract),
                         exchange=exchange, display_digits=digits, observation_time="15:00", observation_timezone="Asia/Shanghai",
-                        warnings=["北京时间15:00收盘价；页面按最近偶数月合约衔接，以最近共同报价日价差累计后复权，保留早期价格基准。",
+                        warnings=["北京时间15:00收盘价；页面按最近偶数月合约衔接，直接使用所选合约原始收盘价，不复权。",
                                   "原表合约代码为数据关联标识，不视为境外交易所官方代码。"])
