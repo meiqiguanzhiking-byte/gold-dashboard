@@ -82,7 +82,7 @@ export function useDashboard() {
   async function loadPage(page) {
     activePage = page
     if (!isStatic || !initialized) return
-    const needed = { domestic: ['price', 'etf', 'au-td', 'futures', 'central-bank'], foreign: ['price', 'etf', 'inventory', 'cftc', 'central-bank'] }[page] || []
+    const needed = { cross: categories, domestic: ['price', 'etf', 'au-td', 'futures', 'central-bank'], foreign: ['price', 'etf', 'inventory', 'cftc', 'central-bank'] }[page] || []
     await Promise.allSettled(needed.filter(key => !blocks[key].complete).map(loadBlock))
   }
   async function loadAll() {

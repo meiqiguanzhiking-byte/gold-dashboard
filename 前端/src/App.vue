@@ -10,6 +10,7 @@ import ComexDelivery from './components/ComexDelivery.vue'
 import InternationalFutures from './components/InternationalFutures.vue'
 import AutdFeeTable from './components/AutdFeeTable.vue'
 import DailyBrief from './components/DailyBrief.vue'
+import CrossDisplay from './components/CrossDisplay.vue'
 import DashboardPages from './components/DashboardPages.vue'
 import DashboardPage from './components/DashboardPage.vue'
 import DashboardSection from './components/DashboardSection.vue'
@@ -334,6 +335,7 @@ onMounted(loadAll)
       <ComexDelivery :data="blocks.inventory.data?.deliveries" :loading="blocks.inventory.loading" :error="blocks.inventory.error" />
       </DashboardPage>
 
+      <DashboardPage page="cross" label="交叉展示" :pickable="false"><CrossDisplay :items="all" :blocks="blocks" /></DashboardPage>
       <DashboardPage page="health" label="数据健康度" :picker-options="healthPickerOptions" :picker-selected="selectedHealthModules" @picker-update="updateHealthModules">
       <DashboardSection id="health" title="数据健康度"><div class="section-heading"><div><span class="section-number">15</span><h2>数据健康度</h2></div><span>{{ allMetadata.length }} 个指标 · {{ meta?.files.length || '—' }} 个文件</span></div><div class="health-filters"><input v-model="healthSearch" placeholder="搜索指标或来源文件" aria-label="搜索数据健康度"><select v-model="healthFrequency" aria-label="健康度频率筛选"><option>全部</option><option>日度</option><option>周度</option><option>月度</option><option>未提供</option></select><select v-model="healthStatus" aria-label="健康度状态筛选"><option>全部</option><option>正常</option><option>滞后</option><option>短历史</option><option>仅最新值</option><option>人工接入</option><option value="未确认">每日17点更新</option><option>数据缺失</option></select><span>数据更新计划：每日17点</span></div>
         <div v-if="blocks.meta.loading" class="table-message">正在读取元数据…</div><div v-else-if="blocks.meta.error" class="alert caution">元信息接口失败，使用已成功接口的指标元数据；文件级信息暂不可用。</div>

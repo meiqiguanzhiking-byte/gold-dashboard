@@ -45,22 +45,22 @@ try {
   assert.ok(maximum <= 3, '同时最多下载三个分片')
   assert.ok([...attempts].some(([name, count]) => name.startsWith('price-') && count === 2), '临时失败应自动重试')
   assert.ok([...attempts].some(([name, count]) => name.startsWith('central-bank-') && count === 3), '持续失败应有界重试')
-  assert.equal(await page.locator('.alert.error').count(), 1, '失败应局限于对应分类')
-  assert.ok((await page.locator('.alert.error').textContent()).includes('央行购金'))
+  assert.equal(await page.locator('.alert.error[role=alert]').count(), 1, '失败应局限于对应分类')
+  assert.ok((await page.locator('.alert.error[role=alert]').textContent()).includes('央行购金'))
   await page.locator('#gold-price canvas').first().waitFor()
   assert.ok(!requests.some(url => /\/(?:cftc|inventory|deliveries)-/.test(url)), '国内页不应下载国外独有分类')
   await page.getByRole('tab', { name: '每日速递', exact: true }).click()
   assert.equal(await page.locator('.daily-movements').textContent(), daily, '历史加载失败不能清空首屏速递')
   const priceRequests = requests.filter(url => /\/price-/.test(url)).length
   failCentral = false
-  await page.locator('.alert.error').getByRole('button', { name: '重试此区域' }).click()
+  await page.locator('.alert.error[role=alert]').getByRole('button', { name: '重试此区域' }).click()
   await ready()
-  assert.equal(await page.locator('.alert.error').count(), 0)
+  assert.equal(await page.locator('.alert.error[role=alert]').count(), 0)
   assert.equal(requests.filter(url => /\/price-/.test(url)).length, priceRequests, '重试一个分类不能重下其他分类')
   failRefresh = true
   await page.locator('.refresh-button').click()
   await ready()
-  assert.ok((await page.locator('.alert.error').textContent()).includes('重新加载失败'))
+  assert.ok((await page.locator('.alert.error[role=alert]').textContent()).includes('重新加载失败'))
   assert.equal(await page.locator('.daily-movements').textContent(), daily, '刷新失败保留已加载数据')
   failRefresh = false
   await page.locator('.refresh-button').click()

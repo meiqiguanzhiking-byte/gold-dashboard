@@ -124,7 +124,7 @@ try {
     p.on('request', r => requests.push(r.url()))
     await p.goto(url)
     await p.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled)
-    assert.deepEqual(await p.locator('.page-tabs button').allTextContents(), ['每日速递', '国内', '国外', '数据健康度'])
+    assert.deepEqual(await p.locator('.page-tabs button').allTextContents(), ['每日速递', '国内', '国外', '交叉展示', '数据健康度'])
     assert.equal(await p.locator('.page-tabs [aria-selected="true"]').textContent(), '每日速递')
     assert.equal(await p.locator('.page-panel:visible').count(), 1)
     for (const card of model.cards) {
