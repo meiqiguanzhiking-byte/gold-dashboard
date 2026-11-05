@@ -12,16 +12,15 @@ const date = beijingDate()
 const model = buildDailyTermStructure(items, date)
 const brief = buildDailyBrief(items, date)
 assert.deepEqual(model.categories.slice(1), brief.cards.find(card => card.id === 'futures-spread').rows.map(row => row.label))
-for (const [rank, id] of ['gold_futures_spread', 'gold_futures_secondary_spread'].entries()) {
+for (const [rank, id] of ['gold_domestic_spread', 'gold_futures_spread', 'gold_futures_secondary_spread'].entries()) {
   const history = items.find(item => item.metadata.indicator_id === id).history.filter(point => point.observation_date <= date)
   for (const [index, offset] of [0, 5, 10].entries()) {
-    assert.equal(model.curves[index].points[rank + 1].value, history.at(-1 - offset).value)
-    assert.equal(model.curves[index].points[rank + 1].date, history.at(-1 - offset).observation_date)
+    assert.equal(model.curves[index].points[rank].value, history.at(-1 - offset).value)
+    assert.equal(model.curves[index].points[rank].date, history.at(-1 - offset).observation_date)
   }
 }
 assert.equal(model.curves[0].points[0].value, brief.cards.find(card => card.id === 'spread').rows[0].value)
-assert.equal(model.curves[1].points[0].value, null)
-assert.equal(model.curves[2].points[0].value, null)
+assert.ok(model.curves.every(curve => curve.points[0].contract === null))
 assert.deepEqual(buildDailyTermStructure(flatten(expandSnapshot(buildPagesData(snapshot).bootstrap.snapshot)), date), model, '静态首屏保留T-10的全部日期、数值和合约')
 
 const main = items.find(item => item.metadata.indicator_id === 'gold_futures_spread')
@@ -29,8 +28,12 @@ const missing = items.map(item => item === main ? { ...item, history: item.histo
 const missingPoint = buildDailyTermStructure(missing, date).curves[1].points[1]
 assert.equal(missingPoint.value, null, '第5个交易日为空时不得跨期取值')
 assert.equal(missingPoint.date, main.history.at(-6).observation_date)
+const spot = items.find(item => item.metadata.indicator_id === 'gold_domestic_spread')
+const missingSpot = items.map(item => item === spot ? { ...item, history: item.history.map((point, index, history) => index === history.length - 6 ? { ...point, value: null } : point) } : item)
+assert.deepEqual(buildDailyTermStructure(missingSpot, date).curves[1].points[0], { value: null, date: spot.history.at(-6).observation_date, contract: null }, '现价历史缺失时不跨期补值')
 const short = items.map(item => ({ ...item, history: item.history.slice(-5) }))
 assert.equal(buildDailyTermStructure(short, date).curves[1].points[1].date, null, '历史不足时不把自然日或其他记录当成T-5')
+assert.equal(buildDailyTermStructure(short, date).curves[1].points[0].date, null, '现价历史不足时保留断点')
 const cutoff = main.history.at(-15).observation_date
 assert.equal(buildDailyTermStructure(items, cutoff).curves[2].points[1].date, main.history.at(-25).observation_date, '报告日之后的记录不进入回看')
 
@@ -64,6 +67,18 @@ try {
     const tooltip = await page.locator('#daily-term-structure .tooltip-item').allTextContents()
     assert.ok(tooltip.some(text => text.includes(model.curves[1].points[1].date)), '悬浮显示T-5真实观察日')
     assert.ok(tooltip.some(text => text.includes(model.curves[2].points[1].date)), '悬浮显示T-10真实观察日')
+    await page.evaluate(async () => {
+      let init
+      if (document.querySelector('script[src*="/@vite/client"]')) init = (await import('/src/charts.js')).echarts.init
+      else {
+        const path = performance.getEntriesByType('resource').find(resource => /chart-core-.*\.js/.test(resource.name))?.name
+        init = Object.values(await import(path)).find(value => typeof value === 'function' && value.toString().includes('afterinit'))
+      }
+      init(document.querySelector('[data-chart-title="价差期限结构"]')).dispatchAction({ type: 'showTip', seriesIndex: 1, dataIndex: 0 })
+    })
+    await page.waitForFunction(() => document.querySelector('#daily-term-structure .tooltip-item')?.parentElement.textContent.includes('黄金现价价差'))
+    const spotTooltip = await page.locator('#daily-term-structure .tooltip-item').allTextContents()
+    for (const curve of model.curves) assert.ok(spotTooltip.some(text => text.includes(curve.name + '：') && text.includes(curve.points[0].date)), '现价悬浮同时显示最新、T-5、T-10及各自观察日')
     assert.ok(await page.locator('#daily-term-structure').evaluate(node => node.getBoundingClientRect().top < document.getElementById('daily-movement-panel').getBoundingClientRect().top))
     for (const width of [1440, 768, 390]) {
       await page.setViewportSize({ width, height: 1000 })

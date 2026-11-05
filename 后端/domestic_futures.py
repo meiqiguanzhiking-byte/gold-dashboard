@@ -7,7 +7,7 @@ import pandas as pd
 
 from data_loader import parse_dates
 from international_futures import SOURCE as OVERSEAS_SOURCE
-from contract_expiry import contract_expiries
+from contract_expiry import contract_expiries, basis_contract_expiries
 
 DOMESTIC_SOURCE = "黄金期货.csv"
 GRAMS_PER_TROY_OUNCE = 31.1034768
@@ -155,16 +155,18 @@ def add_domestic_futures(builder):
     quotes, dates = contract_quotes(domestic.frame, "时间", "交割月份", ["收盘价（元/克）"]) if domestic else ({}, [])
     selected = {row["时间"]: row["contract"] for row in rows}
     expiries = contract_expiries(dates[-1]) if dates else {}
+    basis_expiries = basis_contract_expiries(quotes, dates[-1], expiries) if dates else {}
     daily_quotes = []
     for index, date in enumerate(dates):
         previous_date = dates[index - 1] if index else None
         contracts = [{"contract": code, "expiry": expiry, "close": history[date][0],
-                      **(expiries.get(code, {}) if index >= len(dates) - 2 else {}),
+                      **(basis_expiries.get(code, {}) if index >= len(dates) - 2 else {}),
                       "previous_close": history.get(previous_date, (None,))[0], "previous_date": previous_date}
                      for (code, expiry), history in sorted(quotes.items(), key=lambda entry: entry[0][1]) if date in history]
         daily_quotes.append({"时间": date, "quotes": json.dumps({"main_contract": selected.get(date), "quotes": contracts}, ensure_ascii=False)})
     builder.add("price", "gold_futures_daily_quotes", "国内黄金期货当日各合约原始收盘价", "文本", "日度", DOMESTIC_SOURCE,
                 column="quotes", frame=pd.DataFrame(daily_quotes, columns=["时间", "quotes"]), display_digits=2,
+                contract_expiries=basis_expiries,
                 method="最近偶数月合约；原始收盘价不复权；变化比较同一合约上一交易观察日，缺失不跨期填补")
     frame = pd.DataFrame(rows, columns=["时间", "close", "detail"])
     spread_frame = pd.DataFrame(spread_rows, columns=["时间", "main_spread", "secondary_spread", "spread_detail"])

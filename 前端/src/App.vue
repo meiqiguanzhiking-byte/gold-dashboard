@@ -8,6 +8,7 @@ import FlowHeatmap from './components/FlowHeatmap.vue'
 import ComexInventory from './components/ComexInventory.vue'
 import ComexDelivery from './components/ComexDelivery.vue'
 import InternationalFutures from './components/InternationalFutures.vue'
+import FuturesBasisHistory from './components/FuturesBasisHistory.vue'
 import AutdFeeTable from './components/AutdFeeTable.vue'
 import DailyBrief from './components/DailyBrief.vue'
 import CrossDisplay from './components/CrossDisplay.vue'
@@ -34,7 +35,7 @@ const healthModuleRules = [
   { id: 'gold-volatility', title: '20日与60日年化历史波动率', ids: ['gold_hv20', 'gold_hv60'] },
   { id: 'central-bank', title: '央行购金', sources: ['央行购金.xlsx'] },
   { id: 'au-td', title: 'Au(T+D)', sources: ['AuTD.csv'] },
-  { id: 'futures', title: '上期所黄金期货', ids: ['futures_volume', 'futures_open_interest', 'futures_main_contract'] },
+  { id: 'futures', title: '上期所黄金期货', ids: ['futures_volume', 'futures_open_interest', 'futures_main_contract', 'gold_futures_daily_quotes', 'gold_price_anchor'] },
   { id: 'domestic-etf', title: '场内黄金 ETF 份额', sources: ['黄金ETF份额.xlsx'] },
   { id: 'overseas-price', title: '伦敦金现与汇率', sources: ['伦敦金现与汇率_北京时间1530收盘价.xlsx'] },
   { id: 'overseas-futures', title: 'COMEX期货与汇率期货', fileSources: ['COMEX黄金与汇率期货_北京时间15收盘价.csv'] },
@@ -233,7 +234,9 @@ onMounted(loadAll)
         <div class="metric-grid trade-grid"><MetricCard v-for="card in tradeCards.filter(card => card.category === 'futures')" :key="card.id" :item="item(card.id)" :label="card.label" :loading="blocks[card.category].loading" :error="blocks[card.category].error" /></div>
         <div class="chart-grid">
           <ChartPanel title="黄金期货成交量与持仓量（吨）" description="成交量柱状图与持仓量折线图 · 同单位共用坐标轴" :series="[line('futures_volume', '成交量（吨）', '#abc6ca', { type: 'bar' }), line('futures_open_interest', '持仓量（吨）', '#287985')]" :loading="blocks.futures.loading" :error="blocks.futures.error" note="全市场数据采用后端按日期聚合；主力按成交量最高确定" />
+          <FuturesBasisHistory :quotes="item('gold_futures_daily_quotes')" :spot="item('gold_price_anchor')" :loading="blocks.price.loading" :error="blocks.price.error" />
         </div>
+        <p class="section-footnote">升贴水率表列出所选日期CSV中的全部期货合约，使用同日期货原始收盘价与Au99.99现货价，按365天年化。已到期合约以CSV最后有效报价日为终点；在市合约按交割月15日估算，已有上期所确认的顺延日期则优先采用确认日期。右上角可选择历史报价日期，缺失数据不跨日期填补。</p>
       </DashboardSection>
 
       <DashboardSection id="domestic-etf" title="场内黄金 ETF 份额">

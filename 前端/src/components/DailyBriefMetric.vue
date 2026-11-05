@@ -2,7 +2,7 @@
 import { isNumber, numberText } from '../daily-brief.js'
 import FeeWindowDetails from './FeeWindowDetails.vue'
 import FuturesBasisDetails from './FuturesBasisDetails.vue'
-defineProps({ row: Object, loading: Boolean, failed: Boolean })
+defineProps({ row: Object, observationTime: String, loading: Boolean, failed: Boolean })
 const arrow = change => change > 0 ? '▲' : change < 0 ? '▼' : '→'
 const trend = change => change > 0 ? 'up' : change < 0 ? 'down' : 'flat'
 </script>
@@ -22,7 +22,7 @@ const trend = change => change > 0 ? 'up' : change < 0 ? 'down' : 'flat'
         <strong :class="{ unavailable: row.value == null }">{{ loading ? '读取中…' : failed ? '数据暂缺' : row.valueText }}<small v-if="row.unit && row.unit !== '文本'">{{ row.unit }}</small></strong>
         <span v-if="!loading && !failed && !row.hideChange && typeof row.value !== 'string'" class="change-group"><span class="change" :class="trend(row.change)"><span v-if="isNumber(row.change)" class="trend-arrow">{{ arrow(row.change) }} </span>{{ row.changeText }}</span><span class="comparison">{{ row.comparisonText }}</span></span>
       </dd>
-      <dd class="meta">数据日期：{{ row.date || '未提供' }}</dd>
+      <dd class="meta">数据日期：{{ row.date || '未提供' }}<template v-if="row.date && observationTime">·{{ observationTime }}</template></dd>
       <dd v-if="row.detailText" class="meta">{{ row.detailText }}</dd>
     </template>
     <dd v-if="row.reason" class="meta">{{ row.reason }}</dd>

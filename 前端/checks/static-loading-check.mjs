@@ -27,7 +27,8 @@ await page.route('**/data/*.json', async route => {
     return await route.continue()
   } finally { active-- }
 })
-async function ready() { await page.waitForFunction(() => document.querySelectorAll('.daily-card').length === 25 && document.querySelector('.refresh-button') && !document.querySelector('.refresh-button').disabled, null, { timeout: 60000 }) }
+// 完整逐合约历史会产生更多分片；本用例逐个注入首次失败，并等待有界重试完成。
+async function ready() { await page.waitForFunction(() => document.querySelectorAll('.daily-card').length === 25 && document.querySelector('.refresh-button') && !document.querySelector('.refresh-button').disabled, null, { timeout: 120000 }) }
 try {
   await page.goto(base)
   await ready()

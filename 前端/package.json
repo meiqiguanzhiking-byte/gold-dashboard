@@ -20,6 +20,7 @@
     "check:central-bank": "node checks/central-bank-check.mjs",
     "check:delivery": "node checks/delivery-check.mjs",
     "check:daily": "node checks/daily-check.mjs",
+    "check:daily-report": "node checks/daily-report-check.mjs",
     "check:term-structure": "node checks/term-structure-check.mjs",
     "check:futures-basis": "node checks/futures-basis-check.mjs",
     "check:tabs": "node checks/page-tabs-check.mjs",

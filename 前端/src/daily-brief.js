@@ -70,6 +70,23 @@ export function beijingDate(value = new Date()) {
   return `${part('year')}-${part('month')}-${part('day')}`
 }
 
+export const percentileGroups = new Set(['spread', 'volatility', 'shares', 'volume', 'position'])
+export function yearStart(date) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) return null
+  const end = new Date(date + 'T00:00:00Z')
+  if (!Number.isFinite(end.getTime()) || end.toISOString().slice(0, 10) !== date) return null
+  const year = end.getUTCFullYear(), month = end.getUTCMonth(), day = end.getUTCDate()
+  const lastDay = new Date(Date.UTC(year - 1, month + 1, 0)).getUTCDate()
+  return new Date(Date.UTC(year - 1, month, Math.min(day, lastDay))).toISOString().slice(0, 10)
+}
+export function yearPercentile(history, date, value) {
+  const start = yearStart(date)
+  if (!start || !isNumber(value)) return null
+  const sample = (history || []).filter(point => point.observation_date > start && point.observation_date <= date && isNumber(point.value))
+  if (sample.length < 2) return null
+  return sample.filter(point => point.value <= value).length / sample.length * 100
+}
+
 export function briefPoint(item, reportDate, exactDate) {
   const history = (item?.history || []).filter(p => p.observation_date <= reportDate).toSorted((a, b) => a.observation_date.localeCompare(b.observation_date))
   const current = exactDate ? history.find(p => p.observation_date === exactDate) : history.at(-1)
@@ -140,24 +157,22 @@ function dailyFuturesData(items, reportDate) {
 
 export function buildDailyTermStructure(items, reportDate, futuresData = dailyFuturesData(items, reportDate)) {
   const byId = Object.fromEntries(items.map(item => [item.metadata.indicator_id, item]))
-  const spot = briefPoint(byId.gold_domestic_spread, reportDate)
-  const ids = ['gold_futures_spread', 'gold_futures_secondary_spread']
+  const ids = ['gold_domestic_spread', 'gold_futures_spread', 'gold_futures_secondary_spread']
   const histories = ids.map(id => (byId[id]?.history || []).filter(point => point.observation_date <= reportDate)
     .toSorted((a, b) => a.observation_date.localeCompare(b.observation_date)))
   const historicalPoint = (history, offset, rank) => {
     const point = history.at(-1 - offset)
     const date = point?.observation_date || null
-    const details = date ? briefPoint(byId.gold_futures_spread_details, reportDate, date).value : null
+    const details = date && rank ? briefPoint(byId.gold_futures_spread_details, reportDate, date).value : null
     const contract = typeof details === 'string' ? details.match(new RegExp(`(?:^|；)${rank}：\\s*(au\\d{4})`, 'i'))?.[1] : null
     return { value: isNumber(point?.value) ? point.value : null, date,
       contract: contract ? contract.replace(/^au/i, 'Au') : null }
   }
   return {
     categories: ['黄金现价价差', ...futuresData.spreadRows.map(row => row.label)],
-    curves: [0, 5, 10].map(offset => ({ offset, name: offset ? `T-${offset}` : '最新', points: [
-      offset ? { value: null, date: null, contract: null } : { value: isNumber(spot.value) ? spot.value : null, date: spot.date, contract: null },
-      ...histories.map((history, index) => historicalPoint(history, offset, index === 0 ? '主力' : '次主力')),
-    ] })),
+    curves: [0, 5, 10].map(offset => ({ offset, name: offset ? `T-${offset}` : '最新',
+      points: histories.map((history, index) => historicalPoint(history, offset, [null, '主力', '次主力'][index])),
+    })),
   }
 }
 
@@ -176,6 +191,7 @@ export function buildDailyMovements(items, reportDate, futuresData = dailyFuture
     const thresholdValue = group.kind === 'absolute' ? point.change : percent
     if (!isNumber(thresholdValue)) return []
     return [{ ...indicator, ...point, label, digits: indicator.digits ?? byId[indicator.id]?.metadata.display_digits ?? 2, group: group.id, groupLabel: group.label.replace('阈值', ''), percent,
+      yearPercentile: percentileGroups.has(group.id) ? yearPercentile(byId[indicator.id]?.history, point.date, point.value) : null,
       thresholdValue, changeText: group.kind === 'absolute' ? `${signedText(point.change)} ${group.unit}` : `${signedText(percent)}%`,
       detail: group.id === 'volatility' ? `${signedText(point.change)} 个百分点` : '',
       trend: point.change > 0 ? 'up' : point.change < 0 ? 'down' : 'flat' }]

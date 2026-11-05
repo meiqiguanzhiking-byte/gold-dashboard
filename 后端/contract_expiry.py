@@ -1,7 +1,7 @@
 """只读上期所合约参数中的EXPIREDATE，不用交割月份猜测最后交易日。"""
 import json
 import re
-from datetime import date
+from datetime import date, timedelta
 from urllib.request import urlopen
 
 SOURCE = "https://www.shfe.com.cn/data/busiparamdata/future/ContractBaseInfo{day}.dat"
@@ -52,3 +52,28 @@ def contract_expiries(observation_date):
         pass
     return {code: {"expiry_date": expiry, "expiry_source": SOURCE.format(day=VERIFIED_DATE.replace("-", "")),
                    "expiry_verified_on": VERIFIED_DATE} for code, expiry in VERIFIED.items()}
+
+
+def basis_contract_expiries(quotes, observation_date, confirmed):
+    """历史按CSV末次有效报价；在市按合约月15日，官方顺延日期优先。"""
+    result = {}
+    for (code, month), history in quotes.items():
+        valid_dates = sorted(day for day, values in history.items() if values[0] is not None)
+        if not valid_dates:
+            continue
+        estimated = date.fromisoformat(month + "-15")
+        while estimated.weekday() >= 5:
+            estimated += timedelta(days=1)
+        official = confirmed.get(code, {})
+        end = official.get("expiry_date") or estimated.isoformat()
+        # 缺少最新一日报价不能把尚未到期的合约误判为已到期。
+        if end < observation_date:
+            result[code] = {"expiry_date": valid_dates[-1], "expiry_source": "黄金期货.csv",
+                            "expiry_basis": "CSV最后有效报价日", "expiry_estimated": False}
+        elif official.get("expiry_date"):
+            result[code] = {**official, "expiry_basis": "合约月份15日，优先采用上期所确认的顺延日期",
+                            "expiry_estimated": False}
+        else:
+            result[code] = {"expiry_date": end, "expiry_source": "黄金期货合约月份",
+                            "expiry_basis": "合约月份15日估算（周末顺延，节假日调整未确认）", "expiry_estimated": True}
+    return result

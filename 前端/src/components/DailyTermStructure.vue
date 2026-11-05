@@ -30,7 +30,6 @@ async function draw() {
       const category = params[0]?.dataIndex
       return '<strong>' + escapeHtml(props.model.categories[category] || '') + '</strong>' + params.map(param => {
         const point = props.model.curves[param.seriesIndex].points[category]
-        if (category === 0 && param.seriesIndex > 0) return ''
         return '<div class="tooltip-item">' + escapeHtml(param.seriesName) + '：' + escapeHtml(numberText(point.value)) +
           (isNumber(point.value) ? ' 元/克' : '') + '<br>观察日期：' + escapeHtml(point.date || '历史不足') +
           (point.contract ? '<br>当期合约：' + escapeHtml(point.contract) : '') + '</div>'
@@ -71,11 +70,11 @@ onBeforeUnmount(() => {
   <article class="term-panel" :aria-busy="loading">
     <header><h3 id="daily-term-structure-title">价差期限结构</h3><span>最新观察日期 {{ latestDates }}</span></header>
     <div class="term-chart-stage">
-      <div ref="element" class="term-chart" data-chart-title="价差期限结构" role="img" aria-label="价差期限结构：最新三个价差以实线连接，T-5期货价差以虚线连接，T-10期货价差以点虚线连接" />
+      <div ref="element" class="term-chart" data-chart-title="价差期限结构" role="img" aria-label="价差期限结构：黄金现价及两个期货合约价差，最新以实线连接，T-5以虚线连接，T-10以点虚线连接" />
       <div v-if="emptyText" class="term-empty" role="status">{{ emptyText }}</div>
     </div>
     <div class="term-dates"><span v-for="history in historyDates" :key="history.name">{{ history.name }}：{{ history.dates }}</span></div>
-    <p>沿用每日指标卡的主力、次主力原始价差（不复权）；T-5、T-10分别回看前5、10个交易观察日，缺失不补值。</p>
+    <p>沿用每日指标卡的黄金现价价差及主力、次主力原始价差（不复权）；T-5、T-10分别回看前5、10个交易观察日，缺失不补值。</p>
   </article>
 </template>
 

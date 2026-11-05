@@ -1,16 +1,19 @@
 <script setup>
-import { computed, inject, onMounted, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, inject, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import StatusBadge from './StatusBadge.vue'
 import DailyBriefMetric from './DailyBriefMetric.vue'
 import DailyTermStructure from './DailyTermStructure.vue'
+import DailyTextReport from './DailyTextReport.vue'
+import { buildDailyReport } from '../daily-report.js'
 import { isStatic, localTime } from '../data.js'
-import { beijingDate, buildDailyBrief, dailyIndicatorGroups, dailyThresholdGroups, filterDailyMovements, numberText } from '../daily-brief.js'
+import { beijingDate, buildDailyBrief, dailyIndicatorGroups, dailyThresholdGroups, filterDailyMovements, isNumber, numberText } from '../daily-brief.js'
 
 const props = defineProps({ items: { type: Array, default: () => [] }, meta: Object, blocks: Object })
 const navigate = inject('dashboardNavigate')
-const { register, hidden } = inject('dashboardSections')
+const { register, hidden, setHidden } = inject('dashboardSections')
 for (const section of [
   { id: 'daily-term-structure', title: '价差期限结构' },
+  { id: 'daily-text-report', title: '文字日报' },
   { id: 'daily-movements', title: '指标变动' },
   { id: 'daily-thresholds', title: '阈值筛选' },
   { id: 'daily-indicators', title: '每日指标', links: dailyIndicatorGroups.map(group => ({ id: 'daily-group-' + group.id, title: group.title })) },
@@ -49,6 +52,48 @@ const movements = computed(() => filterDailyMovements(brief.value.movements.filt
 }), thresholds.value))
 const thresholdText = (value, group) => Number(value.toFixed(2)) + (group.kind === 'absolute' ? '' : '%')
 const movementArrow = row => row.trend === 'up' ? '▲' : row.trend === 'down' ? '▼' : '→'
+const textReport = computed(() => buildDailyReport(props.items, reportDate.value, brief.value, movements.value, thresholds.value,
+  Object.entries(props.blocks || {}).filter(([, block]) => block.loading || block.error).map(([category]) => category)))
+// 日报的现货、期货信息不受阈值限制；点击时补显对应卡片，保持原筛选值。
+const reportTarget = ref(null)
+const displayedMovements = computed(() => {
+  if (!reportTarget.value || movements.value.some(row => row.id === reportTarget.value)) return movements.value
+  const id = reportTarget.value
+  const linked = textReport.value.targets[id]
+  if (!linked) return movements.value
+  const group = dailyThresholdGroups.find(g => g.indicators.some(i => i.id === id))
+  const definition = group?.indicators.find(i => i.id === id)
+  const source = brief.value.movements.find(row => row.id === id && !props.blocks?.[row.category]?.loading && !props.blocks?.[row.category]?.error)
+  const change = isNumber(linked.value) && isNumber(linked.previousValue) ? linked.value - linked.previousValue : null
+  const percent = isNumber(change) && linked.previousValue !== 0 ? change / Math.abs(linked.previousValue) * 100 : null
+  const fallback = { ...definition, ...linked, id, group: group?.id || 'rates', groupLabel: group?.label.replace('阈值', '') || '利率',
+    page: definition?.page || 'foreign', section: definition?.section || 'treasury-yields',
+    digits: 2, trend: change > 0 ? 'up' : change < 0 ? 'down' : 'flat',
+    changeText: isNumber(change) ? (change > 0 ? '+' : '') + numberText(change) + ' ' + (linked.unit || '') : '变化暂不可计算',
+    detail: isNumber(percent) ? (percent > 0 ? '+' : '') + numberText(percent) + '%' : '' }
+  const row = { ...(source || fallback), reportLinked: true }
+  const order = dailyThresholdGroups.map(g => g.id).concat('direction')
+  return [...movements.value, row].sort((a, b) => order.indexOf(a.group) - order.indexOf(b.group))
+})
+watch(thresholds, () => { reportTarget.value = null }, { deep: true })
+watch(() => props.items, () => { reportTarget.value = null })
+async function openReportIndicator(id) {
+  reportTarget.value = id
+  if (hidden.value.includes('daily-movements')) setHidden(hidden.value.filter(section => section !== 'daily-movements'))
+  await nextTick()
+  const target = document.getElementById('daily-movement-' + id)
+  const button = target?.querySelector('button')
+  if (!button) return
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  button.focus({ preventScroll: true })
+  target.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' })
+  button.getAnimations().forEach(animation => animation.cancel())
+  button.animate(reduced ? [{ backgroundColor: '#e0f1e5', borderColor: '#47876a' }, { backgroundColor: '#fff', borderColor: '#e2e9e2' }]
+    : [{ backgroundColor: '#fff', borderColor: '#e2e9e2', boxShadow: '0 0 0 0 transparent' },
+      { backgroundColor: '#e0f1e5', borderColor: '#47876a', boxShadow: '0 0 0 3px #47876a30' },
+      { backgroundColor: '#fff', borderColor: '#e2e9e2', boxShadow: '0 0 0 0 transparent' }],
+  { duration: reduced ? 1500 : 700, iterations: reduced ? 1 : 3, delay: reduced ? 0 : 300 })
+}
 function state(card) {
   const block = props.blocks?.[card.category]
   if (block?.loading) return '加载中'
@@ -63,6 +108,7 @@ function state(card) {
     <section id="daily-term-structure" v-show="!hidden.includes('daily-term-structure')" aria-labelledby="daily-term-structure-title" class="daily-term-section">
       <DailyTermStructure :model="brief.termStructure" :loading="!!blocks?.price?.loading" :error="blocks?.price?.error" />
     </section>
+    <section id="daily-text-report" v-show="!hidden.includes('daily-text-report')" aria-labelledby="daily-text-report-title"><DailyTextReport :report="textReport" :loading="loading" @indicator-click="openReportIndicator" /></section>
     <section id="daily-movement-panel" v-show="!hidden.includes('daily-movements') || !hidden.includes('daily-thresholds')" class="daily-movements" aria-labelledby="daily-movements-title" :aria-busy="loading">
       <div class="daily-movements-heading"><h3 id="daily-movements-title">指标变动 <span>{{ movements.length }} 项</span></h3></div>
     <div id="daily-thresholds" v-show="!hidden.includes('daily-thresholds')" class="daily-thresholds" role="group" aria-label="指标变动阈值筛选">
@@ -81,12 +127,12 @@ function state(card) {
           </div>
       </div>
     </div>
-      <ul v-if="movements.length" id="daily-movements" v-show="!hidden.includes('daily-movements')" class="daily-movement-list">
-        <li v-for="row in movements" :key="row.id" :data-daily-movement="row.id">
+      <ul v-if="displayedMovements.length" id="daily-movements" v-show="!hidden.includes('daily-movements')" class="daily-movement-list">
+        <li v-for="row in displayedMovements" :id="'daily-movement-' + row.id" :key="row.id" :data-daily-movement="row.id">
           <button type="button" class="daily-movement" :aria-label="row.label + '查看详情'" @click="navigate(row.page, row.section)">
-            <span class="movement-name"><small>{{ row.groupLabel }}</small><strong>{{ row.label }}</strong><span class="movement-current" :class="{ 'current-direction': row.group === 'direction' }"><b>{{ row.group === 'direction' ? row.value : numberText(row.value, row.digits) }}</b><small v-if="row.unit && row.unit !== '文本'">{{ row.unit }}</small></span></span>
+            <span class="movement-name"><small>{{ row.groupLabel }}<template v-if="row.reportLinked"> · 日报定位</template></small><strong>{{ row.label }}</strong><span class="movement-current" :class="{ 'current-direction': row.group === 'direction' }"><b>{{ row.group === 'direction' ? row.value : numberText(row.value, row.digits) }}</b><small v-if="row.unit && row.unit !== '文本'">{{ row.unit }}</small></span></span>
             <span class="movement-value" :class="row.trend"><span><span v-if="row.group !== 'direction'" aria-hidden="true">{{ movementArrow(row) }} </span>{{ row.changeText }}</span><small v-if="row.detail">{{ row.detail }}</small></span>
-            <span class="movement-dates">观察日期 {{ row.date || '未提供' }} <span>{{ row.previousDate ? '较 ' + row.previousDate : '无有效比较基准' }}</span></span>
+            <span class="movement-footer"><span class="movement-dates">观察日期 {{ row.date || '未提供' }} <span>{{ row.previousDate ? '较 ' + row.previousDate : '无有效比较基准' }}</span></span><span v-if="['spread', 'volatility', 'shares', 'volume', 'position'].includes(row.group)" class="movement-percentile" title="截至该指标观察日的前一个自然年内，有效观测值小于或等于当前值的比例；含当期，至少需要两条有效数据">1年内分位数 {{ isNumber(row.yearPercentile) ? numberText(row.yearPercentile, 1) + '%' : '数据不足' }}</span></span>
           </button>
         </li>
       </ul>
@@ -99,7 +145,7 @@ function state(card) {
       <article v-for="card in group.cards" :key="card.id" class="daily-card" :class="card.layout" :data-daily-card="card.id">
         <header><h3>{{ card.title }}</h3><StatusBadge :status="state(card)" /></header>
         <div class="daily-card-content">
-          <dl class="daily-main-metrics"><DailyBriefMetric v-for="row in card.rows" :key="row.label" :row="row" :loading="blocks?.[card.category]?.loading" :failed="!!blocks?.[card.category]?.error" /></dl>
+          <dl class="daily-main-metrics"><DailyBriefMetric v-for="row in card.rows" :key="row.label" :row="row" :observation-time="group.id === 'spot' || card.id === 'spread' ? '15:30' : group.id === 'forward' || card.id === 'futures-spread' ? '15:00' : ''" :loading="blocks?.[card.category]?.loading" :failed="!!blocks?.[card.category]?.error" /></dl>
         </div>
         <p class="daily-card-note">{{ card.note }}</p>
         <p class="daily-card-source">来源：{{ [...new Set(card.rows.map(row => row.source).filter(Boolean))].join('；') || '真实来源待确认' }}</p>
@@ -127,7 +173,7 @@ function state(card) {
 .movement-name{display:flex;flex-direction:column;gap:4px;min-width:0}.movement-name small{font-size:10px;color:#9a7b38}.movement-name strong{font-size:12px;font-weight:600;line-height:1.7;overflow-wrap:anywhere}
 .movement-current{display:flex;align-items:baseline;flex-wrap:wrap;gap:3px 6px;margin-top:3px;line-height:1.5;color:#314f59}.movement-current b{font-size:21px;font-weight:600;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;min-width:0}.movement-current small{font-size:10px;color:#81928f;font-weight:400}.movement-current.current-direction b{font-size:14px}
 .movement-value{display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:4px;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.6}.movement-value small{font-size:10px;font-weight:400}.movement-value.up{color:#bd4c48}.movement-value.down{color:#37846a}.movement-value.flat{color:#7d8d8b}.movement-value.direction{max-width:230px;font-size:11px;color:#9a7b38}
-.movement-dates{grid-column:1/-1;display:flex;gap:4px 16px;flex-wrap:wrap;font-size:10px;color:#8b9997;line-height:1.8}
+.movement-footer{grid-column:1/-1;display:flex;align-items:flex-end;justify-content:space-between;gap:4px 12px;flex-wrap:wrap}.movement-dates{display:flex;gap:4px 16px;flex-wrap:wrap;font-size:10px;color:#8b9997;line-height:1.8}.movement-percentile{margin-left:auto;text-align:right;font-size:10px;line-height:1.8;color:#687e83;white-space:nowrap}
 .daily-thresholds{border-bottom:1px solid #dde5e1;padding:10px 0 12px;margin:4px 0 12px}.daily-thresholds-heading{margin-bottom:9px}.daily-thresholds-heading strong{font-size:10px;font-weight:500;color:#687c7c}
 .daily-threshold-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:12px 16px}.daily-threshold{min-width:0}.threshold-heading{position:relative;display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:5px}
 .threshold-name{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;color:#857448;cursor:help;border-bottom:1px dotted #b9aa82;line-height:1.8;outline-offset:3px}.threshold-name label{cursor:help}.threshold-info{font-size:10px;font-weight:400;color:#a39570}

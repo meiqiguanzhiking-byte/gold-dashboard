@@ -6,13 +6,13 @@ import { echarts, axisLabel, tooltipRow, tooltipStyle } from '../charts.js'
 import { filteredHistory, numeric, ranges, palette, escapeHtml } from '../data.js'
 import { adaptiveYAxis, axisTransition, timeZoom } from '../adaptive-axis.js'
 
-const props = defineProps({ title: String, description: String, series: { type: Array, default: () => [] }, loading: Boolean, error: String, reason: String, note: String, tooltipDetails: Function, range: { type: String, default: '1Y' }, fixedRange: Boolean, latestTime: String })
+const props = defineProps({ title: String, description: String, series: { type: Array, default: () => [] }, seriesForRange: Function, validTooltipOnly: Boolean, loading: Boolean, error: String, reason: String, note: String, tooltipDetails: Function, range: { type: String, default: '1Y' }, fixedRange: Boolean, latestTime: String })
 const localRange = ref(props.range), el = ref(null)
 let chart, resizeObserver, adaptive
 let previousDates = '', previousRange = ''
 const axisInfo = ref('')
 const hasLines = computed(() => available.value.some(s => !s.type || s.type === 'line'))
-const available = computed(() => props.series.filter(s => s.item))
+const available = computed(() => (props.seriesForRange ? props.seriesForRange(localRange.value) : props.series).filter(s => s.item))
 const frequency = computed(() => [...new Set(available.value.map(s => s.item.metadata.frequency))])
 const unit = computed(() => [...new Set(available.value.map(s => s.item.metadata.unit))].join(' / ') || '单位未提供')
 const latestDate = computed(() => available.value.map(s => s.item.metadata.coverage_end).filter(Boolean).sort().at(-1))
@@ -44,8 +44,8 @@ async function draw() {
   const axisCount = Math.max(...available.value.map(s => s.yAxisIndex || 0)) + 1
   const series = available.value.map((s, index) => ({
     name: s.name || s.item.metadata.indicator_name, type: s.type || 'line', stack: s.stack, yAxisIndex: s.yAxisIndex || 0, areaStyle: s.areaStyle,
-    showSymbol: dates.value.length < 20, symbolSize: 4, connectNulls: s.connectNulls ?? false, smooth: false,
-    lineStyle: { width: 2 }, itemStyle: { color: s.color || palette[index % palette.length] }, barMaxWidth: 22,
+    showSymbol: s.showSymbol ?? dates.value.length < 20, symbolSize: 4, connectNulls: s.connectNulls ?? false, smooth: false,
+    lineStyle: { width: 2, ...s.lineStyle }, itemStyle: { color: s.color || palette[index % palette.length] }, barMaxWidth: 22,
     emphasis: { focus: 'series' },
     data: dates.value.map(date => { const point = pointMaps[index].get(date); return s.signed && point?.value != null ? { value: point.value, itemStyle: { color: point.value >= 0 ? '#278b94' : '#c27e65' } } : point?.value ?? null }),
   }))
@@ -55,7 +55,12 @@ async function draw() {
     grid: { left: 18, right: axisCount > 1 ? 30 : 22, top: 54, bottom: 58, containLabel: true },
     legend: { type: 'scroll', top: 2, left: 0, right: 0, selected: chart.getOption()?.legend?.[0]?.selected || {}, textStyle: { color: '#667579', fontSize: 10 }, icon: 'roundRect', itemWidth: 12, itemHeight: 5 },
     tooltip: { ...tooltipStyle, trigger: 'axis', formatter(params) {
-      const rows = params.map(p => tooltipRow(available.value[p.seriesIndex].item, pointMaps[p.seriesIndex].get(p.axisValue) || { observation_date: p.axisValue, value: null }, p.color)).join('')
+      const rows = params.map(p => {
+        const s = available.value[p.seriesIndex]
+        const point = pointMaps[p.seriesIndex].get(p.axisValue) || { observation_date: p.axisValue, value: null }
+        if (props.validTooltipOnly && (!numeric(point) || point.tooltipHidden)) return ''
+        return tooltipRow(s.item, point, p.color) + (s.pointDetails && point.detail ? '<div class="tooltip-item">' + escapeHtml(point.detail) + '</div>' : '')
+      }).join('')
       const details = props.tooltipDetails?.(params[0]?.axisValue)
       return rows + (details ? '<div class="tooltip-item">' + escapeHtml(details) + '</div>' : '')
     } },
@@ -74,7 +79,7 @@ async function draw() {
 function resetZoom() { chart?.dispatchAction({ type: 'dataZoom', start: 0, end: 100 }) }
 function resizeVisibleChart() { if (el.value?.clientWidth && el.value?.clientHeight) chart?.resize() }
 function refreshPageChart() { nextTick(resizeVisibleChart) }
-watch([() => props.series, () => props.loading, () => props.error, () => props.reason, localRange], draw, { deep: true })
+watch([() => props.series, () => props.seriesForRange, () => props.loading, () => props.error, () => props.reason, localRange], draw, { deep: true })
 onMounted(() => { draw(); window.addEventListener('dashboard-page-visible', refreshPageChart); resizeObserver = new ResizeObserver(resizeVisibleChart); if (el.value) resizeObserver.observe(el.value) })
 onBeforeUnmount(() => { window.removeEventListener('dashboard-page-visible', refreshPageChart); resizeObserver?.disconnect(); adaptive?.dispose(); chart?.dispose() })
 </script>

@@ -2,10 +2,29 @@
 import json
 import unittest
 from unittest.mock import patch, MagicMock
-from contract_expiry import parse_contract_expiries, contract_expiries, SOURCE
+from contract_expiry import parse_contract_expiries, contract_expiries, basis_contract_expiries, SOURCE
 
 
 class ContractExpiryTests(unittest.TestCase):
+    def test_basis_historical_end_is_last_valid_csv_price(self):
+        quotes = {("au2610", "2026-10"): {"2026-10-14": (100,), "2026-10-15": (None,)}}
+        info = basis_contract_expiries(quotes, "2026-11-04", {})["au2610"]
+        self.assertEqual(info["expiry_date"], "2026-10-14")
+        self.assertEqual(info["expiry_basis"], "CSV最后有效报价日")
+
+    def test_basis_live_estimate_and_confirmed_holiday_override(self):
+        quotes = {("au2612", "2026-12"): {"2026-11-03": (100,)},
+                  ("au2708", "2027-08"): {"2026-11-04": (101,)},
+                  ("au2602", "2026-02"): {"2026-01-20": (102,)}}
+        info = basis_contract_expiries(quotes, "2026-01-20", {"au2602": {"expiry_date": "2026-02-24"}})
+        self.assertEqual(info["au2612"]["expiry_date"], "2026-12-15")
+        self.assertTrue(info["au2612"]["expiry_estimated"])
+        self.assertEqual(info["au2708"]["expiry_date"], "2027-08-16")
+        self.assertEqual(info["au2602"]["expiry_date"], "2026-02-24")
+        self.assertFalse(info["au2602"]["expiry_estimated"])
+        self.assertNotEqual(basis_contract_expiries(quotes, "2026-11-04", {})["au2612"]["expiry_basis"],
+                            "CSV最后有效报价日", "缺最新报价不能将远月合约判为到期")
+
     def test_official_date_retains_holiday_adjustment(self):
         rows = [{"INSTRUMENTID": "au2602 ", "TRADINGDAY": "20260202", "EXPIREDATE": "20260224"},
                 {"INSTRUMENTID": "au2608", "TRADINGDAY": "20260202", "EXPIREDATE": "20260817"}]
