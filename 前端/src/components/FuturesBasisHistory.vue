@@ -27,14 +27,14 @@ const detail = row => `最后交易日：${row.expiry_date || '未确认'}；剩
     <div v-if="message" class="basis-message" role="status">{{ message }}</div>
     <div v-else class="basis-table-scroll" tabindex="0" aria-label="黄金期货升贴水率表格，可横向滚动">
       <table class="basis-table" aria-label="黄金期货各合约升贴水率">
-        <thead><tr><th scope="col">期货名称</th><th scope="col">期货价格</th><th scope="col">Au99.99收盘价</th><th scope="col">基差</th><th scope="col">升贴水率</th></tr></thead>
+        <thead><tr><th scope="col">期货名称</th><th scope="col">期货价格</th><th scope="col">Au(T+D)收盘价</th><th scope="col">基差</th><th scope="col">升贴水率</th></tr></thead>
         <tbody><tr v-for="row in rows" :key="row.contract" :data-contract="row.contract">
           <th scope="row" :title="detail(row)">{{ row.contract }}</th>
           <td>{{ number(row.close) }}</td><td>{{ number(row.spot) }}</td><td>{{ number(row.basis) }}</td><td :title="detail(row)">{{ row.value == null ? '—' : number(row.value) + '%' }}</td>
         </tr></tbody>
       </table>
     </div>
-    <p class="basis-note">基差＝期货价格−同日Au99.99收盘价。升贴水率＝基差÷Au99.99收盘价×365÷剩余自然日×100%。缺失或剩余天数≤0时显示“—”。</p>
+    <p class="basis-note">基差＝期货价格−同日Au(T+D)收盘价。升贴水率＝基差÷Au(T+D)收盘价×365÷剩余自然日×100%。缺失或剩余天数≤0时显示“—”。</p>
     <div class="chart-source">来源：上海期货交易所；上海黄金交易所</div>
   </article>
 </template>

@@ -21,7 +21,7 @@ class InternationalFuturesData(unittest.TestCase):
             tables[(SOURCE, None)] = replace(tables[(SOURCE, None)], frame=frame)
         builder = Builder(tables)
         add_international_futures(builder)
-        return builder.groups['price']
+        return [item for item in builder.groups['price'] if item['metadata'].get('futures_product')]
 
     def test_every_contract_and_price_matches_raw_csv(self):
         raw = self.tables[(SOURCE, None)].frame

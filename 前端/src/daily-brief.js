@@ -18,7 +18,7 @@ export const dailyIndicatorGroups = [
 ].map(([id, title, cards]) => ({ id, title, cards }))
 export const dailyThresholdGroups = [
   { id: 'price', label: '价格阈值', max: 5, step: 0.05, initial: 1, indicators: [
-    { id: 'gold_price_anchor', label: '上金所Au99.99收盘价', category: 'price', page: 'domestic', section: 'gold-price' },
+    { id: 'au_td_close', label: 'Au(T+D)收盘价', category: 'price', page: 'domestic', section: 'gold-price' },
     { id: 'london_gold_spot', label: '伦敦金现（北京时间15:30）', category: 'price', page: 'foreign', section: 'overseas-price' },
     { id: 'usdcnh', label: '美元兑离岸人民币', category: 'price', page: 'foreign', section: 'overseas-price' },
     { id: 'daily_domestic_futures_close', label: '国内黄金期货（最近偶数月合约）', metric: 'domestic', category: 'price', page: 'domestic', section: 'domestic-futures' },
@@ -45,8 +45,8 @@ export const dailyThresholdGroups = [
   ] },
   { id: 'spread', label: '价差阈值', kind: 'absolute', unit: '元/克', max: 5, step: 0.05, initial: 0, description: '按价差较上一观察期的绝对变动值筛选，单位为元/克，不使用百分比。', indicators: [
     { id: 'gold_domestic_spread', label: '国内外黄金价差', category: 'price', page: 'domestic', section: 'gold-price' },
-    { id: 'gold_futures_spread', label: '黄金期货价差（最近偶数月合约）', metric: 'spread', rank: 0, category: 'price', page: 'domestic', section: 'domestic-futures' },
-    { id: 'gold_futures_secondary_spread', label: '黄金期货价差（第二近偶数月合约）', metric: 'spread', rank: 1, category: 'price', page: 'domestic', section: 'domestic-futures' },
+    { id: 'gold_futures_spread', label: '黄金期货价差（近端主力合约）', metric: 'spread', rank: 0, category: 'price', page: 'domestic', section: 'domestic-futures' },
+    { id: 'gold_futures_secondary_spread', label: '黄金期货价差（远端主力合约）', metric: 'spread', rank: 1, category: 'price', page: 'domestic', section: 'domestic-futures' },
   ] },
   { id: 'position', label: '持仓量阈值', max: 1, step: 0.01, initial: 0.2, description: '同时覆盖COMEX黄金注册、已质押、合格及总库存；各项独立筛选，已质押库存不重复计入总库存。', indicators: [
     { id: 'au_td_open_interest', label: 'Au(T+D) 持仓量', category: 'au-td', page: 'domestic', section: 'au-td' },
@@ -113,12 +113,12 @@ function dailyFuturesData(items, reportDate) {
   const byId = Object.fromEntries(items.map(item => [item.metadata.indicator_id, item]))
   const row = (id, label, options) => briefRow(byId[id], reportDate, label, options)
   const spreadRows = [
-    ['gold_futures_spread', '主力'], ['gold_futures_secondary_spread', '次主力'],
+    ['gold_futures_spread', '近端主力'], ['gold_futures_secondary_spread', '远端主力'],
   ].map(([id, rank]) => {
     const metric = row(id, '', { unit: '元/克' })
     const details = metric.date ? briefPoint(byId.gold_futures_spread_details, reportDate, metric.date).value : null
     const contract = typeof details === 'string' ? details.match(new RegExp(`(?:^|；)${rank}：\\s*(au\\d{4})`, 'i'))?.[1] : null
-    return { ...metric, label: contract ? contract.replace(/^au/i, 'Au') + '合约价差' : '合约名称暂缺' }
+    return { ...metric, label: rank + ' · ' + (contract ? contract.replace(/^au/i, 'Au') + '合约价差' : '合约名称暂缺') }
   })
   const internationalCards = ['comex', 'sgx_usdcnh'].map(product => {
       const candidates = items.filter(item => item.metadata.futures_product === product)
@@ -138,14 +138,14 @@ function dailyFuturesData(items, reportDate) {
     ...(quotePoint.date ? [{ observation_date: quotePoint.date, value: main?.close ?? null }] : []),
   ] }, reportDate, main ? main.contract.replace(/^au/i, 'Au') : '合约名称暂缺', { unit: '元/克', kind: 'percent' })
   domestic.contractQuotes = { date: quotePoint.date, quotes: quotes.quotes || [] }
-  const spot = quotePoint.date ? briefPoint(byId.gold_price_anchor, reportDate, quotePoint.date) : { value: null }
+  const spot = quotePoint.date ? briefPoint(byId.au_td_close, reportDate, quotePoint.date) : { value: null }
   const basisRates = (quotes.quotes || []).map(quote => {
-    const previousSpot = quote.previous_date ? briefPoint(byId.gold_price_anchor, reportDate, quote.previous_date).value : null
+    const previousSpot = quote.previous_date ? briefPoint(byId.au_td_close, reportDate, quote.previous_date).value : null
     return annualizedBasisChange(quote, spot.value, quotePoint.date, previousSpot)
   })
   const mainBasis = basisRates.find(quote => quote.contract === quotes.main_contract)
   const premium = { label: '升贴水率', date: quotePoint.date, value: mainBasis?.value ?? null, unit: '%',
-    valueText: numberText(mainBasis?.value), source: [domestic.source, sourceLabel(byId.gold_price_anchor?.metadata)].filter(Boolean).join('；'),
+    valueText: numberText(mainBasis?.value), source: [domestic.source, sourceLabel(byId.au_td_close?.metadata)].filter(Boolean).join('；'),
     previousValue: mainBasis?.previousValue ?? null, previousDate: mainBasis?.previousDate || null, change: mainBasis?.change ?? null,
     changeText: isNumber(mainBasis?.change) ? `${signedText(mainBasis.change)} 个百分点` : '变化暂不可计算',
     comparisonText: isNumber(mainBasis?.change) ? `较 ${mainBasis.previousDate}` : '无有效比较基准',
@@ -171,7 +171,7 @@ export function buildDailyTermStructure(items, reportDate, futuresData = dailyFu
   return {
     categories: ['黄金现价价差', ...futuresData.spreadRows.map(row => row.label)],
     curves: [0, 5, 10].map(offset => ({ offset, name: offset ? `T-${offset}` : '最新',
-      points: histories.map((history, index) => historicalPoint(history, offset, [null, '主力', '次主力'][index])),
+      points: histories.map((history, index) => historicalPoint(history, offset, [null, '近端主力', '远端主力'][index])),
     })),
   }
 }
@@ -215,10 +215,10 @@ export function filterDailyMovements(movements, thresholds) {
 export function buildDailyBrief(items, reportDate) {
   const byId = Object.fromEntries(items.map(i => [i.metadata.indicator_id, i]))
   const row = (id, name, options) => briefRow(byId[id], reportDate, name, options)
-  const price = row('gold_price_anchor', '上金所Au99.99收盘价', { kind: 'percent', unit: '元/克' })
+  const price = row('au_td_close', 'Au(T+D)收盘价', { kind: 'percent', unit: '元/克' })
   const international = row('london_gold_spot', '伦敦金现 · 北京时间15:30', { kind: 'percent', unit: '美元/盎司' })
   const vol = row('gold_hv20', '20日年化历史波动率', { kind: 'pp', unit: '%' })
-  const spread = row('gold_domestic_spread', 'Au99.99 − 海外金价人民币折算值', { unit: '元/克' })
+  const spread = row('gold_domestic_spread', 'Au(T+D) − 海外金价人民币折算值', { unit: '元/克' })
   const shares = row('domestic_etf_total_shares', '7只ETF合计份额', { kind: 'percent', unit: '万份' })
   const spdr = row('spdr_gold_holdings', 'SPDR黄金份额', { unit: '吨' })
   const futures = row('futures_open_interest', '上期所黄金期货合计持仓', { kind: 'percent', unit: '吨' })
@@ -272,11 +272,11 @@ export function buildDailyBrief(items, reportDate) {
     { id: 'central-bank', title: '央行黄金储备', category: 'central-bank', page: 'domestic', section: 'central-bank', rows: [row('central_bank_reserves', '黄金储备 · 月度')], note: '月频数据，观察月份见数据日期。' },
     { id: 'london-inventory', title: '伦敦黄金库存', category: 'inventory', page: 'foreign', section: 'london', rows: [row('london_gold', '黄金库存 · 月度')], note: '月频数据，观察月份见数据日期。' },
   ]
-  cards.push({ id: 'domestic-futures', title: '国内黄金期货', category: 'price', page: 'domestic', section: 'domestic-futures', rows: [futuresData.domestic, futuresData.premium], note: '升贴水率＝(期货−Au99.99现货)/现货×365/剩余自然日；期现价格与剩余天数均取同一观察日，按上期所最后交易日计算。' })
+  cards.push({ id: 'domestic-futures', title: '国内黄金期货', category: 'price', page: 'domestic', section: 'domestic-futures', rows: [futuresData.domestic, futuresData.premium], note: '升贴水率＝(期货−Au(T+D)现货)/现货×365/剩余自然日；期现价格与剩余天数均取同一观察日，按上期所最后交易日计算。' })
   const result = {
     movements: buildDailyMovements(items, reportDate, futuresData), termStructure: buildDailyTermStructure(items, reportDate, futuresData), releases,
     cards: [
-      { id: 'domestic-price', title: '国内黄金价格', category: 'price', page: 'domestic', section: 'gold-price', rows: [price], note: '上金所Au99.99交易日收盘价；变化基准为上一条交易观测记录。' },
+      { id: 'domestic-price', title: '国内黄金价格', category: 'price', page: 'domestic', section: 'gold-price', rows: [price], note: 'Au(T+D)交易日收盘价；变化基准为上一条交易观测记录。' },
       { id: 'international-price', title: '国际黄金价格', category: 'price', page: 'foreign', section: 'overseas-price', rows: [international], note: 'Barchart精确结束于北京时间15:30的半小时K线close；不是LBMA定盘价。' },
       { id: 'volatility', title: '黄金历史波动率', category: 'price', page: 'domestic', section: 'gold-volatility', rows: [vol], note: '20个交易观测收益率、样本标准差、252日年化；只读上游结果，不代表未来涨跌方向。' },
       { id: 'spread', title: '国内外黄金价差', category: 'price', page: 'domestic', section: 'gold-price', rows: [spread], note: '同日期、北京时间15:30海外金价及汇率折算；美元/金衡盎司 × USDCNH ÷ 31.1034768，价差单位为元/克。' },

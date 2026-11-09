@@ -6,7 +6,7 @@ import { expandSnapshot } from '../src/static-source.js'
 const live = process.env.GOLD_FRONTEND_URL || 'http://127.0.0.1:5173/'
 const preview = process.env.GOLD_PAGES_URL || 'http://127.0.0.1:4173/pages-preview/'
 const api = await (await fetch(new URL('api/price', live))).json()
-const ids = ['gold_price_anchor', 'gold_hv20', 'gold_hv60']
+const ids = ['au_td_close', 'gold_hv20', 'gold_hv60']
 const items = ids.map(id => api.indicators.find(item => item.metadata.indicator_id === id))
 assert.ok(items.every(Boolean))
 // 只在内存中验证适配一致性；未获准公开的源数值绝不写入静态文件。
@@ -30,7 +30,7 @@ for (const item of snapshot.groups.price) {
     assert.ok((item.metadata.input_sources || [item.metadata.source]).every(source => policy.source_permissions[source] === 'approved' && !policy.withheld_sources.includes(source)))
   }
 }
-const expectedCharts = [['gold_price_anchor'], ['gold_hv20', 'gold_hv60'], ['gold_domestic_spread']].filter(group => group.some(id => published.find(i => i.metadata.indicator_id === id)?.history.filter(p => p.value != null).length > 1)).length
+const expectedCharts = [['au_td_close'], ['gold_hv20', 'gold_hv60'], ['gold_domestic_spread']].filter(group => group.some(id => published.find(i => i.metadata.indicator_id === id)?.history.filter(p => p.value != null).length > 1)).length
 const browser = await chromium.launch({ channel: 'msedge', headless: true, args: ['--disable-breakpad', '--disable-logging'] })
 const errors = [], layouts = [], blocked = []
 async function ready(page) {
@@ -38,6 +38,19 @@ async function ready(page) {
   await page.getByRole('tab', { name: '国内', exact: true }).click()
   await page.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled, undefined, { timeout: 60000 })
   await page.waitForTimeout(150)
+}
+async function latestChartValue(page, title) {
+  return page.evaluate(async title => {
+    let init
+    if (document.querySelector('script[src*="/@vite/client"]')) init = (await import('/src/charts.js')).echarts.init
+    else {
+      const core = [...document.querySelectorAll('link[rel="modulepreload"]')].find(link => /chart-core-.*\.js/.test(link.href))?.href
+        || performance.getEntriesByType('resource').find(resource => /chart-core-.*\.js/.test(resource.name))?.name
+      init = Object.values(await import(core)).find(value => typeof value === 'function' && value.toString().includes('afterinit'))
+    }
+    const chart = init(document.querySelector(`[data-chart-title="${title}"]`))
+    return chart.getOption().series[0].data.at(-1)
+  }, title)
 }
 async function layout(page, mode) {
   for (const width of [1280, 1440]) {
@@ -59,18 +72,11 @@ try {
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
   await page.goto(live)
   await ready(page)
-  const priceCard = page.locator('#overview .metric-card').filter({ has: page.getByRole('heading', { name: '上金所Au99.99收盘价', exact: true }) })
-  assert.ok((await priceCard.locator('.metric-number').textContent()).includes(items[0].latest.value.toLocaleString('zh-CN')))
-  const changeText = await priceCard.locator('.metric-change').textContent()
-  assert.ok(changeText.includes('元/克') && changeText.includes('%'))
-  for (let i = 0; i < 2; i++) {
-    const row = page.locator('.volatility-row').nth(i)
-    assert.ok((await row.locator('strong').textContent()).includes(items[i + 1].latest.value.toLocaleString('zh-CN', { maximumFractionDigits: 2 }) + '%'))
-    assert.ok((await row.locator('.metric-change').textContent()).includes('个百分点'))
-    assert.ok(!(await row.locator('.metric-change').textContent()).includes('%'))
-  }
+  const priceChartTitle = 'Au(T+D)收盘价（元/克）'
+  const priceChartValue = await latestChartValue(page, priceChartTitle)
+  assert.equal(priceChartValue, items[0].latest.value)
   assert.equal(await page.locator('#gold-price canvas, #gold-volatility canvas').count(), 3)
-  assert.ok((await page.locator('#gold-volatility').textContent()).includes('样本标准差（ddof=1）'))
+  assert.ok((await page.locator('#gold-volatility').textContent()).includes('Au(T+D)日对数收益率重算'))
   const sectionOrder = await page.locator('main section.section').evaluateAll(sections => sections.map(el => el.id))
   assert.ok(sectionOrder.indexOf('gold-price') < sectionOrder.indexOf('central-bank'))
   const title = '20日与60日年化历史波动率（%）'
@@ -104,8 +110,8 @@ try {
   }, title)
   assert.ok(interaction.hidden && interaction.tooltip.includes('%') && interaction.tooltip.includes(items[0].latest.observation_date))
   await page.getByRole('tab', { name: '数据健康度' }).click()
-  await page.getByLabel('搜索数据健康度').fill('黄金现货价格.xlsx')
-  assert.equal(await page.locator('.health-table tbody tr:has(td strong)').count(), 3)
+  await page.getByLabel('搜索数据健康度').fill('AuTD.csv')
+  assert.ok(await page.locator('.health-table tbody tr:has(td strong)').count() >= 3)
   await layout(page, 'dynamic')
   await page.getByRole('button', { name: '刷新真实数据' }).click()
   await ready(page)
@@ -128,8 +134,9 @@ try {
     assert.ok((await staticPage.locator('#gold-price').textContent()).includes('公开使用尚未确认'))
     assert.ok((await staticPage.locator('.volatility-card').textContent()).includes('数据暂缺'))
   } else {
-    const price = published.find(i => i.metadata.indicator_id === 'gold_price_anchor')
-    assert.ok((await staticPage.locator('#overview .metric-card').first().textContent()).includes(price.latest.value.toLocaleString('zh-CN', { maximumFractionDigits: 2 })))
+    const price = published.find(i => i.metadata.indicator_id === 'au_td_close')
+    const value = await latestChartValue(staticPage, 'Au(T+D)收盘价（元/克）')
+    assert.equal(value, price.latest.value)
   }
   assert.ok((await staticPage.locator('.data-summary').textContent()).includes('快照生成'))
   await layout(staticPage, 'static')

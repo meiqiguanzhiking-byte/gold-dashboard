@@ -10,8 +10,8 @@ SHEET = "北京时间1530"
 VOLATILITY_SOURCE = "黄金ETF波动率指数.csv"
 TREASURY_SOURCE = "美债收益率.xlsx"
 GRAMS_PER_TROY_OUNCE = 31.1034768
-FORMULA = "Au99.99（元/克）−伦敦金现（美元/金衡盎司）×USDCNH（CNH/美元）÷31.1034768"
-TIMING_NOTE = "按相同观察日期匹配Au99.99收盘价、北京时间15:30伦敦金现及汇率；不再限制截至昨日，不顺延日期。"
+FORMULA = "Au(T+D)（元/克）−伦敦金现（美元/金衡盎司）×USDCNH（CNH/美元）÷31.1034768"
+TIMING_NOTE = "按相同观察日期匹配Au(T+D)收盘价、北京时间15:30伦敦金现及汇率；不再限制截至昨日，不顺延日期。"
 BASIS_NOTE = "海外折算使用离岸人民币CNH，含CNH/CNY口径差异；该价差不代表可交易套利空间。"
 
 
@@ -54,7 +54,7 @@ def add_international_price_indicators(builder):
     finish_change(item)
 
     items = {i["metadata"]["indicator_id"]: i for i in builder.groups["price"]}
-    inputs = [items[key] for key in ("gold_price_anchor", "london_gold_spot", "usdcnh")]
+    inputs = [items[key] for key in ("au_td_close", "london_gold_spot", "usdcnh")]
     maps = [{p["observation_date"]: p["value"] for p in item["history"]} for item in inputs]
     # 按日期并集保留共同覆盖期内的断点；不因任一输入缺失而跳过最新观察期。
     valid_starts = [next((p["observation_date"] for p in item["history"] if p["value"] is not None), None) for item in inputs]
@@ -65,13 +65,13 @@ def add_international_price_indicators(builder):
         domestic, gold, fx = [mapping.get(date) for mapping in maps]
         valid = all(isinstance(v, (int, float)) and math.isfinite(v) and v > 0 for v in (domestic, gold, fx))
         values.append(domestic - gold * fx / GRAMS_PER_TROY_OUNCE if valid else None)
-    spread_frame = pd.DataFrame({"日期": dates, "国内外价差": values})
+    spread_frame = pd.DataFrame({"日期": dates, "黄金现价价差": values})
     missing = [i["metadata"]["indicator_id"] for i in inputs if not i["metadata"]["valid_count"]]
-    item = builder.add("price", "gold_domestic_spread", "国内外价差", "元/克", "日度", SOURCE, SHEET,
-                       column="国内外价差", frame=spread_frame, values=values, missing_fields=missing,
+    item = builder.add("price", "gold_domestic_spread", "黄金现价价差", "元/克", "日度", SOURCE, SHEET,
+                       column="黄金现价价差", frame=spread_frame, values=values, missing_fields=missing,
                        warnings=[TIMING_NOTE, BASIS_NOTE, "三项同日有效才计算，缺任一项保留断点；周末或节假日不补值。"],
-                       input_sources=[DOMESTIC_SOURCE, SOURCE], input_indicators=["gold_price_anchor", "london_gold_spot", "usdcnh"],
-                       method=FORMULA, comparison_basis="同日期匹配：Au99.99收盘价与北京时间15:30海外价格及汇率",
+                       input_sources=[DOMESTIC_SOURCE, SOURCE], input_indicators=["au_td_close", "london_gold_spot", "usdcnh"],
+                       method=FORMULA, comparison_basis="同日期匹配：Au(T+D)收盘价与北京时间15:30海外价格及汇率",
                        observation_time="15:30", observation_timezone="Asia/Shanghai",
                        grams_per_troy_ounce=GRAMS_PER_TROY_OUNCE, change_unit="元/克", change_kind="absolute",
                        public_use_status="未确认")

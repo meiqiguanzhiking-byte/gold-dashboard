@@ -25,7 +25,7 @@ METADATA_FIELDS = (
     "display_digits", "observation_time", "observation_timezone", "index_symbol", "series_id",
     "aggregation_included", "aggregation_scope", "scope_entity_count", "coverage_basis", "reporting_evidence",
     "calculation",
-    "futures_product", "contract_expiry", "source_contract", "exchange", "contract_expiries",
+    "futures_product", "main_futures_product", "contract_expiry", "source_contract", "exchange", "contract_expiries",
 )
 
 
@@ -45,7 +45,8 @@ def export():
     groups = build_indicators(tables)
     allowed = set(policy["indicator_ids"])
     if policy.get("include_international_futures"):
-        allowed.update(item["metadata"]["indicator_id"] for item in groups["price"] if item["metadata"].get("futures_product"))
+        allowed.update(item["metadata"]["indicator_id"] for item in groups["price"]
+                       if item["metadata"].get("futures_product") or item["metadata"].get("main_futures_product"))
     allowed.update(f"domestic_{code}_{field}" for code in policy["fund_codes"] for field in policy["fund_fields"])
     if policy["include_existing_country_rankings"]:
         allowed.update(item["metadata"]["indicator_id"] for item in groups["central-bank"]
@@ -115,7 +116,7 @@ def export():
         public_files.append({"source": file["source"], "coverage_start": min(dates, default=None), "latest_date": max(dates, default=None),
                              "status": "数据缺失" if not dates else file["status"],
                              "warnings": ["相关来源公开使用尚未确认，未导出价格、汇率及派生指标"] if not dates else ["仅发布页面白名单指标，原始文件未发布"]})
-        if file["source"] == "COMEX黄金与汇率期货_北京时间15收盘价.csv":
+        if file["source"] == "COMEX黄金与汇率期货.csv":
             public_files[-1].update(updated_at=file.get("updated_at") if dates else None,
                                     sheets=[pick(sheet, ("sheet", "coverage_start", "coverage_end", "status"))
                                             for sheet in file.get("sheets", [])] if dates else [])

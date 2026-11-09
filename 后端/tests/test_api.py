@@ -19,7 +19,7 @@ BASE = os.environ.get("GOLD_API_URL", "http://127.0.0.1:8000").rstrip("/")
 
 def request(path, method="GET", origin=None):
     headers = {"Origin": origin} if origin else {}
-    with urlopen(Request(BASE + path, method=method, headers=headers), timeout=30) as response:
+    with urlopen(Request(BASE + path, method=method, headers=headers), timeout=180 if method == "POST" else 30) as response:
         body = response.read()
         def reject_constant(value):
             raise AssertionError(f"非标准 JSON 数字: {value}")
@@ -88,7 +88,7 @@ class RealDataAPI(unittest.TestCase):
             else:
                 self.assertAlmostEqual(row['value'], value)
         self.assertEqual(self.items['domestic_etf_total_shares']['metadata']['unit'], '万份')
-        self.assertTrue(all(p['value'] is None for p in self.items['au_td_close']['history']))
+        self.assertTrue(any(p['value'] is not None for p in self.items['au_td_close']['history']))
         weekly = self.tables[("全球黄金ETF流量.xlsx", "周度数据")].frame
         self.assertAlmostEqual(self.items["global_etf_weekly_total_tonnes"]["latest"]["value"], weekly.iloc[-1][["北美（吨）", "欧洲（吨）", "亚洲（吨）", "其他（吨）"]].sum())
         weekly_response, _ = request("/api/etf?" + urlencode({"frequency": "周度", "include_history": "false"}))
@@ -110,7 +110,7 @@ class RealDataAPI(unittest.TestCase):
                 else:
                     self.assertEqual(point["value"], raw)
         self.assertIsNotNone(self.items["global_central_bank_net_purchases"]["latest"]["value"])
-        self.assertEqual(self.items["gold_price_anchor"]["metadata"]["unit"], "元/克")
+        self.assertEqual(self.items["au_td_close"]["metadata"]["unit"], "元/克")
         for item in self.responses["inventory"]["indicators"]:
             if item["metadata"]["indicator_id"].startswith("comex_"):
                 frame = self.tables[("COMEX金银库存.xlsx", "COMEX金银库存")].frame

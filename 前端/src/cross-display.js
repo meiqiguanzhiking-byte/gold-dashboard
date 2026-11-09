@@ -5,7 +5,7 @@ import { numeric, filteredHistory } from './data.js'
 // 白名单严格对应每日速递的“每日指标”；支付方向与滚动天数统计不作为折线因子。
 const dailyIds = {
   spread: ['gold_domestic_spread', 'gold_futures_spread', 'gold_futures_secondary_spread'],
-  spot: ['gold_price_anchor', 'london_gold_spot', 'usdcnh'],
+  spot: ['au_td_close', 'london_gold_spot', 'usdcnh'],
   forward: ['daily_domestic_futures_close', 'daily_domestic_futures_premium', 'daily_comex_0', 'daily_comex_1', 'daily_sgx_usdcnh_0', 'daily_sgx_usdcnh_1'],
   risk: ['gold_hv20', 'gold_hv60', 'gold_etf_volatility_index'],
   macro: ['ust_10y_yield', 'ust_2y_yield', 'ust_10y_2y_spread', 'ust_10y_breakeven_inflation'],
@@ -26,7 +26,7 @@ export function crossItems(items) {
   const result = items.filter(item => crossGroup(item.metadata.indicator_id))
   const quotes = byId.get('gold_futures_daily_quotes')
   if (quotes) {
-    const spot = new Map((byId.get('gold_price_anchor')?.history || []).map(p => [p.observation_date, p.value]))
+    const spot = new Map((byId.get('au_td_close')?.history || []).map(p => [p.observation_date, p.value]))
     const close = [], premium = []
     for (const point of quotes.history) {
       let data = {}
@@ -36,8 +36,8 @@ export function crossItems(items) {
       premium.push({ ...point, value: quote ? annualizedBasis(quote, spot.get(point.observation_date), point.observation_date).value : null })
     }
     result.push(dailySeries(quotes, 'daily_domestic_futures_close', '国内黄金期货（当日最近偶数月合约原价）', '元/克', close, '沿用每日指标的当日最近偶数月合约；换约时不作复权。'))
-    const basis = dailySeries(quotes, 'daily_domestic_futures_premium', '国内黄金期货升贴水率', '%', premium, '沿用每日指标公式：(同期货原价−同日Au99.99)/同日Au99.99×365/剩余自然日×100%；到期日取已确认最后交易日，缺项留空。')
-    basis.crossSources = [quotes.metadata, byId.get('gold_price_anchor')?.metadata].filter(Boolean)
+    const basis = dailySeries(quotes, 'daily_domestic_futures_premium', '国内黄金期货升贴水率', '%', premium, '沿用每日指标公式：(同期货原价−同日Au(T+D))/同日Au(T+D)×365/剩余自然日×100%；到期日取已确认最后交易日，缺项留空。')
+    basis.crossSources = [quotes.metadata, byId.get('au_td_close')?.metadata].filter(Boolean)
     result.push(basis)
   }
   for (const product of ['comex', 'sgx_usdcnh']) {

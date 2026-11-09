@@ -55,19 +55,19 @@ export function buildDailyReport(items, reportDate, brief, movements, thresholds
     } else if (rank && !comparable(1)) previous = '换约或合约信息缺失，不比较上期'
     const t5 = records.at(-6)
     const back = !t5 || !isNumber(t5.value) ? '前5个交易观察日数据缺失' : !comparable(5) ? '前5个交易观察日涉及换约或合约不明，暂无可比变化' : `较前5个交易观察日（${d(t5.observation_date)}）${p.value === t5.value ? '持平' : (p.value > t5.value ? '上移' : '下移') + current(n(Math.abs(p.value - t5.value)) + '元/克')}`
-    return `${metric(id, contract ? contract.replace(/^au/, 'Au') + '合约价差' : label + '价差', p)}（${d(p.date)}）${status}${current(n(Math.abs(p.value)) + '元/克')}，${previous}，${back}`
+    return `${metric(id, contract ? label + ' · ' + contract.replace(/^au/, 'Au') + '合约价差' : label + '价差', p)}（${d(p.date)}）${status}${current(n(Math.abs(p.value)) + '元/克')}，${previous}，${back}`
   }
-  const spreadTexts = [spreadSentence('gold_domestic_spread', '现货', null), spreadSentence('gold_futures_spread', '最近偶数月', '主力'), spreadSentence('gold_futures_secondary_spread', '第二近偶数月', '次主力')]
+  const spreadTexts = [spreadSentence('gold_domestic_spread', '现货', null), spreadSentence('gold_futures_spread', '近端主力', '近端主力'), spreadSentence('gold_futures_secondary_spread', '远端主力', '远端主力')]
   // 解释直接来自同日期两地价格的人民币变动，不借背景指标编造因果。
   let decomposition = ''
   const spread = point('gold_domestic_spread')
   if (isNumber(spread.change)) {
     const dates = [spread.date, spread.previousDate]
-    const rows = dates.map(date => ['gold_price_anchor', 'london_gold_spot', 'usdcnh'].map(id => briefPoint(byId[id], reportDate, date).value))
+    const rows = dates.map(date => ['au_td_close', 'london_gold_spot', 'usdcnh'].map(id => briefPoint(byId[id], reportDate, date).value))
     if (rows.flat().every(isNumber)) {
       const localChange = rows[0][0] - rows[1][0]
       const foreignChange = (rows[0][1] * rows[0][2] - rows[1][1] * rows[1][2]) / 31.1034768
-      if (Math.abs(localChange - foreignChange - spread.change) < 0.02) decomposition = `现货较${d(spread.previousDate)}，${metric('gold_price_anchor', '国内现货价格')}变化${current(signed(localChange) + '元/克')}，${metric('london_gold_spot', '海外现货')}人民币折算价变化${current(signed(foreignChange) + '元/克')}，两者之差对应${metric('gold_domestic_spread', '现货价差')}变化${current(signed(spread.change) + '元/克')}；${localChange > foreignChange ? '国内价格的数值变化更高，价差上移' : localChange < foreignChange ? '海外折算价格的数值变化更高，价差下移' : '两地变化相同，价差不变'}。`
+      if (Math.abs(localChange - foreignChange - spread.change) < 0.02) decomposition = `现货较${d(spread.previousDate)}，${metric('au_td_close', '国内现货价格')}变化${current(signed(localChange) + '元/克')}，${metric('london_gold_spot', '海外现货')}人民币折算价变化${current(signed(foreignChange) + '元/克')}，两者之差对应${metric('gold_domestic_spread', '现货价差')}变化${current(signed(spread.change) + '元/克')}；${localChange > foreignChange ? '国内价格的数值变化更高，价差上移' : localChange < foreignChange ? '海外折算价格的数值变化更高，价差下移' : '两地变化相同，价差不变'}。`
     }
   }
   const spreadValues = ['gold_domestic_spread', 'gold_futures_spread', 'gold_futures_secondary_spread'].map(id => point(id).value)
@@ -85,7 +85,7 @@ export function buildDailyReport(items, reportDate, brief, movements, thresholds
   const foreignItem = Object.values(byId).find(item => item.metadata.futures_product === 'comex' && foreignCard?.label?.startsWith('期货' + item.metadata.contract_expiry?.slice(2).replace('-', '')))
   const foreignDate = unavailable.includes('price') ? null : foreignCard?.date
   const foreign = foreignDate ? briefPoint(foreignItem, reportDate, foreignDate) : {}
-  const local = point('gold_price_anchor'), overseas = point('london_gold_spot')
+  const local = point('au_td_close'), overseas = point('london_gold_spot')
   const priceLine = (p, label, unit, id) => {
     const name = metric(id, label, { ...p, unit })
     if (!isNumber(p.value)) return `${name}（${d(p.date)}）数据缺失`
@@ -94,8 +94,8 @@ export function buildDailyReport(items, reportDate, brief, movements, thresholds
   }
   const conclusion = isNumber(local.change) && isNumber(overseas.change)
     ? local.change > 0 && overseas.change > 0 ? '两地现货均上涨。' : local.change < 0 && overseas.change < 0 ? '两地现货均下跌。' : '两地现货表现分化或持平。' : '部分价格缺失，暂不判断整体方向。'
-  const stats = [priceStatistic(byId.gold_price_anchor, reportDate, metric('gold_price_anchor', '国内现货')), priceStatistic(byId.london_gold_spot, reportDate, metric('london_gold_spot', '海外现货'))].filter(Boolean).slice(0, 2)
-  const second = conclusion + [priceLine(local, '国内现货', '元/克', 'gold_price_anchor'), priceLine(overseas, '海外现货', '美元/盎司', 'london_gold_spot'), priceLine(domestic, `国内${domesticCard?.label || '最近偶数月期货'}`, '元/克', 'daily_domestic_futures_close'), priceLine(foreign, `海外${foreignCard?.label?.split(' · ')[0] || '最近偶数月期货'}`, '美元/盎司', 'daily_comex_0')].join('。') + '。' + (stats.length ? stats.join('；') + '。' : '')
+  const stats = [priceStatistic(byId.au_td_close, reportDate, metric('au_td_close', '国内现货')), priceStatistic(byId.london_gold_spot, reportDate, metric('london_gold_spot', '海外现货'))].filter(Boolean).slice(0, 2)
+  const second = conclusion + [priceLine(local, '国内现货', '元/克', 'au_td_close'), priceLine(overseas, '海外现货', '美元/盎司', 'london_gold_spot'), priceLine(domestic, `国内${domesticCard?.label || '最近偶数月期货'}`, '元/克', 'daily_domestic_futures_close'), priceLine(foreign, `海外${foreignCard?.label?.split(' · ')[0] || '最近偶数月期货'}`, '美元/盎司', 'daily_comex_0')].join('。') + '。' + (stats.length ? stats.join('；') + '。' : '')
 
   const real = point('ust_10y_real_yield')
   const extra = isNumber(real.change) && real.previousValue !== 0 ? filterDailyMovements([{ ...real, id: 'ust_10y_real_yield', label: '10年实际利率', group: 'rates', category: 'price', thresholdValue: real.change / Math.abs(real.previousValue) * 100 }], thresholds) : []
@@ -157,6 +157,6 @@ export function buildDailyReport(items, reportDate, brief, movements, thresholds
   const third = (selected.length ? selected.join('。') + '。' : '按当前阈值，暂无明显变动指标。') + missingText + errorText
   const priceDates = [local.date, overseas.date, domestic.date, foreign.date]
   return { reportDate, observationDates: [...new Set(priceDates.filter(Boolean))].join(' / ') || '缺失',
-    paragraphs: [first, second, third].map(plain), richParagraphs: [first, second, third].map(segments), targets, selectedIds,
-    titles: ['价差现状与走势', '国内外黄金行情', '主要指标变化及含义'] }
+    paragraphs: [second, first, third].map(plain), richParagraphs: [second, first, third].map(segments), targets, selectedIds,
+    titles: ['国内外黄金行情', '价差现状与走势', '主要指标变化及含义'] }
 }

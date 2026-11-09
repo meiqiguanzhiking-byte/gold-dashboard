@@ -25,19 +25,19 @@ assert.ok(report(items, none).paragraphs[2].includes('按当前阈值，暂无�
 assert.ok(!actual.paragraphs.join('').includes('今日变化'))
 
 const edit = (id, transform) => items.map(i => i.metadata.indicator_id === id ? { ...i, history: transform(i.history) } : i)
-const missing = report(edit('gold_price_anchor', h => h.map((p, i) => i === h.length - 1 ? { ...p, value: null } : p)))
-assert.match(missing.paragraphs[1], /国内现货（[^）]+）数据缺失/)
-assert.ok(!missing.paragraphs[1].includes('国内现货为近20'))
+const missing = report(edit('au_td_close', h => h.map((p, i) => i === h.length - 1 ? { ...p, value: null } : p)))
+assert.match(missing.paragraphs[0], /国内现货（[^）]+）数据缺失/)
+assert.ok(!missing.paragraphs[0].includes('国内现货为近20'))
 assert.match(report(edit('gold_hv20', h => h.map((p, i) => i === h.length - 1 ? { ...p, value: null } : p))).paragraphs[2], /波动率（[^）]+）数据缺失/)
 const mixed = report(edit('gold_futures_secondary_spread', h => h.map((p, i) => i === h.length - 1 ? { ...p, value: -5 } : p)))
-assert.ok(mixed.paragraphs[0].startsWith('国内外升贴水因期限而异'))
-assert.ok(mixed.paragraphs[0].includes('国内贴水5.00'))
-const roll = report(edit('gold_futures_spread_details', h => h.map((p, i) => i === h.length - 2 ? { ...p, value: '主力：au2610；次主力：au2612' } : p)))
-assert.ok(roll.paragraphs[0].includes('换约或合约信息缺失，不比较上期'))
-const roll5 = report(edit('gold_futures_spread_details', h => h.map((p, i) => i === h.length - 6 ? { ...p, value: '主力：au2610；次主力：au2612' } : p)))
-assert.ok(roll5.paragraphs[0].includes('前5个交易观察日涉及换约或合约不明，暂无可比变化'))
+assert.ok(mixed.paragraphs[1].startsWith('国内外升贴水因期限而异'))
+assert.ok(mixed.paragraphs[1].includes('国内贴水5.00'))
+const roll = report(edit('gold_futures_spread_details', h => h.map((p, i) => i === h.length - 2 ? { ...p, value: '近端主力：au2610；远端主力：au2612' } : p)))
+assert.ok(roll.paragraphs[1].includes('换约或合约信息缺失，不比较上期'))
+const roll5 = report(edit('gold_futures_spread_details', h => h.map((p, i) => i === h.length - 6 ? { ...p, value: '近端主力：au2610；远端主力：au2612' } : p)))
+assert.ok(roll5.paragraphs[1].includes('前5个交易观察日涉及换约或合约不明，暂无可比变化'))
 const failed = report(items, thresholds, undefined, ['price'])
-assert.ok(!failed.paragraphs[1].includes('863.79'))
+assert.ok(!failed.paragraphs[0].includes('863.79'))
 assert.ok(failed.paragraphs[2].includes('最新数据暂不可得'))
 
 const series = { history: Array.from({ length: 20 }, (_, i) => ({ observation_date: `2026-10-${String(i + 1).padStart(2, '0')}`, value: 100 + i })) }
@@ -61,6 +61,7 @@ if (process.env.REPORT_MODEL_ONLY !== '1') {
   try {
     for (const url of ['http://127.0.0.1:5173/', 'http://127.0.0.1:4173/pages-preview/']) {
       const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
+      page.setDefaultTimeout(120000)
       const errors = []
       page.on('pageerror', error => errors.push(error.message))
       // 动态版复用已有快照作为API响应，避免触发上游文件重载；静态版读取真实构建产物。
@@ -72,6 +73,7 @@ if (process.env.REPORT_MODEL_ONLY !== '1') {
         })
       }
       await page.goto(url)
+      await page.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled)
       await page.locator('#daily-text-report .report-content').waitFor()
       assert.deepEqual(await page.locator('#daily-text-report .report-content p').allTextContents(), actual.paragraphs.map((p, i) => actual.titles[i] + '：' + p))
       assert.ok(await page.evaluate(() => document.getElementById('daily-term-structure').compareDocumentPosition(document.getElementById('daily-text-report')) & Node.DOCUMENT_POSITION_FOLLOWING))

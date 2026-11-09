@@ -9,11 +9,11 @@ export default defineConfig(({ mode }) => ({
   resolve: { alias: [{ find: /^\.\/live-source\.js$/, replacement: fileURLToPath(new URL(mode === 'pages' ? './src/static-source.js' : './src/live-source.js', import.meta.url)) }] },
   plugins: [vue(), ...(mode === 'pages' ? [pagesDataPlugin()] : [])],
   server: {
-    port: 5173,
+    port: Number(process.env.GOLD_VITE_PORT || 5173),
     strictPort: true,
     allowedHosts: (process.env.GOLD_ALLOWED_HOSTS || '').split(',').map(host => host.trim()).filter(Boolean),
     proxy: mode === 'pages' ? undefined : {
-      '/api': 'http://127.0.0.1:8000',
+      '/api': process.env.GOLD_API_PROXY || 'http://127.0.0.1:8000',
     },
   },
   build: {

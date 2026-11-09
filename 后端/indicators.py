@@ -147,11 +147,6 @@ def build_indicators(tables):
         ("au_td_volume", "Au(T+D) 成交量", "交易量（吨）", "吨"),
         ("au_td_delivery_direction", "Au(T+D) 交收方向", "交收方向", "文本"),
     ])
-    autd = tables.get(("AuTD.csv", None))
-    b.add("au-td", "au_td_close", "Au(T+D) 收盘价", "元/克", "日度", "AuTD.csv",
-          values=[None] * len(autd.frame) if autd else None,
-          warnings=["已核对现有AuTD.csv表头：仅有时间、交收方向、持仓量和交易量，未提供收盘价；不以Au99.99价格替代。"],
-          missing_fields=["close_price"], price_basis="Au(T+D)收盘价数据暂缺")
     b.columns("cftc", "CFTC黄金非商业持仓量.csv", None, "周度", [
         ("cftc_total", "CFTC 市场总持仓", "市场总持仓（吨）", "吨"),
         ("cftc_long", "CFTC 非商业多头持仓", "非商业多头持仓（吨）", "吨"),
@@ -255,4 +250,10 @@ def build_indicators(tables):
     b.add("futures", "futures_main_contract", "黄金期货主力合约", "合约代码", "日度", "黄金期货.csv",
           column="主力合约", frame=leading,
           warnings=[f"按当日成交量最高确定主力；{ties} 个日期成交量并列时返回全部并列合约；不以持仓量替代成交量"])
+    main_contracts = tables.get(("黄金期货主力合约.csv", None))
+    main_frame = main_contracts.frame.copy() if main_contracts else pd.DataFrame(columns=["日期", "主力合约"])
+    main_required = [column for column in ("日期", "主力合约") if column not in main_frame.columns]
+    b.add("futures", "futures_main_contract_reference", "黄金期货主力合约（指定序列）", "合约代码", "日度",
+          "黄金期货主力合约.csv", column="主力合约", frame=main_frame,
+          warnings=["按指定主力合约文件的主力合约列逐日匹配期货报价。"], missing_fields=main_required)
     return b.groups

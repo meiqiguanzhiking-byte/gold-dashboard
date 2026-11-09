@@ -7,7 +7,7 @@ import pandas as pd
 from config import DATA_DIR
 from data_loader import load_tables
 from indicators import Builder
-from price import add_price_indicators, SOURCE as DOMESTIC_SOURCE, SHEET as DOMESTIC_SHEET
+from price import add_price_indicators, SOURCE as DOMESTIC_SOURCE
 from international_price import add_international_price_indicators, add_treasury_yield_indicators, SOURCE, SHEET, VOLATILITY_SOURCE, TREASURY_SOURCE
 
 
@@ -75,7 +75,8 @@ class InternationalPriceData(unittest.TestCase):
 
     def test_independent_join_and_conversion(self):
         item = self.build()['gold_domestic_spread']
-        domestic = self.tables[(DOMESTIC_SOURCE, DOMESTIC_SHEET)].frame[['时间', '价格']].rename(columns={'时间': '日期'})
+        domestic = self.tables[(DOMESTIC_SOURCE, None)].frame[['时间', '收盘价（元/克）']].rename(columns={'时间': '日期', '收盘价（元/克）': '价格'})
+        domestic['日期'] = pd.to_datetime(domestic['日期'], format='mixed', errors='coerce')
         overseas = self.tables[(SOURCE, SHEET)].frame
         merged = domestic.merge(overseas, on='日期', how='inner')
         eligible = merged.dropna()
@@ -93,7 +94,7 @@ class InternationalPriceData(unittest.TestCase):
         items = self.build()
         spread = items['gold_domestic_spread']
         day = items['london_gold_spot']['latest']['observation_date']
-        inputs = [items[key] for key in ('gold_price_anchor', 'london_gold_spot', 'usdcnh')]
+        inputs = [items[key] for key in ('au_td_close', 'london_gold_spot', 'usdcnh')]
         values = [next((p['value'] for p in i['history'] if p['observation_date'] == day), None) for i in inputs]
         expected = values[0] - values[1] * values[2] / 31.1034768
         self.assertEqual(spread['latest']['observation_date'], day)

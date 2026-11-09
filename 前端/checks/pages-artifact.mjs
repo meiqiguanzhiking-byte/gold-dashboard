@@ -46,7 +46,7 @@ for (const rows of Object.values(snapshot.groups)) for (const item of rows) {
   assert.ok(item.points.every(p => p.length === 2 && (p[1] === null || typeof p[1] === 'string' || Number.isFinite(p[1]))))
   assert.ok(!('source_column' in item.metadata) && !('component_columns' in item.metadata))
   const priceSources = item.metadata.input_sources || [item.metadata.source]
-  if (['黄金现货价格.xlsx', '伦敦金现与汇率_北京时间1530收盘价.xlsx'].includes(item.metadata.source) && priceSources.some(source => policy.source_permissions?.[source] !== 'approved' || policy.withheld_sources.includes(source))) {
+  if (['AuTD.csv', '伦敦金现与汇率_北京时间1530收盘价.xlsx'].includes(item.metadata.source) && priceSources.some(source => policy.source_permissions?.[source] !== 'approved' || policy.withheld_sources.includes(source))) {
     assert.equal(item.points.length, 0, '未获准的价格及派生波动率不得导出历史或数值')
     assert.equal(item.metadata.publication_withheld, true)
     assert.equal(item.metadata.coverage_start, null)
@@ -55,9 +55,9 @@ for (const rows of Object.values(snapshot.groups)) for (const item of rows) {
     assert.equal(item.metadata.updated_at, null)
   }
 }
-for (const id of ['gold_price_anchor', 'gold_hv20', 'gold_hv60', 'london_gold_spot', 'usdcnh', 'gold_domestic_spread']) assert.ok(ids.has(id), '静态版应保留新指标或明确的缺失占位')
+for (const id of ['au_td_close', 'gold_hv20', 'gold_hv60', 'london_gold_spot', 'usdcnh', 'gold_domestic_spread']) assert.ok(ids.has(id), '静态版应保留新指标或明确的缺失占位')
 for (const id of ['ust_10y_yield', 'ust_2y_yield', 'ust_10y_2y_spread', 'ust_10y_breakeven_inflation']) assert.ok(ids.has(id), '静态版每日速递应保留四项美债利率序列')
-for (const id of ['domestic_etf_total_shares', 'au_td_close']) assert.ok(ids.has(id), '每日速递应保留合计份额与收盘价缺失占位')
+for (const id of ['domestic_etf_total_shares', 'au_td_close']) assert.ok(ids.has(id), '每日速递应保留合计份额与收盘价')
 const totalShares = snapshot.groups.etf.find(item => item.metadata.indicator_id === 'domestic_etf_total_shares')
 if (!totalShares.metadata.publication_withheld) {
   const funds = policy.fund_codes.map(code => snapshot.groups.etf.find(item => item.metadata.indicator_id === `domestic_${code}_shares`))
@@ -114,6 +114,10 @@ if (!snapshotOnly) {
   assert.equal(files.filter(f => f.endsWith('.json')).length, prepared.assets.size + 1)
   for (const [name, content] of prepared.assets) assert.equal(await readFile(path.join(distPath, name), 'utf8'), content)
   const html = await readFile(path.join(distPath, 'index.html'), 'utf8')
+  const charset = /<meta\s+charset=["']?utf-8["']?\s*\/?>/i.exec(html)
+  assert.ok(charset && Buffer.byteLength(html.slice(0, charset.index + charset[0].length)) <= 1024,
+    'UTF-8编码声明必须完整位于HTML前1024字节，避免中文内嵌数据被误读')
+  assert.ok(charset.index < html.indexOf('id="pages-bootstrap"'), '编码声明必须先于内嵌数据')
   const embedded = html.match(/<script[^>]*id="pages-bootstrap"[^>]*>([\s\S]*?)<\/script>/)?.[1]
   assert.deepEqual(JSON.parse(embedded), prepared.bootstrap, '首屏数据必须内嵌HTML，无需另行下载JSON')
   assert.deepEqual(JSON.parse(await readFile(path.join(distPath, 'data/snapshot.json'), 'utf8')), snapshot)

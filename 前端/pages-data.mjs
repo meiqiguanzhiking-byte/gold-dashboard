@@ -39,7 +39,7 @@ export function buildPagesData(snapshot) {
     })
   }
   // 日报固定20期现货统计、同合约期货比较；保留空值及期限结构所需历史。
-  const briefHistoryLimits = { gold_price_anchor: 20, london_gold_spot: 20, usdcnh: 20, gold_futures_daily_quotes: 20,
+  const briefHistoryLimits = { au_td_close: 20, london_gold_spot: 20, usdcnh: 20, gold_futures_daily_quotes: 20,
     au_td_delivery_direction: 30, gold_domestic_spread: 11, gold_futures_spread: 11, gold_futures_secondary_spread: 11, gold_futures_spread_details: 11 }
   const percentileIds = new Set(dailyThresholdGroups.filter(group => percentileGroups.has(group.id)).flatMap(group => group.indicators.map(indicator => indicator.id)))
   const futuresDates = new Set((snapshot.groups.price?.find(item => item.metadata.indicator_id === 'gold_futures_daily_quotes')?.points || []).slice(-2).flatMap(point => {
@@ -47,8 +47,8 @@ export function buildPagesData(snapshot) {
     try { quotes = JSON.parse(point[1])?.quotes || [] } catch { /* 保留缺失明细，不另取价格基准。 */ }
     return [point[0], ...quotes.map(quote => quote.previous_date).filter(Boolean)]
   }))
-  const briefPoints = item => item.metadata.indicator_id === 'gold_price_anchor'
-    ? item.points.filter((point, index) => index >= item.points.length - briefHistoryLimits.gold_price_anchor || futuresDates.has(point[0]))
+  const briefPoints = item => item.metadata.indicator_id === 'au_td_close'
+    ? item.points.filter((point, index) => index >= item.points.length - briefHistoryLimits.au_td_close || futuresDates.has(point[0]))
     : percentileIds.has(item.metadata.indicator_id)
       ? item.points.filter((point, index) => index >= item.points.length - (briefHistoryLimits[item.metadata.indicator_id] || 2) || point[0] > yearStart(item.points.at(-1)?.[0]))
       : item.points.slice(-(briefHistoryLimits[item.metadata.indicator_id] || 2))
@@ -77,7 +77,7 @@ export function pagesDataPlugin() {
     },
     transformIndexHtml() {
       return [{ tag: 'script', attrs: { id: 'pages-bootstrap', type: 'application/json' },
-        children: encode(prepared.bootstrap).replace(/</g, '\\u003c'), injectTo: 'head-prepend' }]
+        children: encode(prepared.bootstrap).replace(/</g, '\\u003c'), injectTo: 'head' }]
     },
     generateBundle() {
       for (const [fileName, source] of prepared.assets) this.emitFile({ type: 'asset', fileName, source })

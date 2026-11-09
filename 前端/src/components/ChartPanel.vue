@@ -86,7 +86,7 @@ onBeforeUnmount(() => { window.removeEventListener('dashboard-page-visible', ref
 <template>
   <article class="chart-panel">
     <header class="panel-header"><div><h3>{{ title }}</h3><p>{{ description || '保留原始观察日期，不插值、不前值填充' }}</p></div><div class="status-group"><StatusBadge v-for="s in statusTags" :key="s" :status="s" /></div></header>
-    <div class="chart-toolbar"><span>{{ frequency.join(' / ') || '频率未提供' }} · {{ unit }} · 最新 {{ latestDate || '未提供' }}{{ latestDate && latestTime ? ' ' + latestTime : '' }}</span><div class="time-controls"><button v-if="hasLines && !emptyReason" class="text-button" :aria-label="title + '重置缩放'" @click="resetZoom">重置缩放</button><select v-if="!fixedRange" v-model="localRange" :aria-label="title + '时间区间'"><option v-for="r in ranges" :key="r.value" :value="r.value">{{ r.label }}</option></select></div></div>
+    <div class="chart-toolbar"><span>{{ frequency.join(' / ') || '频率未提供' }} · {{ unit }} · 最新 {{ latestDate || '未提供' }}{{ latestDate && latestTime ? ' ' + latestTime : '' }}</span><div class="time-controls"><slot name="controls" /><button v-if="hasLines && !emptyReason" class="text-button" :aria-label="title + '重置缩放'" @click="resetZoom">重置缩放</button><select v-if="!fixedRange" v-model="localRange" :aria-label="title + '时间区间'"><option v-for="r in ranges" :key="r.value" :value="r.value">{{ r.label }}</option></select></div></div>
     <div class="chart-stage"><div ref="el" class="echart" :data-chart-title="title" /><div v-if="emptyReason" class="empty-state"><span class="empty-symbol">—</span><strong>{{ emptyReason }}</strong><span>{{ available[0]?.item.warnings[0] || '请检查数据来源或调整筛选条件' }}</span></div></div>
     <div class="chart-caption"><span>{{ coverage }}</span><span>{{ note || '图例可开关；空值不按 0 处理' }}</span></div>
     <div v-if="axisInfo" class="axis-note">{{ axisInfo }}</div>
@@ -96,5 +96,5 @@ onBeforeUnmount(() => { window.removeEventListener('dashboard-page-visible', ref
 
 <style scoped>
 .echart{overflow:hidden}
-.time-controls{display:flex;align-items:center;gap:10px;flex-shrink:0}.time-controls .text-button{font-size:9px}.axis-note{font-size:9px;color:#849491;line-height:1.7;margin-top:4px;overflow-wrap:anywhere}
+.time-controls{display:flex;align-items:center;gap:10px;flex-shrink:0}.time-controls .text-button{font-size:9px}.time-controls :slotted(label){display:flex;align-items:center;gap:5px;font-size:9px;color:#829296;white-space:nowrap}.time-controls :slotted(label select){font-size:10px;padding:4px 18px 4px 7px}.axis-note{font-size:9px;color:#849491;line-height:1.7;margin-top:4px;overflow-wrap:anywhere}
 </style>

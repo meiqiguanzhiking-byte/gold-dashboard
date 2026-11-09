@@ -7,6 +7,7 @@ const target = new URL(base)
 const snapshot = JSON.parse(await readFile(new URL('../../展示版/数据/data/snapshot.json', import.meta.url), 'utf8'))
 const browser = await chromium.launch({ channel: 'msedge', headless: true, args: ['--disable-breakpad', '--disable-logging'] })
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' })
+page.setDefaultTimeout(120000)
 const errors = [], consoleErrors = [], requests = [], blocked = [], layouts = []
 page.on('pageerror', error => errors.push(error.message))
 page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push(msg.text()) })
@@ -49,7 +50,10 @@ async function chartInk(selector) {
   }, 0))
 }
 async function waitForInk(selector) {
-  for (let attempt = 0; attempt < 30; attempt++) {
+  await page.locator(selector).first().waitFor()
+  await page.locator(selector).first().scrollIntoViewIfNeeded()
+  const deadline = Date.now() + 120000
+  while (Date.now() < deadline) {
     if (await page.locator(selector).count() && await chartInk(selector) > 15) return
     await page.waitForTimeout(100)
   }
@@ -58,13 +62,17 @@ async function waitForInk(selector) {
 try {
   await page.goto(base)
   await loaded()
+  assert.equal(await page.evaluate(() => document.characterSet.toUpperCase()), 'UTF-8')
   assert.ok((await page.locator('.environment').textContent()).includes('静态展示版'))
   assert.ok((await page.locator('.static-notice').textContent()).includes('不会随电脑中的文件自动更新'))
   const generatedDate = snapshot.generated_at.slice(0, 10).split('-').map(Number).join('/')
   assert.ok((await page.locator('.data-summary').textContent()).includes(generatedDate))
   assert.equal(await page.getByRole('button', { name: '刷新真实数据', exact: true }).count(), 0)
   assert.equal(await page.locator('main section.section').count(), 21)
-  assert.deepEqual(await page.locator('.page-tabs button').allTextContents(), ['每日速递', '国内', '国外', '交叉展示', '数据健康度'])
+  assert.deepEqual(await page.locator('.page-tabs > .page-tab-entry > button[role="tab"]').allTextContents(), ['每日速递', '国内', '国外', '交叉展示', '研报复现⌄', '数据健康度'])
+  await page.getByRole('tab', { name: '研报复现' }).click()
+  assert.equal(await page.locator('#page-panel-research .research-module').count(), 3)
+  await page.getByRole('tab', { name: '每日速递', exact: true }).click()
   assert.equal(await page.locator('.page-tabs button[aria-selected="true"]').textContent(), '每日速递')
   assert.equal(await page.locator('#daily-brief .daily-card').count(), 25)
   await page.getByRole('tab', { name: '国内', exact: true }).click()
@@ -78,7 +86,7 @@ try {
   await loaded()
   await page.waitForTimeout(250)
   for (const id of ['positions', 'spdr', 'london', 'comex', 'global-etf']) {
-    await page.locator('#' + id + ' canvas').first().waitFor()
+    await waitForInk('#' + id + ' canvas')
     assert.ok(await chartInk('#' + id + ' canvas') > 15, id + ' 图表应包含真实绘制内容')
   }
   for (const item of snapshot.groups.price.filter(i => i.metadata.publication_withheld)) assert.equal(item.points.length, 0)

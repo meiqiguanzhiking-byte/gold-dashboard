@@ -7,7 +7,7 @@ import pandas as pd
 from config import DATA_DIR
 from data_loader import Table
 from domestic_futures import (DOMESTIC_SOURCE, OVERSEAS_SOURCE, GRAMS_PER_TROY_OUNCE,
-                              add_domestic_futures, continuous_futures_rows, spread_curve_rows)
+                              add_domestic_futures, continuous_futures_rows, spread_curve_rows, SPREAD_SOURCE)
 from indicators import Builder
 
 
@@ -113,6 +113,8 @@ class DomesticFuturesData(unittest.TestCase):
             for quote in detail["quotes"]:
                 current = original[original["合约"] == quote["contract"]]["收盘价（元/克）"].iloc[0]
                 self.assertEqual(quote["close"], current if pd.notna(current) else None)
+                open_interest = original[original["合约"] == quote["contract"]]["持仓量（吨）"].iloc[0]
+                self.assertEqual(quote["open_interest"], open_interest if pd.notna(open_interest) and open_interest >= 0 else None)
                 previous = self.domestic[(self.domestic["时间"] == quote["previous_date"]) & (self.domestic["合约"] == quote["contract"])]["收盘价（元/克）"]
                 self.assertEqual(quote["previous_close"], previous.iloc[0] if len(previous) and pd.notna(previous.iloc[0]) else None)
 
@@ -128,108 +130,56 @@ class DomesticFuturesData(unittest.TestCase):
         self.assertEqual(rows[switch]["close"], after["raw_close"])
         self.assertEqual(rows[switch]["spread"], after["spread"])
 
-    def test_main_and_secondary_spreads_match_same_date_and_month_raw_quotes(self):
-        rows = spread_curve_rows(self.domestic, self.overseas)
-        local = self.domestic.set_index(["时间", "合约", "交割月份"])
-        foreign = self.overseas.set_index(["日期", "合约", "到期期限"])
-        self.assertEqual([row["时间"] for row in rows], sorted(self.overseas["日期"].unique()))
-        self.assertTrue(any(row["main_raw_spread"] is None and row["secondary_raw_spread"] is not None for row in rows))
-        for row in rows:
-            for rank in ("main", "secondary"):
-                contract = row[f"{rank}_contract"]
-                if contract is None:
-                    self.assertIsNone(row[f"{rank}_spread"])
-                    continue
-                expiry = row[f"{rank}_expiry"]
-                self.assertEqual(int(expiry[-2:]) % 2, 0)
-                key = (row["时间"], contract, expiry)
-                raw = None
-                if key in local.index and key in foreign.index:
-                    domestic_price = local.loc[key, "收盘价（元/克）"]
-                    gold = foreign.loc[key, "黄金期货价格"]
-                    fx = foreign.loc[key, "USDCNH期货价格"]
-                    if pd.notna(domestic_price) and pd.notna(gold) and pd.notna(fx):
-                        raw = domestic_price - gold * fx / GRAMS_PER_TROY_OUNCE
-                if raw is None:
-                    self.assertIsNone(row[f"{rank}_raw_spread"])
-                    self.assertIsNone(row[f"{rank}_spread"])
+    def test_spreads_use_designated_near_far_contracts_and_prices(self):
+        frame = pd.read_csv(DATA_DIR / SPREAD_SOURCE)
+        rows = spread_curve_rows(frame)
+        self.assertEqual([row["时间"] for row in rows], list(frame["日期"]))
+        for row, raw in zip(rows, frame.to_dict("records")):
+            for rank, label in (("main", "近端主力"), ("secondary", "远端主力")):
+                contract = raw[label + "合约"]
+                self.assertEqual(row[rank + "_contract"], contract if pd.notna(contract) else None)
+                local, gold, fx = [raw[product + label + "价格"] for product in ("黄金期货", "COMEX期货", "USDCNH期货")]
+                if pd.isna(contract) or any(pd.isna(value) or value <= 0 for value in (local, gold, fx)):
+                    self.assertIsNone(row[rank + "_spread"])
                 else:
-                    self.assertAlmostEqual(row[f"{rank}_raw_spread"], raw, places=10)
-                    self.assertAlmostEqual(row[f"{rank}_spread"], raw, places=10)
-            if row["main_expiry"] and row["secondary_expiry"]:
-                self.assertLess(row["main_expiry"], row["secondary_expiry"])
+                    self.assertAlmostEqual(row[rank + "_spread"], local - gold * fx / GRAMS_PER_TROY_OUNCE, places=10)
 
-    def test_right_join_keeps_foreign_only_date_null_without_date_shift(self):
-        local = pd.DataFrame([
-            ("2026-01-29", "au2602", "2026-02", 100),
-            ("2026-01-30", "au2602", "2026-02", 102),
-            ("2026-01-29", "au2604", "2026-04", 105),
-            ("2026-01-30", "au2604", "2026-04", 108),
-            ("2026-02-02", "au2604", "2026-04", 110),
-            ("2026-01-29", "au2606", "2026-06", 109),
-            ("2026-01-30", "au2606", "2026-06", 111),
-            ("2026-02-02", "au2606", "2026-06", 113),
-        ], columns=["时间", "合约", "交割月份", "收盘价（元/克）"])
-        foreign = pd.DataFrame([
-            (date, contract, expiry, GRAMS_PER_TROY_OUNCE, 1)
-            for date in ("2026-01-29", "2026-01-30", "2026-02-02", "2026-02-03")
-            for contract, expiry in (("au2602", "2026-02"), ("au2604", "2026-04"), ("au2606", "2026-06"))
-        ], columns=["日期", "合约", "到期期限", "黄金期货价格", "USDCNH期货价格"])
-        rows = spread_curve_rows(local, foreign)
-        self.assertEqual([row["时间"] for row in rows], sorted(foreign["日期"].unique()))
-        self.assertEqual((rows[1]["main_contract"], rows[1]["secondary_contract"]), ("au2602", "au2604"))
-        self.assertEqual((rows[2]["main_contract"], rows[2]["secondary_contract"]), ("au2604", "au2606"))
-        self.assertAlmostEqual(rows[2]["main_spread"], 109)
-        self.assertAlmostEqual(rows[2]["secondary_spread"], 112)
-        self.assertIsNone(rows[3]["main_spread"])
-        self.assertIsNone(rows[3]["secondary_spread"])
+    def spread_fixture(self):
+        return pd.DataFrame({
+            "日期": ["2026-01-01", "2026-01-02", "2026-01-03"],
+            "近端主力合约": ["au2603", "au2603", "au2605"],
+            "远端主力合约": ["au2606", "au2606", "au2608"],
+            "黄金期货近端主力价格": [100, 102, 110],
+            "COMEX期货近端主力价格": [GRAMS_PER_TROY_OUNCE] * 3,
+            "USDCNH期货近端主力价格": [1] * 3,
+            "黄金期货远端主力价格": [110, 113, 125],
+            "COMEX期货远端主力价格": [GRAMS_PER_TROY_OUNCE] * 3,
+            "USDCNH期货远端主力价格": [1] * 3,
+        })
 
-    def test_secondary_roll_keeps_price_gap_and_has_no_overlap_dependency(self):
-        local = pd.DataFrame([
-            ("2026-01-01", "au2602", "2026-02", 100),
-            ("2026-01-01", "au2604", "2026-04", 110),
-            ("2026-01-01", "au2606", "2026-06", 120),
-            ("2026-01-02", "au2604", "2026-04", 113),
-            ("2026-01-02", "au2606", "2026-06", 125),
-            ("2026-01-03", "au2604", "2026-04", 115),
-            ("2026-01-03", "au2606", "2026-06", 130),
-        ], columns=["时间", "合约", "交割月份", "收盘价（元/克）"])
-        overseas = pd.DataFrame([
-            (date, contract, expiry, GRAMS_PER_TROY_OUNCE, 1)
-            for date in ("2026-01-01", "2026-01-02", "2026-01-03")
-            for contract, expiry in (("au2602", "2026-02"), ("au2604", "2026-04"), ("au2606", "2026-06"))
-        ], columns=["日期", "合约", "到期期限", "黄金期货价格", "USDCNH期货价格"])
-        rows = spread_curve_rows(local, overseas)
-        rollover = rows[1]
-        self.assertEqual(rollover["secondary_rollover_from"], "au2604")
-        self.assertEqual(rollover["secondary_contract"], "au2606")
-        self.assertAlmostEqual(rollover["secondary_spread"], 124)
-        prefix = spread_curve_rows(local[local["时间"] <= "2026-01-02"], overseas[overseas["日期"] <= "2026-01-02"])
-        self.assertEqual(prefix, rows[:2], "增加未来报价不得改变已发生的选约及原始价差")
+    def test_designated_odd_month_is_not_reselected_and_future_does_not_change_history(self):
+        frame = self.spread_fixture()
+        rows = spread_curve_rows(frame)
+        self.assertEqual(rows[0]["main_contract"], "au2603")
+        self.assertEqual([r["main_spread"] for r in rows], [99, 101, 109])
+        self.assertEqual([r["secondary_spread"] for r in rows], [109, 112, 124])
+        self.assertEqual(spread_curve_rows(frame.iloc[:2]), rows[:2])
 
-    def test_missing_quote_resumes_without_old_contract_overlap(self):
-        local = pd.DataFrame([
-            ("2026-01-01", "au2602", "2026-02", 100),
-            ("2026-01-01", "au2604", "2026-04", 110),
-            ("2026-01-02", "au2604", "2026-04", 113),
-            ("2026-01-02", "au2606", "2026-06", 125),
-            ("2026-01-03", "au2604", "2026-04", 115),
-            ("2026-01-03", "au2606", "2026-06", 130),
-            ("2026-01-04", "au2604", "2026-04", 117),
-            ("2026-01-04", "au2606", "2026-06", 134),
-        ], columns=["时间", "合约", "交割月份", "收盘价（元/克）"])
-        overseas = pd.DataFrame([
-            (date, contract, expiry, None if (date, contract) == ("2026-01-02", "au2606") else GRAMS_PER_TROY_OUNCE, 1)
-            for date in ("2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04")
-            for contract, expiry in (("au2602", "2026-02"), ("au2604", "2026-04"), ("au2606", "2026-06"))
-        ], columns=["日期", "合约", "到期期限", "黄金期货价格", "USDCNH期货价格"])
-        rows = spread_curve_rows(local, overseas)
-        self.assertIsNone(rows[1]["secondary_spread"])
-        self.assertAlmostEqual(rows[2]["secondary_spread"], 129)
-        self.assertAlmostEqual(rows[3]["secondary_spread"], 133)
-        for end in ("2026-01-02", "2026-01-03"):
-            prefix = spread_curve_rows(local[local["时间"] <= end], overseas[overseas["日期"] <= end])
-            self.assertEqual(prefix, [row for row in rows if row["时间"] <= end])
+    def test_missing_quote_is_not_filled_and_does_not_suppress_other_tenor(self):
+        frame = self.spread_fixture()
+        frame.loc[1, "COMEX期货近端主力价格"] = float("nan")
+        frame.loc[0, "USDCNH期货远端主力价格"] = 0
+        rows = spread_curve_rows(frame)
+        self.assertIsNone(rows[0]["secondary_spread"])
+        self.assertEqual(rows[0]["main_spread"], 99)
+        self.assertIsNone(rows[1]["main_spread"])
+        self.assertEqual(rows[1]["secondary_spread"], 112)
+        self.assertEqual(rows[2]["main_spread"], 109)
+        self.assertEqual(rows[1]["main_contract"], "au2603")
+
+    def test_missing_schema_never_falls_back_to_another_contract_rule(self):
+        self.assertEqual(spread_curve_rows(self.domestic), [])
+        self.assertEqual(spread_curve_rows(self.spread_fixture().drop(columns="近端主力合约")), [])
 
 
 if __name__ == "__main__":

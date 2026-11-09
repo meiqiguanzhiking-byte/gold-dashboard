@@ -16,7 +16,7 @@ function leaveFocus(event) {
     <span v-if="opened" :id="popupId" class="basis-popup" role="tooltip">
       <span class="basis-content" tabindex="0" aria-label="当日全部合约升贴水率">
         <strong>{{ details.date || '未提供' }} · 全部合约升贴水率</strong>
-        <span class="basis-note">Au99.99现货：{{ numberText(details.spot) }} 元/克</span>
+        <span class="basis-note">Au(T+D)现货：{{ numberText(details.spot) }} 元/克</span>
         <span v-for="quote in details.quotes" :key="quote.contract" class="basis-quote">
           <span><b>{{ quote.contract.replace(/^au/i, 'Au') }}</b><small>最后交易日 {{ quote.expiry_date || '未确认' }}<template v-if="quote.days != null"> · {{ quote.days }}天</template></small></span>
           <span class="basis-rate" :class="{ positive: quote.value > 0, negative: quote.value < 0 }">{{ numberText(quote.value) }}{{ isNumber(quote.value) ? '%' : '' }}<small v-if="isNumber(quote.change)" :class="{ positive: quote.change > 0, negative: quote.change < 0 }">{{ quote.change > 0 ? '+' : '' }}{{ numberText(quote.change) }} 个百分点<br>较 {{ quote.previousDate }}</small><small v-else>变化暂不可计算</small><small v-if="quote.reason">{{ quote.reason }}</small></span>

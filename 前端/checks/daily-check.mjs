@@ -23,7 +23,7 @@ async function chartState(page, setZoom = false) {
       const core = [...document.querySelectorAll('link[rel="modulepreload"]')].find(link => /chart-core-.*\.js/.test(link.href))?.href || performance.getEntriesByType('resource').find(r => /chart-core-.*\.js/.test(r.name))?.name
       init = Object.values(await import(core)).find(f => typeof f === 'function' && f.toString().includes('afterinit'))
     }
-    const c = init(document.querySelector('[data-chart-title="上金所Au99.99收盘价（元/克）"]'))
+    const c = init(document.querySelector('[data-chart-title="Au(T+D)收盘价（元/克）"]'))
     if (setZoom) c.dispatchAction({ type: 'dataZoom', start: 40, end: 90 })
     return { id: c.id, zoom: c.getOption().dataZoom[0].start }
   }, setZoom)
@@ -75,7 +75,7 @@ try {
       assert.equal(row.thresholdValue, row.group === 'spread' ? row.change : row.percent)
       assert.equal(filterDailyMovements([row], { [row.group]: Math.abs(row.thresholdValue) }).length, 0, '等于阈值不命中')
     }
-    const price = index.gold_price_anchor
+    const price = index.au_td_close
     const oldCutoff = price.history.at(-6).observation_date
     assert.equal(briefPoint(price, oldCutoff).date, oldCutoff, '不得提前展示未来观测')
     const blank = { ...price, history: price.history.map((p, n, h) => n === h.length - 1 ? { ...p, value: null } : p) }
@@ -106,7 +106,7 @@ try {
     assert.equal(model.cards.find(card => card.id === 'international-price').rows[0].unit, '美元/盎司')
     const spreadDate = model.cards.find(card => card.id === 'spread').rows[0].date
     const onDate = id => index[id].history.find(p => p.observation_date === spreadDate)?.value
-    assert.ok(Math.abs(model.cards.find(card => card.id === 'spread').rows[0].value - (onDate('gold_price_anchor') - onDate('london_gold_spot') * onDate('usdcnh') / 31.1034768)) < 1e-6)
+    assert.ok(Math.abs(model.cards.find(card => card.id === 'spread').rows[0].value - (onDate('au_td_close') - onDate('london_gold_spot') * onDate('usdcnh') / 31.1034768)) < 1e-6)
     const raw = model.cards.find(card => card.id === 'domestic-futures').rows[0]
     const rawSource = JSON.parse(index.gold_futures_daily_quotes.history.at(-1).value)
     const selected = rawSource.quotes.find(quote => quote.contract === rawSource.main_contract)
@@ -124,7 +124,7 @@ try {
     p.on('request', r => requests.push(r.url()))
     await p.goto(url)
     await p.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled)
-    assert.deepEqual(await p.locator('.page-tabs button').allTextContents(), ['每日速递', '国内', '国外', '交叉展示', '数据健康度'])
+    assert.deepEqual(await p.locator('.page-tabs > .page-tab-entry > button[role="tab"]').allTextContents(), ['每日速递', '国内', '国外', '交叉展示', '研报复现⌄', '数据健康度'])
     assert.equal(await p.locator('.page-tabs [aria-selected="true"]').textContent(), '每日速递')
     assert.equal(await p.locator('.page-panel:visible').count(), 1)
     for (const card of model.cards) {
@@ -205,14 +205,14 @@ try {
       assert.equal(await p.evaluate(() => document.activeElement.id), card.section)
     }
     await p.getByRole('tab', { name: '国内', exact: true }).click()
-    await p.getByLabel('上金所Au99.99收盘价（元/克）时间区间').selectOption('3M')
+    await p.getByLabel('Au(T+D)收盘价（元/克）时间区间').selectOption('3M')
     await p.waitForTimeout(200)
     const before = await chartState(p, true)
     await p.locator('#page-panel-domestic .section-picker').getByLabel('黄金价格与价差', { exact: true }).uncheck()
     await p.getByRole('tab', { name: '每日速递', exact: true }).click()
     await p.getByRole('button', { name: '国内黄金价格查看详情', exact: true }).click()
     assert.equal(await p.locator('#gold-price').isVisible(), true, '跳转应恢复隐藏版块')
-    assert.equal(await p.getByLabel('上金所Au99.99收盘价（元/克）时间区间').inputValue(), '3M')
+    assert.equal(await p.getByLabel('Au(T+D)收盘价（元/克）时间区间').inputValue(), '3M')
     assert.deepEqual(await chartState(p), before, '速递跳转不重建图表或清除缩放')
     await p.getByRole('tab', { name: '每日速递', exact: true }).click()
     await p.getByRole('button', { name: mode === 'static' ? '重新加载展示数据' : '刷新真实数据' }).click()
