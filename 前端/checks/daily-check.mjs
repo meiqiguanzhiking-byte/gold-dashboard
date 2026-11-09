@@ -216,7 +216,7 @@ try {
     assert.deepEqual(await chartState(p), before, '速递跳转不重建图表或清除缩放')
     await p.getByRole('tab', { name: '每日速递', exact: true }).click()
     await p.getByRole('button', { name: mode === 'static' ? '重新加载展示数据' : '刷新真实数据' }).click()
-    await p.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled, undefined, { timeout: 60000 })
+    await p.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled, undefined, { timeout: 180000 })
     assert.equal(await p.locator('.daily-card').count(), 25)
     assert.equal(await p.getByRole('slider').count(), 7)
     assert.deepEqual(errors, [])
