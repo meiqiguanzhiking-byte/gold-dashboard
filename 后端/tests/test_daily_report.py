@@ -205,18 +205,56 @@ class DailyReportTests(unittest.TestCase):
         self.assertEqual(len(ModelHandler.calls), 1)
 
     def test_new_data_waits_until_next_day_after_success(self):
-        self.bundle()
+        first = self.bundle()
         changed = copy.deepcopy(self.groups)
         row = next(row for row in changed["price"] if row["metadata"]["indicator_id"] == "au_td_close")
         row["history"][-1]["value"] += 1
         limited = make_bundle(changed, report_date=self.date, allow_generation=True, cache=self.cache)
         self.assertEqual(limited["fallback_reason"], "daily_limit")
         self.assertEqual(len(ModelHandler.calls), 1)
+        # 动态页可看当天旧稿；数值规则刷新。公开导出绝不复用不匹配旧稿。
+        saved = make_bundle(changed, report_date=self.date, cache=self.cache, reuse_daily_saved=True)
+        self.assertEqual(saved["ai"], first["ai"])
+        self.assertNotEqual(saved["rule"], first["rule"])
+        self.assertFalse(saved["ai_matches_current"])
+        self.assertEqual(len(ModelHandler.calls), 1)
         from datetime import date, timedelta
         tomorrow = (date.fromisoformat(self.date) + timedelta(days=1)).isoformat()
         generated = make_bundle(changed, report_date=tomorrow, allow_generation=True, cache=self.cache)
         self.assertEqual(generated["status"], "ai")
         self.assertEqual(len(ModelHandler.calls), 2)
+
+    def test_previous_day_failure_does_not_permanently_block_generation(self):
+        ModelHandler.mode = "invalid"
+        self.bundle()
+        ModelHandler.mode = "ok"
+        from datetime import date, timedelta
+        tomorrow = (date.fromisoformat(self.date) + timedelta(days=1)).isoformat()
+        result = make_bundle(self.groups, report_date=tomorrow, allow_generation=True, cache=self.cache)
+        self.assertEqual(result["status"], "ai")
+        self.assertEqual(result["model_attempts"], 1)
+        self.assertEqual(len(ModelHandler.calls), MAX_DAILY_ATTEMPTS + 1)
+
+    def test_new_price_observation_day_updates_ai_with_shared_daily_budget(self):
+        changed = copy.deepcopy(self.groups)
+        from datetime import date, timedelta
+        latest = next(item["history"][-1]["observation_date"] for item in changed["price"]
+                      if item["metadata"]["indicator_id"] == "au_td_close")
+        next_date = (date.fromisoformat(latest) + timedelta(days=1)).isoformat()
+        first = make_bundle(self.groups, report_date=next_date, allow_generation=True, cache=self.cache)
+        for rows in changed.values():
+            for item in rows:
+                if item["history"] and item["history"][-1]["observation_date"] == latest:
+                    item["history"].append({**item["history"][-1], "observation_date": next_date})
+        updated = make_bundle(changed, report_date=next_date, allow_generation=True,
+                              cache=self.cache, reuse_daily_saved=True)
+        self.assertEqual(updated["status"], "ai")
+        self.assertNotEqual(updated["ai"]["observationDates"], first["ai"]["observationDates"])
+        self.assertEqual(len(ModelHandler.calls), 2)
+        make_bundle(changed, report_date=next_date, allow_generation=True, cache=self.cache, reuse_daily_saved=True)
+        self.assertEqual(len(ModelHandler.calls), 2)
+        with self.cache.connect() as db:
+            self.assertEqual(db.execute('SELECT SUM(attempts) FROM reports').fetchone()[0], 2)
 
     def test_concurrent_process_caches_share_the_same_attempt_lock(self):
         caches = [DailyReportCache(self.cache.path) for _ in range(5)]

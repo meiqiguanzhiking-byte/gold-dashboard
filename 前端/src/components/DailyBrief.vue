@@ -58,9 +58,9 @@ const textReport = computed(() => buildDailyReport(props.items, textReportDate.v
 // 日报的现货、期货信息不受阈值限制；点击时补显对应卡片，保持原筛选值。
 const reportTarget = ref(null)
 const displayedMovements = computed(() => {
-  if (!reportTarget.value || movements.value.some(row => row.id === reportTarget.value)) return movements.value
-  const id = reportTarget.value
-  const linked = textReport.value.targets[id]
+  if (!reportTarget.value || movements.value.some(row => row.id === reportTarget.value.id)) return movements.value
+  const id = reportTarget.value.id
+  const linked = textReport.value.targets[id] || reportTarget.value.linked
   if (!linked) return movements.value
   const group = dailyThresholdGroups.find(g => g.indicators.some(i => i.id === id))
   const definition = group?.indicators.find(i => i.id === id)
@@ -78,8 +78,8 @@ const displayedMovements = computed(() => {
 })
 watch(thresholds, () => { reportTarget.value = null }, { deep: true })
 watch(() => props.items, () => { reportTarget.value = null })
-async function openReportIndicator(id) {
-  reportTarget.value = id
+async function openReportIndicator(id, linked) {
+  reportTarget.value = { id, linked }
   if (hidden.value.includes('daily-movements')) setHidden(hidden.value.filter(section => section !== 'daily-movements'))
   await nextTick()
   const target = document.getElementById('daily-movement-' + id)

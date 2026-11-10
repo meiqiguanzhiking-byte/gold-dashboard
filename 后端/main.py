@@ -1,6 +1,7 @@
 """黄金市场本地只读数据 API。"""
 import asyncio
 from contextlib import asynccontextmanager
+from contextlib import suppress
 from datetime import date
 
 import pandas as pd
@@ -16,13 +17,21 @@ from research_etf import get_etf_replication
 from research_macro import get_macro_replication
 from research_dual_anchor import get_dual_anchor
 from daily_report import report_service
+from daily_refresh import DailySourceMonitor
 
 
 @asynccontextmanager
 async def lifespan(app):
+    monitor = DailySourceMonitor(store, report_service)
     await asyncio.to_thread(store.reload)
     report_service.prewarm(store.snapshot)
-    yield
+    task = asyncio.create_task(monitor.run())
+    try:
+        yield
+    finally:
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            await task
 
 
 app = FastAPI(title="黄金市场指标 API", version="1.0.0", lifespan=lifespan,

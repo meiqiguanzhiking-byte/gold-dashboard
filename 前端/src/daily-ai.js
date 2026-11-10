@@ -17,7 +17,8 @@ export function useDailyAi(props) {
   let copyTimer
   watch([() => props.loading, () => props.unavailable, () => props.meta,
     () => props.report.reportDate], (_, __, onCleanup) => {
-    result.value = null
+    // 刷新未完成或接口暂时失败时，保留当日已读取的成功稿。
+    if (result.value?.report_date !== props.report.reportDate) result.value = null
     reason.value = ''
     copyStatus.value = ''
     if (props.loading || props.unavailable) { pending.value = false; return }
@@ -29,6 +30,7 @@ export function useDailyAi(props) {
       return
     }
     const controller = new AbortController()
+    if (result.value && result.value.source_version !== props.meta?.loaded_at) result.value = { ...result.value, ai_matches_current: false }
     let current = true
     pending.value = true
     const timer = setTimeout(async () => {
@@ -41,20 +43,20 @@ export function useDailyAi(props) {
     }, 500)
     onCleanup(() => { current = false; clearTimeout(timer); controller.abort() })
   }, { immediate: true })
-  const thresholdsMatch = computed(() => sameThresholds(result.value?.thresholds, props.thresholds))
   const aiAvailable = computed(() => validAi(result.value))
   const isAi = computed(() => preference.value !== 'rule' && aiAvailable.value)
-  const currentReport = computed(() => isAi.value ? result.value.ai : (thresholdsMatch.value && result.value?.rule) || props.report)
+  const currentReport = computed(() => isAi.value ? result.value.ai : props.report)
   const status = computed(() => isAi.value ? 'AI优化（规则校验通过）' : '数值规则')
+  const generatedAt = computed(() => isAi.value ? result.value?.generated_at : props.meta?.generated_at || props.meta?.loaded_at)
   const notice = computed(() => {
     if (pending.value) return '正在读取已保存日报，当前显示数值规则'
-    if (aiAvailable.value) return ''
+    if (aiAvailable.value) return isAi.value && result.value.ai_matches_current === false ? 'AI日报为今日已保存稿；刷新后的最新数据请查看数值规则和指标卡。' : ''
     return reason.value || ({ not_configured: 'AI服务尚未配置，已显示数值规则', validation_failed: 'AI文案未通过规则校验，当日尝试已结束，显示数值规则', model_unavailable: 'AI服务暂不可用，当日尝试已结束，显示数值规则', no_saved_report: '暂无已保存的AI日报，显示数值规则', daily_limit: '当日日报已锁定，不再调用模型，显示数值规则', attempt_locked: '日报正在生成或尝试已锁定，当前显示数值规则', cache_unavailable: '日报保存暂不可用，已暂停模型调用，显示数值规则' })[result.value?.fallback_reason] || ''
   })
   async function copy() {
     const report = currentReport.value
     const text = [report.title || '黄金市场日报', `报告日期 ${report.reportDate} · 北京时间`,
-      `主要价格观察日期 ${report.observationDates}`, result.value?.generated_at || props.meta?.generated_at ? `生成时间 ${result.value?.generated_at || props.meta.generated_at}` : '',
+      `主要价格观察日期 ${report.observationDates}`, generatedAt.value ? `生成时间 ${generatedAt.value}` : '',
       ...report.paragraphs.map((p, index) => `${report.titles[index]}：${p}`)].filter(Boolean).join('\n\n')
     try {
       if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text)
@@ -73,5 +75,5 @@ export function useDailyAi(props) {
   }
   onBeforeUnmount(() => clearTimeout(copyTimer))
   return { currentReport, pending, preference, isAi, status, notice, copy, copyStatus,
-    generatedAt: computed(() => result.value?.generated_at || props.meta?.generated_at) }
+    generatedAt }
 }

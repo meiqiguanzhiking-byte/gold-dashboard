@@ -2,7 +2,7 @@ export const isStatic = false
 
 export async function request(path, options = {}) {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), path === 'daily-report' ? 395000 : 45000)
+  const timer = setTimeout(() => controller.abort(), path === 'daily-report' ? 395000 : path === 'reload' ? 180000 : 45000)
   try {
     const response = await fetch('/api/' + path, { ...options, signal: options.signal ? AbortSignal.any([options.signal, controller.signal]) : controller.signal })
     if (!response.ok) throw new Error('HTTP ' + response.status + '，请检查后端服务')

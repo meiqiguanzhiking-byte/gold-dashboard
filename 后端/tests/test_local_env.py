@@ -37,7 +37,7 @@ class LocalEnvironmentTests(unittest.TestCase):
                 request.assert_not_called()
 
     def test_token_and_input_limits_without_paid_request(self):
-        from daily_report import chat_completion, MAX_INPUT_CHARS, MAX_OUTPUT_TOKENS
+        from daily_report import chat_completion, MAX_INPUT_CHARS, MAX_TOTAL_TOKENS
         with patch.dict("os.environ", {"GOLD_REPORT_AI_URL": "http://127.0.0.1:1/chat/completions",
                                       "GOLD_REPORT_AI_MODEL": "test", "GOLD_REPORT_AI_MAX_TOKENS": "99999"}):
             with patch("daily_report.urlopen") as request:
@@ -45,7 +45,11 @@ class LocalEnvironmentTests(unittest.TestCase):
                     "choices": [{"finish_reason": "stop", "message": {"content": '{}'}}]}).encode()
                 chat_completion([{"role": "user", "content": "test"}])
                 payload = json.loads(request.call_args.args[0].data)
-                self.assertEqual(payload["max_tokens"], MAX_OUTPUT_TOKENS)
+                input_budget = len('test'.encode()) + 64 + 256
+                self.assertEqual(payload["max_tokens"] + input_budget, MAX_TOTAL_TOKENS)
+                # 即便显式取消旧的输出上限，也不能绕过合计15000。
+                chat_completion([{"role": "user", "content": "test"}], output_limit=None)
+                self.assertEqual(json.loads(request.call_args.args[0].data)["max_tokens"] + input_budget, MAX_TOTAL_TOKENS)
             with patch("daily_report.urlopen") as request:
                 with self.assertRaisesRegex(ValueError, "input_budget_exceeded"):
                     chat_completion([{"role": "user", "content": "字" * (MAX_INPUT_CHARS + 1)}])

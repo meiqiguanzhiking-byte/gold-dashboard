@@ -19,8 +19,9 @@ from config import LOCAL_TIMEZONE, PROJECT_ROOT
 from data_loader import now_iso
 
 VERSION = "daily-ai-locked-v3"
-MAX_DAILY_ATTEMPTS = 3
-MAX_OUTPUT_TOKENS = 4096
+MAX_DAILY_ATTEMPTS = 5
+MAX_TOTAL_TOKENS = 15000
+MAX_OUTPUT_TOKENS = MAX_TOTAL_TOKENS
 MAX_INPUT_CHARS = 24000
 DEFAULT_THRESHOLDS = {"spread": 0, "price": 1, "volatility": 1, "rates": 1, "shares": 0.2, "volume": 5, "position": 0.2}
 TOKEN = re.compile(r"⟦[INDUS]\d{4}⟧")
@@ -217,7 +218,7 @@ def parse_model_json(content):
     return json.loads(text)
 
 
-def chat_completion(messages):
+def chat_completion(messages, *, output_limit="configured", telemetry=None):
     endpoint = os.environ.get("GOLD_REPORT_AI_URL", "").strip()
     model = os.environ.get("GOLD_REPORT_AI_MODEL", "").strip()
     if not endpoint or not model:
@@ -233,8 +234,15 @@ def chat_completion(messages):
         headers["Authorization"] = "Bearer " + os.environ["GOLD_REPORT_AI_KEY"]
     payload = {"model": model, "temperature": 0, "stream": False,
                "response_format": {"type": "json_object"},
-               "max_tokens": min(MAX_OUTPUT_TOKENS, max(256, int(os.environ.get("GOLD_REPORT_AI_MAX_TOKENS", str(MAX_OUTPUT_TOKENS))))),
                "messages": messages}
+    # 用UTF-8字节数作保守输入token预算（不是实际token数），另留消息封装余量。
+    # 先扣输入再给输出分配额度，禁止通过诊断参数绕过合计上限。
+    input_budget = sum(len(message["content"].encode("utf-8")) + 64 for message in messages) + 256
+    remaining = MAX_TOTAL_TOKENS - input_budget
+    if remaining < 256:
+        raise ValueError("input_budget_exceeded")
+    requested = int(os.environ.get("GOLD_REPORT_AI_MAX_TOKENS", str(MAX_OUTPUT_TOKENS))) if output_limit == "configured" else MAX_OUTPUT_TOKENS if output_limit is None else int(output_limit)
+    payload["max_tokens"] = min(MAX_OUTPUT_TOKENS, max(256, requested), remaining)
     if sum(len(message["content"]) for message in messages) > MAX_INPUT_CHARS:
         raise ValueError("input_budget_exceeded")
     if parsed.hostname == "api.deepseek.com":
@@ -244,7 +252,14 @@ def chat_completion(messages):
         raw = response.read(256_001)
     if len(raw) > 256_000:
         raise ValueError("output_too_large")
-    choice = json.loads(raw)["choices"][0]
+    response_body = json.loads(raw)
+    choice = response_body["choices"][0]
+    if telemetry is not None:
+        telemetry({"usage": response_body.get("usage", {}), "finish_reason": choice.get("finish_reason"),
+                   "requested_max_tokens": payload.get("max_tokens"), "input_token_budget": input_budget,
+                   "total_token_limit": MAX_TOTAL_TOKENS, "model": response_body.get("model", model)})
+    if response_body.get("usage", {}).get("total_tokens", 0) > MAX_TOTAL_TOKENS:
+        raise ValueError("total_token_budget_exceeded")
     if choice.get("finish_reason") == "length":
         raise ValueError("model_output_truncated")
     return parse_model_json(choice["message"]["content"])
@@ -255,14 +270,22 @@ def structured_indicators(rule):
             for id, row in rule["targets"].items()]
 
 
-def call_model(protected, rule, previous_error=None):
+COMPACT_SYSTEM = """你是资管机构黄金日报编辑。将输入facts改写为自然流畅的中文市场短评，结论先行，再用数字支撑，避免逐项机械报数与重复免责声明。正文约1000至1500字；信息不足不凑字数。
+只输出JSON：title及paragraphs。标题4至40字，不含数字；paragraphs为三个非空数组，每项仅fact_id和text。三段依次讲行情、价差及ETF/成交/仓位、波动率与利率含义。每个fact恰好出现一次，放入它指定的paragraph组，同组可换序。
+facts中的⟦I/N/D/U/Sxxxx⟧为指标、数值、日期、单位、方向保护符，含义见protected_values。每个fact的所有保护符在其text中各用一次，不能借用别的fact或用原文数值替换。I/N/U相对顺序不变，D相对顺序不变，现值、前值、变动值角色不变。相同日期仍逐项保留D，不用同日替代。输出前自行检查保护符完整性。保护符周围语言可自由重写，省去不承载事实的套话。
+标题、概括、方向、解释只能来自输入事实。国内外价差不能写成期货相对现货升贴水，部分期限升贴水不能笼统概括全部；日期频率不同不可称同步今日变化，缺失写数据暂缺。不要重新计算或引入外部原因，不写无历史依据的反弹、连续涨跌、新高新低。
+波动率上升仅说明波动加大，不能预测涨跌；ETF份额/持金量仅说明配置需求，不等于现金净流入；成交量仅说明活跃度；总持仓不可判断加多加空平仓，多空来源只能依据明确分项；实际利率仅提供持金机会成本背景，不能认定是当天行情原因。禁止编造因果、买卖建议、目标价、风险评级或分析过程。"""
+
+
+def call_model(protected, rule, previous_error=None, telemetry=None):
     # 每次尝试只有一次付费请求，无第二次模型审校。
-    return chat_completion([{"role": "system", "content": SYSTEM}, {"role": "user", "content": json.dumps({
+    return chat_completion([{"role": "system", "content": COMPACT_SYSTEM}, {"role": "user", "content": json.dumps({
         "report_date": rule["reportDate"], "observation_dates": rule["observationDates"],
-        "structured_indicators": structured_indicators(rule),
-        "facts": protected["facts"], "protected_values": protected["mapping"],
+        "structured_indicators": [{key: row[key] for key in ("id", "name", "date", "previousDate", "value", "previousValue", "unit")} for row in structured_indicators(rule)],
+        "facts": [{key: fact[key] for key in ("id", "paragraph", "source")} for fact in protected["facts"]],
+        "protected_values": {key: value["text"] for key, value in protected["mapping"].items()},
         "previous_validation_error": previous_error,
-        "reminder": "只有一次输出机会。完整保留每项事实的日期及数值保护符，不可用同日替代；若上次校验失败，请本次修正。"}, ensure_ascii=False)}])
+        "reminder": "完整保留日期和数值保护符；自行检查，不能用同日省略日期。"}, ensure_ascii=False, separators=(",", ":"))}], telemetry=telemetry)
 
 
 def rule_bundle(source, source_version=None, reason=None):
@@ -282,11 +305,17 @@ def fact_fingerprint(rule):
     return hashlib.sha256(json.dumps(facts, ensure_ascii=False, sort_keys=True, allow_nan=False).encode()).hexdigest()
 
 
+def observation_edition(rule):
+    # 仅主要价格观察日推进才开启新一期；周频/月频指标各自保留原日期。
+    return max(re.findall(r"\d{4}-\d{2}-\d{2}", rule.get("observationDates", "")), default="missing")
+
+
 def generate_once(source, source_version=None, previous_error=None):
     result = rule_bundle(source, source_version)
+    metrics = []
     try:
         protected = protect(source["rule"], source["catalog"])
-        candidate = call_model(protected, source["rule"], previous_error)
+        candidate = call_model(protected, source["rule"], previous_error, telemetry=metrics.append)
         result["ai"] = validate(candidate, protected, source["rule"])
         result.update(status="ai", validation="passed")
     except Exception as error:
@@ -294,6 +323,8 @@ def generate_once(source, source_version=None, previous_error=None):
         result.update(fallback_reason=reason, validation="failed" if reason == "validation_failed" else "not_run",
                       _error=str(error) if isinstance(error, ValueError) else reason)
     result["generated_at"] = now_iso()
+    if metrics:
+        result["model_usage"] = metrics[-1]
     return result
 
 
@@ -326,44 +357,58 @@ class DailyReportCache:
         result = json.loads(saved) if isinstance(saved, str) else dict(saved)
         # 正文原生成日期不改写；响应批次与本次请求匹配。
         result.update(source_version=source_version, report_date=source["rule"]["reportDate"],
-                      rule=source["rule"], version=VERSION, cache_hit=True)
+                      rule=source["rule"], version=VERSION, cache_hit=True,
+                      ai_matches_current=not result.get("ai") or fact_fingerprint(result["rule"]) == fact_fingerprint(source["rule"]))
         return result
 
-    def get(self, source, source_version=None, allow_generation=False):
+    def get(self, source, source_version=None, allow_generation=False, reuse_daily_saved=False):
         fingerprint = fact_fingerprint(source["rule"])
         day = source["rule"]["reportDate"]
+        edition = observation_edition(source["rule"])
+        storage_key = day + "|" + edition
         previous_error = None
         while True:
             with self.connect() as db:
                 db.execute("BEGIN IMMEDIATE")
+                row = db.execute("SELECT fingerprint, attempts, started, bundle FROM reports WHERE report_day=?", (storage_key,)).fetchone()
+                # 兼容原来的自然日记录，原有成功稿及已消耗额度均保留。
+                legacy = db.execute("SELECT fingerprint, attempts, started, bundle FROM reports WHERE report_day=?", (day,)).fetchone()
+                row_key = storage_key
+                if not row and legacy and observation_edition(json.loads(legacy[3])["rule"]) == edition:
+                    row, row_key = legacy, day
+                # 动态看板全天可查看已保存稿；公开导出仍要求事实完全匹配。
+                if row and reuse_daily_saved and json.loads(row[3]).get("status") == "ai":
+                    return self.response(row[3], source, source_version)
                 same = db.execute("SELECT report_day, bundle FROM reports WHERE fingerprint=? ORDER BY report_day DESC LIMIT 1", (fingerprint,)).fetchone()
                 if same:
                     saved = json.loads(same[1])
-                    if saved.get("status") == "ai" or same[0] != day or not allow_generation:
+                    if saved.get("status") == "ai" or (same[0] in (day, storage_key) and not allow_generation):
                         return self.response(saved, source, source_version)
                 if not allow_generation:
                     return rule_bundle(source, source_version, "no_saved_report")
-                row = db.execute("SELECT fingerprint, attempts, started, bundle FROM reports WHERE report_day=?", (day,)).fetchone()
+                used, active = db.execute("SELECT COALESCE(SUM(attempts),0), COALESCE(MAX(started),0) FROM reports WHERE report_day=? OR report_day LIKE ?", (day, day + "|%" )).fetchone()
+                if used >= MAX_DAILY_ATTEMPTS or active > time.time() - 180:
+                    return self.response(row[3], source, source_version) if row and row[0] == fingerprint else rule_bundle(source, source_version, "daily_limit")
                 if row:
-                    if row[0] != fingerprint:
+                    if json.loads(row[3]).get("status") == "ai":
                         return rule_bundle(source, source_version, "daily_limit")
                     if row[1] >= MAX_DAILY_ATTEMPTS or row[2] > time.time() - 180:
-                        return self.response(row[3], source, source_version)
+                        return self.response(row[3], source, source_version) if row[0] == fingerprint else rule_bundle(source, source_version, "daily_limit")
                     attempt = row[1] + 1
                 else:
                     attempt = 1
                 reservation = rule_bundle(source, source_version, "attempt_locked")
                 reservation["model_attempts"] = attempt
-                db.execute("INSERT INTO reports VALUES (?, ?, ?, ?, ?) ON CONFLICT(report_day) DO UPDATE SET bundle=excluded.bundle, attempts=excluded.attempts, started=excluded.started", (
-                    day, fingerprint, json.dumps(reservation, ensure_ascii=False), attempt, time.time()))
+                db.execute("INSERT INTO reports VALUES (?, ?, ?, ?, ?) ON CONFLICT(report_day) DO UPDATE SET fingerprint=excluded.fingerprint, bundle=excluded.bundle, attempts=excluded.attempts, started=excluded.started", (
+                    row_key, fingerprint, json.dumps(reservation, ensure_ascii=False), attempt, time.time()))
             # 占用记录已提交才允许发请求；超时/崩溃也消耗一次额度。
             result = generate_once(source, source_version, previous_error)
             previous_error = result.pop("_error", None)
             result["model_attempts"] = attempt
             with self.connect() as db:
                 db.execute("UPDATE reports SET bundle=?, started=0 WHERE report_day=? AND fingerprint=?", (
-                    json.dumps(result, ensure_ascii=False), day, fingerprint))
-            if result["status"] == "ai" or attempt >= MAX_DAILY_ATTEMPTS or result.get("fallback_reason") == "not_configured" or previous_error == "input_budget_exceeded":
+                    json.dumps(result, ensure_ascii=False), row_key, fingerprint))
+            if result["status"] == "ai" or used + 1 >= MAX_DAILY_ATTEMPTS or result.get("fallback_reason") == "not_configured" or previous_error == "input_budget_exceeded":
                 return result
             time.sleep(1)
 
@@ -371,13 +416,25 @@ class DailyReportCache:
 persistent_reports = DailyReportCache()
 
 
-def make_bundle(groups, thresholds=None, report_date=None, source_version=None, *, allow_generation=False, cache=None):
+def report_data_ready(state):
+    meta = state["meta"]
+    if meta.get("read_errors") or meta.get("status", "ok") != "ok":
+        return False
+    required = {"au_td_close", "london_gold_spot", "usdcnh", "gold_domestic_spread",
+                "gold_futures_spread", "gold_futures_secondary_spread", "gold_futures_daily_quotes"}
+    prices = {row["metadata"]["indicator_id"]: row["history"][-1]
+              for row in state["groups"].get("price", []) if row.get("history")
+              and row["metadata"]["indicator_id"] in required}
+    return required <= prices.keys() and all(row["value"] is not None for row in prices.values()) and len({row["observation_date"] for row in prices.values()}) == 1
+
+
+def make_bundle(groups, thresholds=None, report_date=None, source_version=None, *, allow_generation=False, cache=None, reuse_daily_saved=False):
     # AI固定使用每日默认阈值生成一稿；自定义阈值仅重算规则版。
     source = rule_report(groups, thresholds, report_date)
     if source["thresholds"] != DEFAULT_THRESHOLDS:
         return rule_bundle(source, source_version, "threshold_changed")
     try:
-        return (cache or persistent_reports).get(source, source_version, allow_generation)
+        return (cache or persistent_reports).get(source, source_version, allow_generation, reuse_daily_saved)
     except (OSError, sqlite3.Error, ValueError, TypeError):
         # 持久化不可用时不绕过额度保护，更不能直接请求模型。
         return rule_bundle(source, source_version, "cache_unavailable")
@@ -401,7 +458,7 @@ class ReportService:
                 # 有界队列，滑块快速调整不会无限占用后端线程或模型队列。
                 if sum(not job.done() for job in self.jobs.values()) >= 4:
                     raise RuntimeError("report_busy")
-                self.jobs[key] = self.pool.submit(make_bundle, state["groups"], thresholds, date, state["meta"]["loaded_at"], allow_generation=allow_generation)
+                self.jobs[key] = self.pool.submit(make_bundle, state["groups"], thresholds, date, state["meta"]["loaded_at"], allow_generation=allow_generation, reuse_daily_saved=True)
                 while len(self.jobs) > 12:
                     stale = next((k for k, job in self.jobs.items() if job.done()), None)
                     if stale is None:
@@ -411,7 +468,8 @@ class ReportService:
 
     def prewarm(self, state):
         try:
-            self.submit(state, allow_generation=True)
+            # 文件更新中/读取失败时不花费额度生成一份残缺日报，仍可读取已存稿。
+            self.submit(state, allow_generation=report_data_ready(state))
         except RuntimeError:
             pass
 
