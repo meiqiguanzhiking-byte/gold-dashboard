@@ -52,7 +52,8 @@ const movements = computed(() => filterDailyMovements(brief.value.movements.filt
 }), thresholds.value))
 const thresholdText = (value, group) => Number(value.toFixed(2)) + (group.kind === 'absolute' ? '' : '%')
 const movementArrow = row => row.trend === 'up' ? '▲' : row.trend === 'down' ? '▼' : '→'
-const textReport = computed(() => buildDailyReport(props.items, reportDate.value, brief.value, movements.value, thresholds.value,
+const textReportDate = computed(() => isStatic ? props.meta?.daily_report?.report_date || beijingDate(props.meta?.generated_at) || reportDate.value : reportDate.value)
+const textReport = computed(() => buildDailyReport(props.items, textReportDate.value, brief.value, movements.value, thresholds.value,
   Object.entries(props.blocks || {}).filter(([, block]) => block.loading || block.error).map(([category]) => category)))
 // 日报的现货、期货信息不受阈值限制；点击时补显对应卡片，保持原筛选值。
 const reportTarget = ref(null)
@@ -108,7 +109,7 @@ function state(card) {
     <section id="daily-term-structure" v-show="!hidden.includes('daily-term-structure')" aria-labelledby="daily-term-structure-title" class="daily-term-section">
       <DailyTermStructure :model="brief.termStructure" :loading="!!blocks?.price?.loading" :error="blocks?.price?.error" />
     </section>
-    <section id="daily-text-report" v-show="!hidden.includes('daily-text-report')" aria-labelledby="daily-text-report-title"><DailyTextReport :report="textReport" :loading="loading" @indicator-click="openReportIndicator" /></section>
+    <section id="daily-text-report" v-show="!hidden.includes('daily-text-report')" aria-labelledby="daily-text-report-title"><DailyTextReport :report="textReport" :loading="loading" :unavailable="failed" :thresholds="thresholds" :meta="meta" @indicator-click="openReportIndicator" /></section>
     <section id="daily-movement-panel" v-show="!hidden.includes('daily-movements') || !hidden.includes('daily-thresholds')" class="daily-movements" aria-labelledby="daily-movements-title" :aria-busy="loading">
       <div class="daily-movements-heading"><h3 id="daily-movements-title">指标变动 <span>{{ movements.length }} 项</span></h3></div>
     <div id="daily-thresholds" v-show="!hidden.includes('daily-thresholds')" class="daily-thresholds" role="group" aria-label="指标变动阈值筛选">

@@ -6,7 +6,7 @@ import { pagesDataPlugin } from './pages-data.mjs'
 export default defineConfig(({ mode }) => ({
   base: mode === 'pages' ? './' : '/',
   publicDir: mode === 'pages' ? '../展示版/数据' : 'public',
-  resolve: { alias: [{ find: /^\.\/live-source\.js$/, replacement: fileURLToPath(new URL(mode === 'pages' ? './src/static-source.js' : './src/live-source.js', import.meta.url)) }] },
+  resolve: { alias: [{ find: '@live-source', replacement: fileURLToPath(new URL(mode === 'pages' ? './src/static-source.js' : './src/live-source.js', import.meta.url)) }] },
   plugins: [vue(), ...(mode === 'pages' ? [pagesDataPlugin()] : [])],
   server: {
     port: Number(process.env.GOLD_VITE_PORT || 5173),

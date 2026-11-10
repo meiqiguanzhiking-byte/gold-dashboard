@@ -14,6 +14,7 @@ from config import DATA_DIR
 from data_loader import load_tables, now_iso
 from indicators import build_indicators
 from deliveries import build_deliveries, SOURCE as DELIVERY_SOURCE
+from public_report import build_public_report
 
 METADATA_FIELDS = (
     "indicator_id", "indicator_name", "unit", "frequency", "source", "sheet", "updated_at",
@@ -51,6 +52,19 @@ def export():
     if policy["include_existing_country_rankings"]:
         allowed.update(item["metadata"]["indicator_id"] for item in groups["central-bank"]
                        if item["metadata"].get("country") and item["metadata"]["country"] not in policy["excluded_country_columns"])
+    blocked = set(policy["withheld_indicators"])
+    for items in groups.values():
+        for item in items:
+            metadata = item["metadata"]
+            dependencies = set(metadata.get("input_sources", [])) | {metadata["source"]}
+            if any(policy.get("source_permissions", {}).get(source) != "approved" or source in policy["withheld_sources"] for source in dependencies):
+                blocked.add(metadata["indicator_id"])
+    while True:
+        derived = {item["metadata"]["indicator_id"] for items in groups.values() for item in items
+                   if any(id in blocked for id in item["metadata"].get("input_indicators", []))}
+        if derived <= blocked:
+            break
+        blocked |= derived
     used_sources = {item["metadata"]["source"] for items in groups.values() for item in items
                     if item["metadata"]["indicator_id"] in allowed}
     if policy.get("include_comex_deliveries"):
@@ -76,8 +90,8 @@ def export():
             if m["source"] in policy["withheld_sources"]:
                 reason = reason or "此来源尚未确认可公开，展示数据暂缺"
             dependencies = m.get("input_sources", [m["source"]])
-            if category == "price" and any(policy.get("source_permissions", {}).get(source) != "approved" or source in policy["withheld_sources"] for source in dependencies):
-                reason = "相关来源公开使用尚未确认，静态版不发布价格、汇率及派生指标"
+            if key in blocked:
+                reason = reason or "相关来源或输入项公开使用尚未确认，静态版不发布该指标及派生值"
             if any(key in policy["withheld_indicators"] for key in m.get("input_indicators", [])):
                 reason = "派生指标的输入项尚未获准公开，展示数据暂缺"
             if reason:
@@ -143,6 +157,7 @@ def export():
     }
     if deliveries is not None:
         snapshot["deliveries"] = deliveries
+    snapshot["daily_report"] = build_public_report(exported, snapshot["generated_at"])
     validate_public(snapshot)
     output = ROOT / "展示版" / "数据" / "data" / "snapshot.json"
     output.parent.mkdir(parents=True, exist_ok=True)

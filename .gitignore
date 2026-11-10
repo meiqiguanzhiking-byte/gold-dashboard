@@ -62,6 +62,8 @@ playwright-report/
 /后端/*
 !/后端/*.py
 !/后端/requirements.txt
+!/后端/.env.example
+!/后端/daily_report.md
 !/后端/central_bank_scope.json
 !/后端/tests/
 /后端/tests/*

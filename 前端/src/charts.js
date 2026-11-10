@@ -1,10 +1,10 @@
 import * as echarts from 'echarts/core'
-import { LineChart, BarChart, HeatmapChart, CustomChart } from 'echarts/charts'
+import { LineChart, BarChart, HeatmapChart, CustomChart, ScatterChart, BoxplotChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, VisualMapComponent, MarkLineComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import { escapeHtml, format } from './data.js'
 
-echarts.use([LineChart, BarChart, HeatmapChart, CustomChart, GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, VisualMapComponent, MarkLineComponent, CanvasRenderer])
+echarts.use([LineChart, BarChart, HeatmapChart, CustomChart, ScatterChart, BoxplotChart, GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, VisualMapComponent, MarkLineComponent, CanvasRenderer])
 export { echarts }
 export function tooltipRow(item, point, color) {
   const m = item.metadata

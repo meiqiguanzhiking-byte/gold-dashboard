@@ -92,7 +92,7 @@ try {
   for (const item of snapshot.groups.price.filter(i => i.metadata.publication_withheld)) assert.equal(item.points.length, 0)
   await page.getByRole('tab', { name: '国内' }).click()
   await page.waitForTimeout(250)
-  assert.ok((await page.locator('#global-central-bank').textContent()).includes('基于已报告数据，可能随补报修订'))
+  assert.ok((await page.locator('#global-central-bank').textContent()).includes('机构缺失或空值按0处理'))
   assert.equal(await page.locator('#domestic-etf input[type=checkbox]').count(), 7)
   const fundChecks = page.locator('#domestic-etf input[type=checkbox]')
   for (const checkbox of await fundChecks.all()) await checkbox.uncheck()

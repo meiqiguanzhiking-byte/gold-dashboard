@@ -18,7 +18,7 @@ export function expandSnapshot(snapshot) {
     ...(category === 'inventory' ? { comex: snapshot.comex, deliveries: snapshot.deliveries } : {}),
   }]))
   return { ...groups, meta: { loaded_at: snapshot.generated_at, generated_at: snapshot.generated_at, files: snapshot.files,
-    delivery_coverage: snapshot.delivery_coverage,
+    delivery_coverage: snapshot.delivery_coverage, daily_report: snapshot.daily_report,
     indicators: Object.values(groups).flatMap(group => group.indicators.map(item => item.metadata)), publication: snapshot.publication } }
 }
 

@@ -6,15 +6,22 @@ from datetime import date
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, ConfigDict, Field
+from typing import Literal
 
 from config import ALLOWED_ORIGINS
 from indicators import CATEGORIES
 from store import store
+from research_etf import get_etf_replication
+from research_macro import get_macro_replication
+from research_dual_anchor import get_dual_anchor
+from daily_report import report_service
 
 
 @asynccontextmanager
 async def lifespan(app):
     await asyncio.to_thread(store.reload)
+    report_service.prewarm(store.snapshot)
     yield
 
 
@@ -46,9 +53,56 @@ def metadata():
 @app.post("/api/reload")
 async def reload_data():
     meta = await asyncio.to_thread(store.reload)
+    report_service.prewarm(store.snapshot)
     return {"status": meta["status"], "loaded_at": meta["loaded_at"],
             "file_count": len(meta["files"]), "read_errors": meta["read_errors"],
             "warnings": meta["warnings"], "missing_indicators": meta["missing_indicators"]}
+
+
+class ReportRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+    thresholds: dict[Literal["spread", "price", "volatility", "rates", "shares", "volume", "position"], float] = Field(default_factory=dict)
+    source_version: str | None = Field(default=None, max_length=80)
+
+
+@app.post("/api/daily-report")
+async def daily_report(body: ReportRequest):
+    state = snapshot()
+    limits = {"spread": 5, "price": 5, "volatility": 5, "rates": 5, "shares": 1, "volume": 10, "position": 1}
+    if any(value < 0 or value > limits[key] for key, value in body.thresholds.items()):
+        raise HTTPException(422, "无效日报阈值")
+    if body.source_version and body.source_version != state["meta"]["loaded_at"]:
+        raise HTTPException(409, "数据批次已更新，请刷新日报")
+    try:
+        future = report_service.submit(state, body.thresholds)
+        return await asyncio.wait_for(asyncio.shield(asyncio.wrap_future(future)), timeout=390)
+    except Exception:
+        # 日报异常独立于所有数据接口；前端立即保留本地规则底稿。
+        raise HTTPException(503, "AI日报暂不可用，请使用数值规则") from None
+
+
+@app.get("/api/research/etf-monthly")
+def research_etf_monthly():
+    try:
+        return get_etf_replication()
+    except (OSError, ValueError, KeyError) as error:
+        raise HTTPException(503, "ETF月度复现数据暂不可用：" + str(error)) from error
+
+
+@app.get("/api/research/macro-monthly")
+def research_macro_monthly():
+    try:
+        return get_macro_replication()
+    except (OSError, ValueError, KeyError) as error:
+        raise HTTPException(503, "长期宏观复现数据暂不可用：" + str(error)) from error
+
+
+@app.get("/api/research/dual-anchor")
+def research_dual_anchor():
+    try:
+        return get_dual_anchor()
+    except (OSError, ValueError, KeyError) as error:
+        raise HTTPException(503, "双锚复现数据暂不可用：" + str(error)) from error
 
 
 def category_handler(category):

@@ -1,4 +1,7 @@
 <script setup>
+import ResearchEtfMonthly from './ResearchEtfMonthly.vue'
+import ResearchMacroMonthly from './ResearchMacroMonthly.vue'
+import ResearchDualAnchor from './ResearchDualAnchor.vue'
 const modules = [
   { id: 'research-etf', number: '01', title: '黄金ETF月度预测模型', description: '从全球黄金ETF月度流量出发，研究下一月黄金收益。' },
   { id: 'research-macro', number: '02', title: '长期宏观定价模型', description: '结合美元指数、VIX、全球央行净购金与时间趋势，研究长期价格中枢及偏离。' },
@@ -19,10 +22,12 @@ const modules = [
     <section v-for="module in modules" :id="module.id" :key="module.id" class="research-module">
       <div class="research-module-heading">
         <div><span class="research-number">{{ module.number }}</span><h3>{{ module.title }}</h3></div>
-        <span class="research-pending">待复现</span>
+        <span class="research-pending">样本内复现</span>
       </div>
       <p class="research-description">{{ module.description }}</p>
-      <div class="research-placeholder">后续逐步接入模型计算与图表</div>
+      <ResearchEtfMonthly v-if="module.id === 'research-etf'" />
+      <ResearchMacroMonthly v-else-if="module.id === 'research-macro'" />
+      <ResearchDualAnchor v-else />
     </section>
   </div>
 </template>

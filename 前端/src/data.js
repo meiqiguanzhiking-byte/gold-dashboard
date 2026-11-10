@@ -1,5 +1,5 @@
 import { computed, reactive, ref } from 'vue'
-import { isStatic, request } from './live-source.js'
+import { isStatic, request } from '@live-source'
 export { isStatic }
 
 export const categories = ['etf', 'futures', 'cftc', 'au-td', 'central-bank', 'inventory', 'price']

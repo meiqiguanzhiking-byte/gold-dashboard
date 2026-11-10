@@ -15,7 +15,19 @@ const forbidden = /\b[A-Za-z]:[\\/]|localhost|127\.0\.0\.1|\/api\/|Traceback|BEG
 const snapshot = JSON.parse(await readFile(snapshotPath, 'utf8'))
 assert.equal(snapshot.schema_version, 1)
 assert.ok(!forbidden.test(JSON.stringify(snapshot)), '快照不得包含本机地址、路径、接口或密钥')
-assert.deepEqual(Object.keys(snapshot).filter(key => key !== 'deliveries').sort(), ['comex', 'files', 'generated_at', 'groups', 'publication', 'schema_version'])
+assert.deepEqual(Object.keys(snapshot).filter(key => !['deliveries', 'daily_report'].includes(key)).sort(), ['comex', 'files', 'generated_at', 'groups', 'publication', 'schema_version'])
+if (snapshot.daily_report) {
+  const report = snapshot.daily_report
+  assert.equal(report.publication_scope, 'public_only')
+  assert.equal(report.source_version, snapshot.generated_at)
+  assert.equal(report.report_date, snapshot.generated_at.slice(0, 10))
+  assert.equal(report.rule.paragraphs.length, 3)
+  assert.ok(report.status !== 'ai' || report.validation === 'passed' && report.ai?.paragraphs.length === 3)
+  for (const id of snapshot.publication.withheld_indicators) for (const version of [report.rule, report.ai].filter(Boolean)) {
+    const row = version.targets[id]
+    if (row) for (const field of ['value', 'previousValue', 'change', 'percent']) assert.equal(row[field] ?? null, null, '禁止公开的指标不得从日报结构化数据泄露')
+  }
+}
 if (snapshot.deliveries) {
   assert.equal(snapshot.deliveries.source, '黄金交割.xlsx')
   assert.equal(snapshot.deliveries.unit, '吨')

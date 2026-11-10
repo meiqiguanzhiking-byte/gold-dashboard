@@ -43,7 +43,7 @@ export function buildDailyReport(items, reportDate, brief, movements, thresholds
   const d = date => date ? date.startsWith(reportDate.slice(0, 4)) ? date.slice(5) : date : '日期缺失'
   const spreadSentence = (id, label, rank) => {
     const p = point(id), records = history(byId[id], reportDate)
-    if (!isNumber(p.value)) return `${metric(id, label + '价差', p)}（${d(p.date)}）数据缺失`
+    if (!isNumber(p.value)) return `${metric(id, label + '价差', p)}（${d(p.date)}）数据暂缺`
     const contract = rank ? contractAt(byId, p.date, rank) : null
     const comparable = offset => !rank || (contract && records.slice(-offset - 1).length === offset + 1 && records.slice(-offset - 1).every(r => contractAt(byId, r.observation_date, rank) === contract))
     const status = p.value > 0 ? '国内升水' : p.value < 0 ? '国内贴水' : '内外平价'
@@ -88,7 +88,7 @@ export function buildDailyReport(items, reportDate, brief, movements, thresholds
   const local = point('au_td_close'), overseas = point('london_gold_spot')
   const priceLine = (p, label, unit, id) => {
     const name = metric(id, label, { ...p, unit })
-    if (!isNumber(p.value)) return `${name}（${d(p.date)}）数据缺失`
+    if (!isNumber(p.value)) return `${name}（${d(p.date)}）数据暂缺`
     const change = isNumber(p.previousValue) && p.previousValue > 0 ? p.value - p.previousValue : null
     return `${name}（${d(p.date)}）${current(n(p.value) + unit)}，` + (isNumber(change) ? `较${d(p.previousDate)}变化${current(signed(change) + unit)}，涨跌幅${current(signed(change / p.previousValue * 100) + '%')}` : '比较期缺失或前值不适用，涨跌暂不评价')
   }
@@ -143,7 +143,7 @@ export function buildDailyReport(items, reportDate, brief, movements, thresholds
   }
   const missingIndicators = dailyThresholdGroups.filter(g => ['volatility', 'rates', 'shares', 'volume', 'position'].includes(g.id))
     .flatMap(g => g.indicators).filter(i => byId[i.id] && !isNumber(point(i.id).value))
-  const missingText = missingIndicators.length ? missingIndicators.map(i => `${metric(i.id, i.label, point(i.id))}（${d(point(i.id).date)}）数据缺失`).join('；') + '。' : ''
+  const missingText = missingIndicators.length ? missingIndicators.map(i => `${metric(i.id, i.label, point(i.id))}（${d(point(i.id).date)}）数据暂缺`).join('；') + '。' : ''
   const errorText = unavailable.length ? '部分指标最新数据暂不可得。' : ''
   const selected = []
   const selectedIds = []

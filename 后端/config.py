@@ -2,6 +2,9 @@
 from datetime import timedelta, timezone
 import os
 from pathlib import Path
+from local_env import load_backend_env
+
+load_backend_env()
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 # 默认沿用项目旁的数据目录；其他机器可通过环境变量指定，无须写入本机绝对路径。

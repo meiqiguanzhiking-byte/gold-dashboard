@@ -1,4 +1,4 @@
-"""已报告官方黄金储备月度净变化；显式范围、原表空白与CSV逐月核验。"""
+"""按正式 CSV 汇总全球央行黄金储备月度净变化。"""
 import hashlib
 import json
 import math
@@ -50,6 +50,12 @@ def read_reported_months(path):
 
 
 def add_central_bank_changes(builder, evidence_file=CENTRAL_BANK_CHANGES_FILE):
+    """按正式 CSV 直接构建全球央行月度变化。
+
+    CSV 是该指标的唯一准据。机构列的空值、非数字值以及缺少的机构列均按 0
+    处理，因此不会再因为 WGC 证据表覆盖范围或逐机构数值差异而隐藏整个月份。
+    ``evidence_file`` 保留在函数签名中，以兼容既有调用方，但不再参与取值核验。
+    """
     scope = json.loads(SCOPE_FILE.read_text(encoding="utf-8"))
     included, excluded = scope["included_entities"], scope["excluded_entities"]
     if len(set(included)) != len(included) or set(included) & set(excluded):
@@ -59,57 +65,25 @@ def add_central_bank_changes(builder, evidence_file=CENTRAL_BANK_CHANGES_FILE):
     if "时间" not in frame:
         frame = pd.DataFrame(columns=["时间", *frame.columns])
     columns = [c for c in frame if c != "时间"]
-    schema_ok = set(columns) == set(included) | set(excluded)
-    notes = [NOTICE, "原值为储备月度净变化，不再差分；正值合计为买入量，负值合计为卖出量，二者相加为净买入。",
-             "买入/卖出是机构净变化正负分组，不是交易流水；原表数值0计为有值，空白不计为报告。"]
-    try:
-        reported, entities = read_reported_months(evidence_file)
-        schema_ok = schema_ok and set(columns) == entities
-    except (OSError, ValueError, KeyError, StopIteration, BadZipFile, TypeError, IndexError):
-        reported = {}
-        notes.append("数据暂缺：WGC原始Monthly表不可用或结构异常，无法核实CSV历史补零和报告覆盖。")
-    if not schema_ok:
-        notes.append("机构字段发生变化，待核对纳入/排除名单；相关汇总不计算。")
-    sums = {"purchases": [], "sales": [], "net": [], "count": []}
-    # 未通过逐月原表核验时，国家序列也不把CSV补零误当有效报告。
-    restored = frame.copy()
+    notes = [NOTICE, "以全球央行购金.csv为准；原值为储备月度净变化，不再差分；正值合计为买入量，负值合计为卖出量，二者相加为净买入。",
+             "买入/卖出是机构净变化正负分组，不是交易流水；机构缺失、空值或非数字值均按0处理。"]
+
+    # 统一把 CSV 中的机构字段转换为数值，并按用户指定口径把缺失值视作 0。
+    # 缺少整列的机构也按 0 处理，避免单个机构字段变化导致整个月份消失。
+    numeric = frame.copy()
     for c in columns:
-        restored[c] = pd.Series(float("nan"), index=frame.index)
-    bad_months = []
+        numeric[c] = pd.to_numeric(numeric[c], errors="coerce").fillna(0.0)
+    restored = numeric
+    sums = {"purchases": [], "sales": [], "net": [], "count": []}
     for idx, row in frame.iterrows():
-        month = str(row["时间"])[:7]
-        original = reported.get(month)
-        verified = schema_ok and original is not None
-        if verified:
-            for c in columns:
-                try:
-                    actual = float(row[c])
-                except (ValueError, TypeError):
-                    actual = float("nan")
-                expected = original[c]
-                if expected is None:
-                    matches = pd.isna(actual) or actual == 0
-                else:
-                    matches = math.isfinite(actual) and math.isclose(actual, expected, rel_tol=1e-10, abs_tol=1e-9)
-                if not matches:
-                    verified = False
-                    break
-        if not verified:
-            bad_months.append(month)
-            for values in sums.values():
-                values.append(None)
-            continue
-        for c in columns:
-            restored.at[idx, c] = original[c]
-        values = [original[c] for c in included if original[c] is not None]
+        # CSV 中未列出的纳入机构同样按 0 参与汇总。
+        values = [float(numeric.at[idx, c]) if c in numeric.columns else 0.0 for c in included]
         positive = math.fsum(v for v in values if v > 0)
         negative = math.fsum(v for v in values if v < 0)
-        sums["purchases"].append(positive if values else None)
-        sums["sales"].append(negative if values else None)
-        sums["net"].append(positive + negative if values else None)
+        sums["purchases"].append(positive)
+        sums["sales"].append(negative)
+        sums["net"].append(positive + negative)
         sums["count"].append(len(values))
-    if bad_months:
-        notes.append(f"{len(bad_months)}个月份缺少匹配的原始报告或与CSV不一致，相关数据保持缺失。")
     for country in columns:
         slug = re.sub(r"[^a-z0-9]+", "_", country.lower()).strip("_")
         suffix = hashlib.sha1(country.encode("utf-8")).hexdigest()[:8]
@@ -122,10 +96,10 @@ def add_central_bank_changes(builder, evidence_file=CENTRAL_BANK_CHANGES_FILE):
         ("purchases", "global_central_bank_gross_purchases", "月买入量（已报告正变化合计）", "吨"),
         ("sales", "global_central_bank_gross_sales", "月卖出量（已报告负变化合计）", "吨"),
         ("net", "global_central_bank_net_purchases", "全球黄金储备净变化合计（已报告）", "吨"),
-        ("count", "global_central_bank_reporting_count", "月度有效报告机构数", "家"),
+        ("count", "global_central_bank_reporting_count", "月度纳入机构数", "家"),
     ]:
         builder.add("central-bank", key, name, unit, "月度", SOURCE, frame=frame, values=sums[field], warnings=notes,
                     source_reference=scope["source_reference"], scope_entity_count=len(included),
                     aggregation_scope=scope if field == "net" else None,
-                    coverage_basis="已报告数据，非完整全球总量", reporting_evidence="WGC Changes / Monthly",
-                    method="Σ正变化；Σ负变化；净变化＝正变化合计＋负变化合计；报告数包含原表真实0，排除原表空白")
+                    coverage_basis="CSV纳入机构口径，非完整全球总量", reporting_evidence="全球央行购金.csv",
+                    method="Σ正变化；Σ负变化；净变化＝正变化合计＋负变化合计；机构缺失或空值按0")
