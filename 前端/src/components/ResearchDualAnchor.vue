@@ -4,6 +4,7 @@ import { echarts, axisLabel, tooltipStyle } from '../charts.js'
 import { isStatic, request } from '@live-source'
 
 const activePage = inject('dashboardActivePage')
+const emit = defineEmits(['loaded'])
 const result = ref(null), loading = ref(false), error = ref('')
 const bullEl = ref(null), bearEl = ref(null), signalsEl = ref(null)
 const lowPathEl = ref(null), highPathEl = ref(null), lowBoxEl = ref(null), highBoxEl = ref(null)
@@ -12,13 +13,12 @@ let observer
 const percent = (v, digits = 2) => v == null ? '—' : (v * 100).toFixed(digits) + '%'
 const number = (v, digits = 2) => v == null ? '—' : v.toFixed(digits)
 const pp = v => v == null ? '—' : (v > 0 ? '+' : '') + (v * 100).toFixed(2)
-const direction = v => v > 0 ? '看涨' : v < 0 ? '看跌' : '中性'
 const stateName = computed(() => Object.fromEntries((result.value?.state_counts || []).map(s => [s.state, s.name])))
 const events = computed(() => result.value?.divergence.flatMap(g => g.events.map(e => ({ ...e, name: g.name }))).sort((a, b) => b.start.localeCompare(a.start)) || [])
 async function load() {
   if (isStatic || loading.value) return
   loading.value = true; error.value = ''
-  try { result.value = await request('research/dual-anchor'); await nextTick(); draw() }
+  try { result.value = await request('research/dual-anchor'); emit('loaded', result.value); await nextTick(); draw() }
   catch (e) { error.value = e.message }
   finally { loading.value = false }
 }
@@ -125,12 +125,6 @@ onBeforeUnmount(() => { observer?.disconnect(); for (const chart of charts.value
     <p v-else-if="error" role="alert">{{ error }} <button @click="load">重试</button></p>
     <template v-if="result">
       <p class="dual-note">信号样本 {{ result.sample.start }}—{{ result.sample.end }}，共{{ result.sample.count }}个月；次月收益可检验至{{ result.sample.return_end }}，偏离率至{{ result.sample.deviation_end }}。</p>
-      <div class="dual-summary">
-        <div><span>最新完整月份</span><strong>{{ result.latest.month }}</strong><small>{{ stateName[result.latest.state] }}</small></div>
-        <div><span>ETF短期锚</span><strong>{{ direction(result.latest.etf) }}</strong><small>预测次月收益 {{ percent(result.latest.predicted) }}</small></div>
-        <div><span>宏观长期锚</span><strong>{{ direction(result.latest.macro) }}</strong><small>价格偏离 {{ percent(result.latest.deviation) }}</small></div>
-        <div><span>长期看涨阈值 P30</span><strong>{{ percent(result.threshold) }}</strong><small>长期看跌阈值为偏离率＞0</small></div>
-      </div>
       <div class="dual-rules">ETF预测收益＞0看涨、＜0看跌；宏观偏离＜P30看涨、＞0看跌，其余中性。方向相同为共振，相反为背离。</div>
       <div class="dual-counts"><span v-for="s in result.state_counts" :key="s.state">{{ s.name }} <strong>{{ s.count }}</strong>个月</span></div>
       <h4>共振：次月黄金收益</h4>
