@@ -15,6 +15,7 @@ from data_loader import load_tables, now_iso
 from indicators import build_indicators
 from deliveries import build_deliveries, SOURCE as DELIVERY_SOURCE
 from public_report import build_public_report
+from daily_news import public_news
 
 METADATA_FIELDS = (
     "indicator_id", "indicator_name", "unit", "frequency", "source", "sheet", "updated_at",
@@ -45,6 +46,9 @@ def export():
     tables, files, _ = load_tables(DATA_DIR)
     groups = build_indicators(tables)
     allowed = set(policy["indicator_ids"])
+    if policy.get("include_bank_fx"):
+        allowed.update(item["metadata"]["indicator_id"] for item in groups["price"]
+                       if item["metadata"].get("bank_fx_currency"))
     if policy.get("include_international_futures"):
         allowed.update(item["metadata"]["indicator_id"] for item in groups["price"]
                        if item["metadata"].get("futures_product") or item["metadata"].get("main_futures_product"))
@@ -158,6 +162,7 @@ def export():
     if deliveries is not None:
         snapshot["deliveries"] = deliveries
     snapshot["daily_report"] = build_public_report(exported, snapshot["generated_at"])
+    snapshot["daily_news"] = public_news(policy)
     validate_public(snapshot)
     output = ROOT / "展示版" / "数据" / "data" / "snapshot.json"
     output.parent.mkdir(parents=True, exist_ok=True)

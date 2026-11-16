@@ -15,8 +15,9 @@ def source_signature(directory=DATA_DIR):
 
 
 class DailySourceMonitor:
-    def __init__(self, store, reports, signature=source_signature, stable_polls=2):
+    def __init__(self, store, reports, signature=source_signature, stable_polls=2, news=None):
         self.store, self.reports, self.signature = store, reports, signature
+        self.news = news
         try:
             self.loaded = signature()
         except OSError:
@@ -43,6 +44,8 @@ class DailySourceMonitor:
             return False
         self.loaded, self.pending, self.stable = current, None, 0
         self.reports.prewarm(self.store.snapshot)
+        if self.news is not None:
+            self.news.prewarm(self.store.snapshot)
         return True
 
     async def run(self):

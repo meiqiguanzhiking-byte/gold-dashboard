@@ -1,10 +1,22 @@
 // 真实来源依据用户提供的《数据更新来源_初.txt》；文件名仅用于内部匹配。
 const sourceLabels = {
+  'chinanews-finance': '中国新闻网·财经',
+  'chinanews-world': '中国新闻网·国际',
+  'fed-press': '美联储·新闻发布',
+  'fed-speeches': '美联储·官员讲话',
+  'fed-research': '美联储·研究',
+  'weekly-fed': '美联储',
+  'weekly-nbs': '国家统计局',
+  'weekly-cleveland-fed': '克利夫兰联邦储备银行',
+  'weekly-new-york-fed': '纽约联邦储备银行',
+  'weekly-atlanta-fed': '亚特兰大联邦储备银行',
+  'weekly-eia': 'EIA 美国能源信息署',
   '央行购金.xlsx': '国家外汇管理局',
   'AuTD.csv': '上海黄金交易所',
   '黄金期货.csv': '上海期货交易所',
   '黄金期货主力合约.csv': '上海期货交易所主力合约序列',
   '黄金ETF份额.xlsx': '上海证券交易所和深圳证券交易所',
+  '银行结售汇.xlsx': '银行结售汇.xlsx（月度原表）',
   'CFTC黄金非商业持仓量.csv': 'CFTC 美国商品期货交易委员会',
   'CFTC黄金交易量和持仓量.csv': 'CME Group 芝商所',
   'SPDR黄金ETF份额.xlsx': 'WGC 世界黄金协会',
@@ -26,7 +38,7 @@ export function sourceLabel(metadataOrSource) {
   if (['gold_futures_contract'].includes(metadataOrSource?.indicator_id)) return '上海期货交易所；Barchart 官网 → CME 芝商所 / SGX 新加坡交易所（同日同到期合约折算）'
   if ((metadataOrSource?.futures_product || metadataOrSource?.main_futures_product) === 'comex') return 'Barchart 官网 → CME 芝商所'
   if ((metadataOrSource?.futures_product || metadataOrSource?.main_futures_product) === 'sgx_usdcnh') return 'Barchart 官网 → SGX 新加坡交易所'
-  if (metadataOrSource?.indicator_id === 'gold_domestic_spread') return '上海黄金交易所；Barchart 官网（同日价格及汇率折算）'
+  if (['gold_domestic_spread', 'gold_implied_fx', 'gold_premium_cnh', 'gold_premium_cny'].includes(metadataOrSource?.indicator_id)) return '上海黄金交易所；Barchart 官网（同日价格及汇率折算）'
   const source = typeof metadataOrSource === 'string' ? metadataOrSource : metadataOrSource?.source
   return sourceLabels[source] || '真实来源待确认'
 }

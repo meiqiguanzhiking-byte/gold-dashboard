@@ -39,7 +39,7 @@ export function buildPagesData(snapshot) {
     })
   }
   // 日报固定20期现货统计、同合约期货比较；保留空值及期限结构所需历史。
-  const briefHistoryLimits = { au_td_close: 20, london_gold_spot: 20, usdcnh: 20, gold_futures_daily_quotes: 20,
+  const briefHistoryLimits = { au_td_close: 20, london_gold_spot: 20, usdcnh: 20, usdcny: 20, gold_futures_daily_quotes: 20,
     au_td_delivery_direction: 30, gold_domestic_spread: 11, gold_futures_spread: 11, gold_futures_secondary_spread: 11, gold_futures_spread_details: 11 }
   const percentileIds = new Set(dailyThresholdGroups.filter(group => percentileGroups.has(group.id)).flatMap(group => group.indicators.map(indicator => indicator.id)))
   const futuresDates = new Set((snapshot.groups.price?.find(item => item.metadata.indicator_id === 'gold_futures_daily_quotes')?.points || []).slice(-2).flatMap(point => {

@@ -1,5 +1,6 @@
 {
   "schema_version": 1,
+  "daily_news_public_sources": [],
   "publication_status": "用户已于2026-10-26确认全量数据及新增价格、汇率来源可以公开；展示快照仍仅导出页面所需指标",
   "indicator_ids": [
     "au_td_close",
@@ -7,7 +8,11 @@
     "gold_hv60",
     "london_gold_spot",
     "usdcnh",
+    "usdcny",
     "gold_domestic_spread",
+    "gold_implied_fx",
+    "gold_premium_cnh",
+    "gold_premium_cny",
     "gold_futures_close",
     "gold_futures_spread",
     "gold_futures_secondary_spread",
@@ -96,6 +101,7 @@
     "au_td_delivery_direction": 30
   },
   "source_permissions": {
+    "银行结售汇.xlsx": "approved",
     "AuTD.csv": "approved",
     "黄金现货价格.xlsx": "approved",
     "COMEX黄金与汇率期货_北京时间15收盘价.csv": "approved",
@@ -116,6 +122,7 @@
     "黄金期货主力合约.csv": "approved"
   },
   "include_comex_deliveries": true,
+  "include_bank_fx": true,
   "include_international_futures": true,
   "withheld_sources": [],
   "withheld_indicators": {}

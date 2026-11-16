@@ -26,7 +26,7 @@ class InternationalPriceData(unittest.TestCase):
     def test_source_units_and_all_history(self):
         items = self.build()
         raw = self.tables[(SOURCE, SHEET)].frame.sort_values('日期')
-        for key, column, unit in [('london_gold_spot', '伦敦金现（美元/金衡盎司）', '美元/金衡盎司'), ('usdcnh', '美元兑离岸人民币（CNH/美元）', 'CNH/美元')]:
+        for key, column, unit in [('london_gold_spot', '伦敦金现（美元/金衡盎司）', '美元/金衡盎司'), ('usdcnh', '美元兑离岸人民币（CNH/美元）', 'CNH/美元'), ('usdcny', '美元兑在岸人民币（CNY/美元）', 'CNY/美元')]:
             item = items[key]
             self.assertEqual(len(item['history']), len(raw))
             self.assertEqual(item['metadata']['unit'], unit)
@@ -79,8 +79,8 @@ class InternationalPriceData(unittest.TestCase):
         domestic['日期'] = pd.to_datetime(domestic['日期'], format='mixed', errors='coerce')
         overseas = self.tables[(SOURCE, SHEET)].frame
         merged = domestic.merge(overseas, on='日期', how='inner')
-        eligible = merged.dropna()
-        expected = (eligible['价格'] - eligible['伦敦金现（美元/金衡盎司）'] * eligible['美元兑离岸人民币（CNH/美元）'] / 31.1034768)
+        eligible = merged.dropna(subset=['价格', '伦敦金现（美元/金衡盎司）', '美元兑在岸人民币（CNY/美元）'])
+        expected = (eligible['价格'] - eligible['伦敦金现（美元/金衡盎司）'] * eligible['美元兑在岸人民币（CNY/美元）'] / 31.1034768)
         actual = {p['observation_date']: p['value'] for p in item['history'] if p['value'] is not None}
         self.assertEqual(len(actual), len(eligible))
         for d, value in zip(eligible['日期'], expected): self.assertAlmostEqual(actual[d.strftime('%Y-%m-%d')], value, places=9)
@@ -94,7 +94,7 @@ class InternationalPriceData(unittest.TestCase):
         items = self.build()
         spread = items['gold_domestic_spread']
         day = items['london_gold_spot']['latest']['observation_date']
-        inputs = [items[key] for key in ('au_td_close', 'london_gold_spot', 'usdcnh')]
+        inputs = [items[key] for key in ('au_td_close', 'london_gold_spot', 'usdcny')]
         values = [next((p['value'] for p in i['history'] if p['observation_date'] == day), None) for i in inputs]
         expected = values[0] - values[1] * values[2] / 31.1034768
         self.assertEqual(spread['latest']['observation_date'], day)
@@ -111,11 +111,11 @@ class InternationalPriceData(unittest.TestCase):
 
     def test_missing_inputs_duplicates_and_no_latest_fallback(self):
         frame = self.tables[(SOURCE, SHEET)].frame.copy()
-        frame.loc[frame['日期'].idxmax(), '美元兑离岸人民币（CNH/美元）'] = float('nan')
+        frame.loc[frame['日期'].idxmax(), '美元兑在岸人民币（CNY/美元）'] = float('nan')
         tables = dict(self.tables)
         tables[(SOURCE, SHEET)] = replace(tables[(SOURCE, SHEET)], frame=frame)
         items = self.build(tables)
-        self.assertIsNone(items['usdcnh']['latest']['value'])
+        self.assertIsNone(items['usdcny']['latest']['value'])
         self.assertIsNone(items['gold_domestic_spread']['latest']['value'])
         self.assertIsNotNone(items['gold_domestic_spread']['latest_available']['value'])
         frame = pd.concat([frame, frame.iloc[[-2]]], ignore_index=True)
@@ -123,11 +123,21 @@ class InternationalPriceData(unittest.TestCase):
         items = self.build(tables)
         duplicate = frame.iloc[-1]['日期'].strftime('%Y-%m-%d')
         self.assertIsNone(next(p['value'] for p in items['gold_domestic_spread']['history'] if p['observation_date'] == duplicate))
-        frame = frame.drop(columns=['美元兑离岸人民币（CNH/美元）'])
+        frame = frame.drop(columns=['美元兑在岸人民币（CNY/美元）'])
         tables[(SOURCE, SHEET)] = replace(tables[(SOURCE, SHEET)], frame=frame)
         items = self.build(tables)
         self.assertEqual(items['gold_domestic_spread']['metadata']['valid_count'], 0)
         self.assertIsNotNone(items['london_gold_spot']['latest']['value'])
+
+    def test_offshore_quote_does_not_affect_spot_spread(self):
+        original = self.build()['gold_domestic_spread']
+        table = self.tables[(SOURCE, SHEET)]
+        frame = table.frame.drop(columns=['美元兑离岸人民币（CNH/美元）'])
+        tables = {**self.tables, (SOURCE, SHEET): replace(table, frame=frame)}
+        result = self.build(tables)
+        self.assertEqual(result['gold_domestic_spread']['history'], original['history'])
+        self.assertIn('usdcny', original['metadata']['input_indicators'])
+        self.assertNotIn('usdcnh', original['metadata']['input_indicators'])
 
 
 if __name__ == '__main__': unittest.main()

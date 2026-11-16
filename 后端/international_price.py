@@ -10,9 +10,9 @@ SHEET = "北京时间1530"
 VOLATILITY_SOURCE = "黄金ETF波动率指数.csv"
 TREASURY_SOURCE = "美债收益率.xlsx"
 GRAMS_PER_TROY_OUNCE = 31.1034768
-FORMULA = "Au(T+D)（元/克）−伦敦金现（美元/金衡盎司）×USDCNH（CNH/美元）÷31.1034768"
+FORMULA = "Au(T+D)（元/克）−伦敦金现（美元/金衡盎司）×USDCNY（CNY/美元）÷31.1034768"
 TIMING_NOTE = "按相同观察日期匹配Au(T+D)收盘价、北京时间15:30伦敦金现及汇率；不再限制截至昨日，不顺延日期。"
-BASIS_NOTE = "海外折算使用离岸人民币CNH，含CNH/CNY口径差异；该价差不代表可交易套利空间。"
+BASIS_NOTE = "海外折算使用在岸人民币CNY汇率；国内外收盘时点可能不同，该价差不代表可交易套利空间。"
 
 
 def finish_change(item):
@@ -29,16 +29,17 @@ def add_international_price_indicators(builder):
     for key, name, column, unit, reference in [
         ("london_gold_spot", "伦敦金现", "伦敦金现（美元/金衡盎司）", "美元/金衡盎司", "https://www.barchart.com/forex/quotes/%5EXAUUSD/historical-prices"),
         ("usdcnh", "美元兑离岸人民币", "美元兑离岸人民币（CNH/美元）", "CNH/美元", "https://www.barchart.com/forex/quotes/%5EUSDCNH/historical-prices"),
+        ("usdcny", "美元兑在岸人民币", "美元兑在岸人民币（CNY/美元）", "CNY/美元", "https://www.barchart.com/forex/quotes/%5EUSDCNY/historical-prices"),
     ]:
         values = pd.to_numeric(frame[column], errors="coerce") if column in frame else pd.Series(float("nan"), index=frame.index)
         values = values.where(values.gt(0)).replace([float("inf"), -float("inf")], float("nan"))
         item = builder.add("price", key, name, unit, "日度", SOURCE, SHEET, column=column, frame=frame, values=values,
                            source_reference=reference, source_unit=unit, change_unit=unit,
                            change_kind="absolute_and_percent", input_sources=[SOURCE],
-                           display_digits=4 if key == "usdcnh" else 2,
+                           display_digits=4 if key in ("usdcnh", "usdcny") else 2,
                            public_use_status="未确认", price_basis="Barchart精确结束于北京时间15:30的完整30分钟K线收盘价。",
                            observation_time="15:30", observation_timezone="Asia/Shanghai",
-                           warnings=["来源为Barchart北京时间15:30半小时K线收盘价；伦敦金现不是LBMA AM/PM定盘价，汇率是离岸CNH而非在岸CNY或中间价。",
+                           warnings=["来源为Barchart北京时间15:30半小时K线收盘价；伦敦金现不是LBMA AM/PM定盘价；汇率分别为离岸CNH、在岸CNY市场报价，不是人民币中间价。",
                                      "缺失不补零、不前值填充，最新期缺失不回退。"])
         finish_change(item)
 
@@ -54,7 +55,7 @@ def add_international_price_indicators(builder):
     finish_change(item)
 
     items = {i["metadata"]["indicator_id"]: i for i in builder.groups["price"]}
-    inputs = [items[key] for key in ("au_td_close", "london_gold_spot", "usdcnh")]
+    inputs = [items[key] for key in ("au_td_close", "london_gold_spot", "usdcny")]
     maps = [{p["observation_date"]: p["value"] for p in item["history"]} for item in inputs]
     # 按日期并集保留共同覆盖期内的断点；不因任一输入缺失而跳过最新观察期。
     valid_starts = [next((p["observation_date"] for p in item["history"] if p["value"] is not None), None) for item in inputs]
@@ -70,7 +71,7 @@ def add_international_price_indicators(builder):
     item = builder.add("price", "gold_domestic_spread", "黄金现价价差", "元/克", "日度", SOURCE, SHEET,
                        column="黄金现价价差", frame=spread_frame, values=values, missing_fields=missing,
                        warnings=[TIMING_NOTE, BASIS_NOTE, "三项同日有效才计算，缺任一项保留断点；周末或节假日不补值。"],
-                       input_sources=[DOMESTIC_SOURCE, SOURCE], input_indicators=["au_td_close", "london_gold_spot", "usdcnh"],
+                       input_sources=[DOMESTIC_SOURCE, SOURCE], input_indicators=["au_td_close", "london_gold_spot", "usdcny"],
                        method=FORMULA, comparison_basis="同日期匹配：Au(T+D)收盘价与北京时间15:30海外价格及汇率",
                        observation_time="15:30", observation_timezone="Asia/Shanghai",
                        grams_per_troy_ounce=GRAMS_PER_TROY_OUNCE, change_unit="元/克", change_kind="absolute",
@@ -81,6 +82,45 @@ def add_international_price_indicators(builder):
     latest_valid = item["latest_available"]
     item["metadata"]["latest_valid_date"] = latest_valid["observation_date"] if latest_valid else None
     item["latest"].update(item["metadata"])
+    add_implied_exchange_rates(builder)
+
+
+def add_implied_exchange_rates(builder):
+    """同日金价计算隐含汇率，两种市场汇率各自独立计算溢价。"""
+    items = {i["metadata"]["indicator_id"]: i for i in builder.groups["price"]}
+    keys = ["au_td_close", "london_gold_spot", "usdcnh", "usdcny"]
+    maps = {key: {p["observation_date"]: p["value"] for p in items[key]["history"]} for key in keys}
+    starts = [next((p["observation_date"] for p in items[key]["history"] if p["value"] is not None), None)
+              for key in keys[:2]]
+    start = max(starts) if all(starts) else None
+    dates = sorted({date for key in keys[:2] for date in maps[key] if start and date >= start})
+    valid_price = lambda v: isinstance(v, (int, float)) and math.isfinite(v) and v > 0
+    implied = [maps["au_td_close"][date] / maps["london_gold_spot"][date] * GRAMS_PER_TROY_OUNCE
+               if all(valid_price(maps[key].get(date)) for key in keys[:2]) else None for date in dates]
+    frame = pd.DataFrame({"日期": dates})
+    for key, name, fx in [
+        ("gold_implied_fx", "黄金隐含汇率", None),
+        ("gold_premium_cnh", "沪金溢价（相对离岸人民币）", "usdcnh"),
+        ("gold_premium_cny", "沪金溢价（相对在岸人民币）", "usdcny"),
+    ]:
+        inputs = keys[:2] + ([fx] if fx else [])
+        values = [value - maps[fx][date] if value is not None and valid_price(maps[fx].get(date)) else None
+                  for date, value in zip(dates, implied)] if fx else implied
+        item = builder.add("price", key, name, "人民币/美元", "日度", SOURCE, SHEET,
+                           column=key, frame=frame.assign(**{key: values}), values=values,
+                           display_digits=4, input_sources=[DOMESTIC_SOURCE, SOURCE], input_indicators=inputs,
+                           missing_fields=[k for k in inputs if not items[k]["metadata"]["valid_count"]],
+                           method="Au(T+D)收盘价÷伦敦金现×31.1034768" + (f"−{fx.upper()}" if fx else ""),
+                           change_kind="absolute", change_unit="人民币/美元",
+                           observation_time="15:30", observation_timezone="Asia/Shanghai",
+                           grams_per_troy_ounce=GRAMS_PER_TROY_OUNCE,
+                           comparison_basis="同日期Au(T+D)收盘价及北京时间15:30伦敦金现、市场汇率",
+                           warnings=["同日期匹配，缺项保留空值，不插值或前值填充。",
+                                     "沪金溢价为汇率差值，不是百分比，也不是元/克价差。"])
+        item["metadata"]["updated_at"] = max((items[k]["metadata"]["updated_at"] for k in inputs
+                                                 if items[k]["metadata"]["updated_at"]), default=None)
+        item["metadata"]["latest_valid_date"] = (item["latest_available"] or {}).get("observation_date")
+        item["latest"].update(item["metadata"])
 
 
 def add_treasury_yield_indicators(builder):

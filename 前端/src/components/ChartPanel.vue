@@ -47,7 +47,7 @@ async function draw() {
     showSymbol: s.showSymbol ?? dates.value.length < 20, symbolSize: 4, connectNulls: s.connectNulls ?? false, smooth: false,
     lineStyle: { width: 2, ...s.lineStyle }, itemStyle: { color: s.color || palette[index % palette.length] }, barMaxWidth: 22,
     emphasis: { focus: 'series' },
-    data: dates.value.map(date => { const point = pointMaps[index].get(date); return s.signed && point?.value != null ? { value: point.value, itemStyle: { color: point.value >= 0 ? '#278b94' : '#c27e65' } } : point?.value ?? null }),
+    data: dates.value.map(date => { const point = pointMaps[index].get(date); const value = point?.value != null && s.valueTransform ? s.valueTransform(point.value) : point?.value ?? null; return s.signed && value != null ? { value, itemStyle: { color: value >= 0 ? '#278b94' : '#c27e65' } } : value }),
   }))
   chart.setOption({
     ...axisTransition,
@@ -86,6 +86,7 @@ onBeforeUnmount(() => { window.removeEventListener('dashboard-page-visible', ref
 <template>
   <article class="chart-panel">
     <header class="panel-header"><div><h3>{{ title }}</h3><p>{{ description || '保留原始观察日期，不插值、不前值填充' }}</p></div><div class="status-group"><StatusBadge v-for="s in statusTags" :key="s" :status="s" /></div></header>
+    <slot name="filters" />
     <div class="chart-toolbar"><span>{{ frequency.join(' / ') || '频率未提供' }} · {{ unit }} · 最新 {{ latestDate || '未提供' }}{{ latestDate && latestTime ? ' ' + latestTime : '' }}</span><div class="time-controls"><slot name="controls" /><button v-if="hasLines && !emptyReason" class="text-button" :aria-label="title + '重置缩放'" @click="resetZoom">重置缩放</button><select v-if="!fixedRange" v-model="localRange" :aria-label="title + '时间区间'"><option v-for="r in ranges" :key="r.value" :value="r.value">{{ r.label }}</option></select></div></div>
     <div class="chart-stage"><div ref="el" class="echart" :data-chart-title="title" /><div v-if="emptyReason" class="empty-state"><span class="empty-symbol">—</span><strong>{{ emptyReason }}</strong><span>{{ available[0]?.item.warnings[0] || '请检查数据来源或调整筛选条件' }}</span></div></div>
     <div class="chart-caption"><span>{{ coverage }}</span><span>{{ note || '图例可开关；空值不按 0 处理' }}</span></div>

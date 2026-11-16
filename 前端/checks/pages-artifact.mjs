@@ -15,7 +15,11 @@ const forbidden = /\b[A-Za-z]:[\\/]|localhost|127\.0\.0\.1|\/api\/|Traceback|BEG
 const snapshot = JSON.parse(await readFile(snapshotPath, 'utf8'))
 assert.equal(snapshot.schema_version, 1)
 assert.ok(!forbidden.test(JSON.stringify(snapshot)), '快照不得包含本机地址、路径、接口或密钥')
-assert.deepEqual(Object.keys(snapshot).filter(key => !['deliveries', 'daily_report'].includes(key)).sort(), ['comex', 'files', 'generated_at', 'groups', 'publication', 'schema_version'])
+assert.deepEqual(Object.keys(snapshot).filter(key => !['deliveries', 'daily_report', 'daily_news'].includes(key)).sort(), ['comex', 'files', 'generated_at', 'groups', 'publication', 'schema_version'])
+if (snapshot.daily_news) {
+  assert.equal(snapshot.daily_news.publication_scope, 'public_only')
+  if (snapshot.daily_news.status === 'withheld') assert.deepEqual(snapshot.daily_news.events, [])
+}
 if (snapshot.daily_report) {
   const report = snapshot.daily_report
   assert.equal(report.publication_scope, 'public_only')
@@ -67,7 +71,7 @@ for (const rows of Object.values(snapshot.groups)) for (const item of rows) {
     assert.equal(item.metadata.updated_at, null)
   }
 }
-for (const id of ['au_td_close', 'gold_hv20', 'gold_hv60', 'london_gold_spot', 'usdcnh', 'gold_domestic_spread']) assert.ok(ids.has(id), '静态版应保留新指标或明确的缺失占位')
+for (const id of ['au_td_close', 'gold_hv20', 'gold_hv60', 'london_gold_spot', 'usdcnh', 'usdcny', 'gold_domestic_spread']) assert.ok(ids.has(id), '静态版应保留新指标或明确的缺失占位')
 for (const id of ['ust_10y_yield', 'ust_2y_yield', 'ust_10y_2y_spread', 'ust_10y_breakeven_inflation']) assert.ok(ids.has(id), '静态版每日速递应保留四项美债利率序列')
 for (const id of ['domestic_etf_total_shares', 'au_td_close']) assert.ok(ids.has(id), '每日速递应保留合计份额与收盘价')
 const totalShares = snapshot.groups.etf.find(item => item.metadata.indicator_id === 'domestic_etf_total_shares')

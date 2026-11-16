@@ -63,7 +63,7 @@ export function buildDailyReport(items, reportDate, brief, movements, thresholds
   const spread = point('gold_domestic_spread')
   if (isNumber(spread.change)) {
     const dates = [spread.date, spread.previousDate]
-    const rows = dates.map(date => ['au_td_close', 'london_gold_spot', 'usdcnh'].map(id => briefPoint(byId[id], reportDate, date).value))
+    const rows = dates.map(date => ['au_td_close', 'london_gold_spot', 'usdcny'].map(id => briefPoint(byId[id], reportDate, date).value))
     if (rows.flat().every(isNumber)) {
       const localChange = rows[0][0] - rows[1][0]
       const foreignChange = (rows[0][1] * rows[0][2] - rows[1][1] * rows[1][2]) / 31.1034768

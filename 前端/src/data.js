@@ -20,6 +20,7 @@ const healthSourceGroups = [
   ['AuTD.csv'],
   ['黄金期货.csv'],
   ['黄金ETF份额.xlsx'],
+  ['银行结售汇.xlsx'],
   ['CFTC黄金非商业持仓量.csv', 'CFTC黄金交易量和持仓量.csv'],
   ['SPDR黄金ETF份额.xlsx'],
   ['伦敦金银库存.xlsx'],

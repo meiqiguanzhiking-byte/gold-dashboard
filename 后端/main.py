@@ -18,13 +18,15 @@ from research_macro import get_macro_replication
 from research_dual_anchor import get_dual_anchor
 from daily_report import report_service
 from daily_refresh import DailySourceMonitor
+from daily_news import news_service
 
 
 @asynccontextmanager
 async def lifespan(app):
-    monitor = DailySourceMonitor(store, report_service)
+    monitor = DailySourceMonitor(store, report_service, news=news_service)
     await asyncio.to_thread(store.reload)
     report_service.prewarm(store.snapshot)
+    news_service.prewarm(store.snapshot)
     task = asyncio.create_task(monitor.run())
     try:
         yield
@@ -63,9 +65,16 @@ def metadata():
 async def reload_data():
     meta = await asyncio.to_thread(store.reload)
     report_service.prewarm(store.snapshot)
+    news_service.prewarm(store.snapshot)
     return {"status": meta["status"], "loaded_at": meta["loaded_at"],
             "file_count": len(meta["files"]), "read_errors": meta["read_errors"],
             "warnings": meta["warnings"], "missing_indicators": meta["missing_indicators"]}
+
+
+@app.get("/api/daily-news")
+def daily_news():
+    # 仅返回已采集结果；打开页面、切换栏目或轮询不启动采集/模型。
+    return news_service.read()
 
 
 class ReportRequest(BaseModel):

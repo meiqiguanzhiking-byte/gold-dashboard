@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 
 from config import CSV_ENCODINGS, LOCAL_TIMEZONE
+from bank_fx import SOURCE as BANK_FX_SOURCE, read_bank_fx_workbook
 
 
 def now_iso():
@@ -64,7 +65,8 @@ def load_tables(directory: Path):
                 frames = {None: frame}
                 item["encoding"] = encoding
             elif path.suffix.lower() == ".xlsx":
-                frames = pd.read_excel(path, sheet_name=None, engine="openpyxl")
+                frames = (read_bank_fx_workbook(path) if path.name == BANK_FX_SOURCE
+                          else pd.read_excel(path, sheet_name=None, engine="openpyxl"))
             else:
                 item.update(status="未启用", warnings=["仅启用 CSV/XLSX；Parquet 未启用"])
                 files.append(item)

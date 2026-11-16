@@ -5,7 +5,7 @@ import { numeric, filteredHistory } from './data.js'
 // 白名单严格对应每日速递的“每日指标”；支付方向与滚动天数统计不作为折线因子。
 const dailyIds = {
   spread: ['gold_domestic_spread', 'gold_futures_spread', 'gold_futures_secondary_spread'],
-  spot: ['au_td_close', 'london_gold_spot', 'usdcnh'],
+  spot: ['au_td_close', 'london_gold_spot', 'usdcnh', 'usdcny'],
   forward: ['daily_domestic_futures_close', 'daily_domestic_futures_premium', 'daily_comex_0', 'daily_comex_1', 'daily_sgx_usdcnh_0', 'daily_sgx_usdcnh_1'],
   risk: ['gold_hv20', 'gold_hv60', 'gold_etf_volatility_index'],
   macro: ['ust_10y_yield', 'ust_2y_yield', 'ust_10y_2y_spread', 'ust_10y_breakeven_inflation'],

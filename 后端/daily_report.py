@@ -420,7 +420,7 @@ def report_data_ready(state):
     meta = state["meta"]
     if meta.get("read_errors") or meta.get("status", "ok") != "ok":
         return False
-    required = {"au_td_close", "london_gold_spot", "usdcnh", "gold_domestic_spread",
+    required = {"au_td_close", "london_gold_spot", "usdcny", "gold_domestic_spread",
                 "gold_futures_spread", "gold_futures_secondary_spread", "gold_futures_daily_quotes"}
     prices = {row["metadata"]["indicator_id"]: row["history"][-1]
               for row in state["groups"].get("price", []) if row.get("history")

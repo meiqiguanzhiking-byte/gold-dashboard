@@ -21,6 +21,7 @@ export const dailyThresholdGroups = [
     { id: 'au_td_close', label: 'Au(T+D)收盘价', category: 'price', page: 'domestic', section: 'gold-price' },
     { id: 'london_gold_spot', label: '伦敦金现（北京时间15:30）', category: 'price', page: 'foreign', section: 'overseas-price' },
     { id: 'usdcnh', label: '美元兑离岸人民币', category: 'price', page: 'foreign', section: 'overseas-price' },
+    { id: 'usdcny', label: '美元兑在岸人民币', category: 'price', page: 'foreign', section: 'overseas-price' },
     { id: 'daily_domestic_futures_close', label: '国内黄金期货（最近偶数月合约）', metric: 'domestic', category: 'price', page: 'domestic', section: 'domestic-futures' },
     ...['comex', 'sgx_usdcnh'].flatMap(product => [0, 1].map(rank => ({
       id: `daily_${product}_${rank}`, metric: product, rank, digits: product === 'comex' ? 2 : 4,
@@ -255,7 +256,7 @@ export function buildDailyBrief(items, reportDate) {
     { id: 'futures-spread', title: '黄金期货价差', category: 'price', page: 'domestic', section: 'domestic-futures', rows: [
       ...futuresData.spreadRows,
     ], note: '国内期货原价减同月COMEX及汇率期货折算值；采用原始价差，不复权。' },
-    { id: 'usdcnh', title: '美元兑离岸人民币', category: 'price', page: 'foreign', section: 'overseas-price', rows: [row('usdcnh', '即期汇率 · 北京时间15:30', { kind: 'percent', digits: 4 })], note: '沿用北京时间15:30收盘报价。' },
+    { id: 'usdcnh', title: '美元兑人民币汇率', category: 'price', page: 'foreign', section: 'overseas-price', rows: [row('usdcnh', '离岸CNH · 北京时间15:30', { kind: 'percent', digits: 4 }), row('usdcny', '在岸CNY · 北京时间15:30', { kind: 'percent', digits: 4 })], note: '沿用北京时间15:30收盘报价；现价价差使用在岸CNY。' },
     ...futuresData.internationalCards,
     { id: 'gvz', title: '黄金ETF波动率指数（GVZ）', category: 'price', page: 'foreign', section: 'gold-etf-volatility', rows: [row('gold_etf_volatility_index', 'GVZ', { kind: 'pp' })], note: '沿用黄金ETF波动率指数源序列。' },
     ...['weekly', 'monthly'].map(period => ({ id: 'global-etf-' + period, title: '全球ETF' + (period === 'weekly' ? '周度' : '月度'), category: 'etf', page: 'foreign', section: 'global-etf',
@@ -279,7 +280,7 @@ export function buildDailyBrief(items, reportDate) {
       { id: 'domestic-price', title: '国内黄金价格', category: 'price', page: 'domestic', section: 'gold-price', rows: [price], note: 'Au(T+D)交易日收盘价；变化基准为上一条交易观测记录。' },
       { id: 'international-price', title: '国际黄金价格', category: 'price', page: 'foreign', section: 'overseas-price', rows: [international], note: 'Barchart精确结束于北京时间15:30的半小时K线close；不是LBMA定盘价。' },
       { id: 'volatility', title: '黄金历史波动率', category: 'price', page: 'domestic', section: 'gold-volatility', rows: [vol], note: '20个交易观测收益率、样本标准差、252日年化；只读上游结果，不代表未来涨跌方向。' },
-      { id: 'spread', title: '国内外黄金价差', category: 'price', page: 'domestic', section: 'gold-price', rows: [spread], note: '同日期、北京时间15:30海外金价及汇率折算；美元/金衡盎司 × USDCNH ÷ 31.1034768，价差单位为元/克。' },
+      { id: 'spread', title: '国内外黄金价差', category: 'price', page: 'domestic', section: 'gold-price', rows: [spread], note: '同日期、北京时间15:30海外金价及在岸汇率折算；美元/金衡盎司 × USDCNY ÷ 31.1034768，价差单位为元/克。' },
       { id: 'autd', layout: 'autd', title: 'Au(T+D)', category: 'au-td', page: 'domestic', section: 'au-td', rows: [
         row('au_td_volume', '成交量', { kind: 'percent', unit: '吨' }),
         row('au_td_open_interest', '持仓量', { kind: 'percent', unit: '吨' }),

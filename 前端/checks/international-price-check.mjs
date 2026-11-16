@@ -11,7 +11,8 @@ const snapshot = JSON.parse(await readFile(new URL('../../展示版/数据/data/
 const published = Object.fromEntries(expandSnapshot(snapshot).price.indicators.map(i => [i.metadata.indicator_id, i]))
 const titles = {
   london_gold_spot: '伦敦金现（美元/金衡盎司）',
-  usdcnh: '美元兑离岸人民币（CNH/美元）',
+  usdcnh: '美元兑人民币汇率',
+  usdcny: '美元兑人民币汇率',
   gold_domestic_spread: '黄金现价价差（元/克）',
 }
 const expanded = expandSnapshot({ schema_version: 1, generated_at: api.loaded_at, files: [], groups: {
@@ -36,8 +37,8 @@ assert.deepEqual(published.gold_etf_volatility_index.history, volatilityItem.his
 assert.ok(Object.keys(titles).every(id => items[id].metadata.loaded_at === api.loaded_at))
 const browser = await chromium.launch({ channel: 'msedge', headless: true, args: ['--disable-breakpad', '--disable-logging'] })
 const results = []
-async function read(page, title, actions = []) {
-  return page.evaluate(async ({ title, actions }) => {
+async function read(page, title, actions = [], seriesIndex = 0) {
+  return page.evaluate(async ({ title, actions, seriesIndex }) => {
     let init
     if (document.querySelector('script[src*="/@vite/client"]')) init = (await import('/src/charts.js')).echarts.init
     else {
@@ -49,10 +50,11 @@ async function read(page, title, actions = []) {
     const o = c.getOption()
     const date = o.xAxis[0].data.at(-1)
     return { dates: o.xAxis[0].data, unit: o.yAxis[0].name, min: o.yAxis[0].min, max: o.yAxis[0].max,
-      smooth: o.series[0].smooth, connectNulls: o.series[0].connectNulls, values: o.series[0].data,
-      tooltip: o.tooltip[0].formatter([{ seriesIndex: 0, axisValue: date, color: o.series[0].itemStyle.color }]),
+      names: o.series.map(s => s.name),
+      smooth: o.series[seriesIndex].smooth, connectNulls: o.series[seriesIndex].connectNulls, values: o.series[seriesIndex].data,
+      tooltip: o.tooltip[0].formatter([{ seriesIndex, axisValue: date, color: o.series[seriesIndex].itemStyle.color }]),
     }
-  }, { title, actions })
+  }, { title, actions, seriesIndex })
 }
 async function layout(page) {
   for (const width of [1280, 1440]) for (const tab of ['国内', '国外']) {
@@ -109,10 +111,11 @@ try {
         for (const range of ['1M', '3M', '1Y', '5Y', 'ALL']) {
           await page.getByLabel(title + '时间区间').selectOption(range)
           await page.waitForTimeout(100)
-          const c = await read(page, title)
+          const c = await read(page, title, [], id === 'usdcny' ? 1 : 0)
           const values = new Map(sourceItems[id].history.map(p => [p.observation_date, p.value]))
           c.dates.forEach((d, index) => assert.equal(c.values[index], values.get(d)))
-          assert.equal(c.unit, sourceItems[id].metadata.unit)
+          assert.equal(c.unit, id.startsWith('usdc') ? 'CNH/美元 / CNY/美元' : sourceItems[id].metadata.unit)
+          if (id.startsWith('usdc')) assert.deepEqual(c.names, ['美元兑离岸人民币', '美元兑在岸人民币'])
           assert.equal(c.smooth, false); assert.equal(c.connectNulls, id === 'gold_domestic_spread')
           if (id === 'gold_domestic_spread') assert.equal(sourceItems[id].metadata.observation_time, '15:30')
           assert.ok(c.tooltip.includes(c.dates.at(-1)))
@@ -137,7 +140,7 @@ try {
     await page.getByLabel('搜索数据健康度').fill('黄金ETF波动率指数.csv')
     assert.equal(await page.locator('.health-table tbody tr:has(td strong)').count(), 1)
     await page.getByLabel('搜索数据健康度').fill('伦敦金现与汇率_北京时间1530收盘价.xlsx')
-    assert.equal(await page.locator('.health-table tbody tr:has(td strong)').count(), 3)
+    assert.equal(await page.locator('.health-table tbody tr:has(td strong)').count(), 4)
     await page.getByRole('button', { name: mode === 'dynamic' ? '刷新真实数据' : '重新加载展示数据' }).click()
     await page.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled)
     assert.equal(await page.locator('#overseas-price canvas').count(), showPrices ? 2 : 0)
