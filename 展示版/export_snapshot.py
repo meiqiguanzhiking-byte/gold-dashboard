@@ -27,6 +27,7 @@ METADATA_FIELDS = (
     "display_digits", "observation_time", "observation_timezone", "index_symbol", "series_id",
     "aggregation_included", "aggregation_scope", "scope_entity_count", "coverage_basis", "reporting_evidence",
     "calculation",
+    "bank_fx_currency", "bank_fx_group", "bank_fx_path", "bank_fx_leg",
     "futures_product", "main_futures_product", "contract_expiry", "source_contract", "exchange", "contract_expiries",
 )
 

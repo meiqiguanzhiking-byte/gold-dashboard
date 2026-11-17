@@ -5,6 +5,7 @@ import path from 'node:path'
 import { buildPagesData, chunkLimit } from '../pages-data.mjs'
 import { expandSnapshot } from '../src/static-source.js'
 import { buildDailyBrief, beijingDate } from '../src/daily-brief.js'
+import { bankFxLevels, bankFxSeries } from '../src/bank-fx.js'
 import { gzipSync } from 'node:zlib'
 
 const project = fileURLToPath(new URL('../../', import.meta.url))
@@ -104,6 +105,22 @@ if (snapshot.research) {
 }
 const initial = expandSnapshot(prepared.bootstrap.snapshot)
 const full = expandSnapshot(snapshot)
+if (policy.include_bank_fx && policy.source_permissions?.['银行结售汇.xlsx'] === 'approved') {
+  const bankFx = full.price.indicators.filter(item => item.metadata.source === '银行结售汇.xlsx')
+  assert.ok(bankFx.length > 0, '静态版应包含银行结售汇指标')
+  for (const { metadata } of bankFx) {
+    assert.ok(['cny', 'usd'].includes(metadata.bank_fx_currency), '银行结售汇必须保留币种')
+    assert.ok(['banks', 'forward', 'outstanding', 'options'].includes(metadata.bank_fx_group), '银行结售汇必须保留分类')
+    assert.ok(Array.isArray(metadata.bank_fx_path), '银行结售汇必须保留分类路径')
+    assert.ok(['结汇', '售汇', '差额', '净敞口'].includes(metadata.bank_fx_leg), '银行结售汇必须保留结售汇标识')
+  }
+  for (const currency of ['cny', 'usd']) {
+    const series = bankFxSeries(bankFx, currency, 'banks', [])
+    assert.deepEqual(series.map(row => row.name).sort(), ['售汇', '差额', '结汇'])
+    assert.ok(series.every(row => row.item.history.length > 2), '两种币种的结售汇图表必须包含完整历史')
+    assert.ok(bankFxLevels(bankFx, currency, 'banks', []).length > 0, '银行结售汇应保留层级筛选')
+  }
+}
 const flatten = groups => Object.entries(groups).filter(([key]) => key !== 'meta').flatMap(([, group]) => group.indicators)
 assert.deepEqual(buildDailyBrief(flatten(initial), beijingDate(snapshot.generated_at)), buildDailyBrief(flatten(full), beijingDate(snapshot.generated_at)), '首屏精简数据必须保留全部速递数值、日期和比较基准')
 for (const [category, paths] of Object.entries(prepared.bootstrap.categories)) {

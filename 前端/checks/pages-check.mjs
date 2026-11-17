@@ -85,6 +85,16 @@ try {
     await page.locator('#' + id + ' canvas').first().waitFor()
     assert.ok(await chartInk('#' + id + ' canvas') > 15, id + ' 图表应包含真实绘制内容')
   }
+  for (const currency of ['人民币计价', '美元计价']) {
+    const chart = `[data-chart-title="银行结售汇（${currency}）"]`
+    await waitForInk(chart + ' canvas')
+    const category = page.getByLabel(currency + '结售汇类别', { exact: true })
+    assert.equal(await category.locator('option').count(), 4)
+    assert.ok(await page.getByLabel(currency + '结售汇第1级分项', { exact: true }).locator('option').count() > 1)
+    await category.selectOption('forward')
+    await waitForInk(chart + ' canvas')
+    await category.selectOption('banks')
+  }
   await page.getByRole('tab', { name: '国外' }).click()
   await loaded()
   await page.waitForTimeout(250)
