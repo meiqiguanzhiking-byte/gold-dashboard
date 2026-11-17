@@ -1,12 +1,14 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { echarts, axisLabel, tooltipStyle } from '../charts.js'
 import { escapeHtml } from '../data.js'
 import { isNumber, numberText } from '../daily-brief.js'
+import { useChartVisibility } from '../chart-visibility.js'
 
 const props = defineProps({ model: { type: Object, required: true }, loading: Boolean, error: String })
 const element = ref(null)
-let chart, observer
+let chart
+const visibility = useChartVisibility(element, draw, () => chart?.resize())
 const colors = ['#967c3f', '#367c87', '#879c91']
 const lineTypes = ['solid', 'dashed', [7, 4, 1, 4]]
 const emptyText = computed(() => props.loading ? '正在读取真实数据…' : props.error ? '价差数据读取失败' :
@@ -17,7 +19,7 @@ const historyDates = computed(() => props.model.curves.slice(1).map(curve => ({ 
 
 async function draw() {
   await nextTick()
-  if (!element.value || !element.value.clientWidth) return
+  if (!visibility.canDraw()) return
   if (!chart) chart = echarts.init(element.value)
   const selected = chart.getOption()?.legend?.[0]?.selected || {}
   chart.setOption({
@@ -50,20 +52,8 @@ async function draw() {
   }, true)
   chart.resize()
 }
-function resize() { if (element.value?.clientWidth) { chart ? chart.resize() : draw() } }
-function visible() { nextTick(draw) }
-watch([() => props.model, () => props.loading, () => props.error], draw, { deep: true })
-onMounted(() => {
-  draw()
-  observer = new ResizeObserver(resize)
-  observer.observe(element.value)
-  window.addEventListener('dashboard-page-visible', visible)
-})
-onBeforeUnmount(() => {
-  observer?.disconnect()
-  window.removeEventListener('dashboard-page-visible', visible)
-  chart?.dispose()
-})
+watch([() => props.model, () => props.loading, () => props.error], visibility.requestDraw)
+onBeforeUnmount(() => chart?.dispose())
 </script>
 
 <template>

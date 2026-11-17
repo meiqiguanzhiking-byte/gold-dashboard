@@ -14,6 +14,7 @@ from international_futures import add_international_futures
 from domestic_futures import add_domestic_futures
 from central_banks import add_central_bank_changes
 from bank_fx import add_bank_fx_indicators
+from gold_silver_retail import add_gold_silver_retail
 
 CATEGORIES = ("central-bank", "etf", "inventory", "futures", "cftc", "au-td", "price")
 
@@ -139,6 +140,7 @@ def strict_sum(frame, columns):
 def build_indicators(tables):
     b = Builder(tables)
     add_price_indicators(b)
+    add_gold_silver_retail(b)
     add_international_price_indicators(b)
     add_treasury_yield_indicators(b)
     add_international_futures(b)

@@ -19,6 +19,7 @@ from research_dual_anchor import get_dual_anchor
 from daily_report import report_service
 from daily_refresh import DailySourceMonitor
 from daily_news import news_service
+from dashboard_bootstrap import compact_dashboard
 
 
 @asynccontextmanager
@@ -59,6 +60,11 @@ def health():
 @app.get("/api/meta")
 def metadata():
     return snapshot()["meta"]
+
+
+@app.get("/api/bootstrap")
+def dashboard_bootstrap():
+    return compact_dashboard(snapshot())
 
 
 @app.post("/api/reload")

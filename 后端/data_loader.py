@@ -75,6 +75,8 @@ def load_tables(directory: Path):
             if before.st_mtime_ns != after.st_mtime_ns or before.st_size != after.st_size:
                 raise ValueError("读取时文件发生变化，请等待更新完成后重新加载")
             for sheet, frame in frames.items():
+                if path.name == "金银珠宝零售.xlsx":
+                    frame = frame.rename(columns={"指标名称": "日期"})
                 tables[(path.name, sheet)] = Table(path.name, sheet, frame, item["updated_at"])
                 item["sheets"].append(describe_frame(frame, sheet))
             starts = [r["coverage_start"] for r in item["sheets"] if r["coverage_start"]]

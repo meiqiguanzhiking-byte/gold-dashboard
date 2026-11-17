@@ -26,6 +26,14 @@ import { useDashboard, isStatic, categoryNames, format, localTime, regions, regi
 
 const { blocks, meta, all, dailyItems, dailyBlocks, item, refreshing, reloadError, clientRefreshedAt, notice, loadAll, loadPage, refresh, loadBlock } = useDashboard()
 const futuresPriceMode = ref('adjusted')
+const jewelryRetailMode = ref('monthly')
+const jewelryRetailSeries = computed(() => {
+  const cumulative = jewelryRetailMode.value === 'cumulative'
+  return [
+    line(cumulative ? 'jewelry_retail_cumulative' : 'jewelry_retail_monthly', cumulative ? '累计值' : '当月值（2月累计填充）', '#abc6ca', { type: 'bar' }),
+    line(cumulative ? 'jewelry_retail_cumulative_yoy' : 'jewelry_retail_monthly_yoy', cumulative ? '累计同比' : '当月同比（2月累计填充）', '#ad945b', { yAxisIndex: 1 }),
+  ]
+})
 const futuresPriceSeries = computed(() => openInterestMainSeries(item('gold_futures_daily_quotes'), futuresPriceMode.value))
 const futuresMainBasisSeries = computed(() => mainContractBasisSeries(
   item('futures_main_contract_reference'), item('gold_futures_daily_quotes'), item('au_td_close'),
@@ -54,6 +62,7 @@ const healthModuleRules = [
   { id: 'futures', title: '上期所黄金期货', ids: ['futures_volume', 'futures_open_interest', 'futures_main_contract', 'futures_main_contract_reference', 'gold_futures_daily_quotes', 'au_td_close'] },
   { id: 'domestic-etf', title: '场内黄金 ETF 份额', sources: ['黄金ETF份额.xlsx'] },
   { id: 'bank-fx', title: '银行结售汇', sources: ['银行结售汇.xlsx'] },
+  { id: 'gold-silver-retail', title: '金银比与珠宝零售', ids: ['gold_silver_ratio', 'jewelry_retail_monthly', 'jewelry_retail_monthly_yoy', 'jewelry_retail_cumulative', 'jewelry_retail_cumulative_yoy'] },
   { id: 'overseas-price', title: '伦敦金现与汇率', sources: ['伦敦金现与汇率_北京时间1530收盘价.xlsx'] },
   { id: 'overseas-futures', title: 'COMEX期货与汇率期货', fileSources: ['COMEX黄金与汇率期货.csv'] },
   { id: 'gold-etf-volatility', title: '黄金ETF波动率指数', sources: ['黄金ETF波动率指数.csv'] },
@@ -187,9 +196,9 @@ onMounted(loadAll)
 
 <template>
   <div class="dashboard">
-    <header class="topbar"><div class="brand"><span class="brand-mark">Au</span><div><strong>兴证资管 · 研究监测</strong><span>{{ isStatic ? 'GOLD MARKET / STATIC SNAPSHOT' : 'GOLD MARKET / LOCAL DATA' }}</span></div></div><span class="environment"><i></i>{{ isStatic ? '静态展示版 · 真实数据快照' : '本地真实数据 · 只读接入' }}</span></header>
+    <header class="topbar"><div class="brand"><span class="brand-mark">Au</span><div><strong>黄金家族·goldfamily</strong><span>{{ isStatic ? 'GOLD MARKET / STATIC SNAPSHOT' : 'GOLD MARKET / LOCAL DATA' }}</span></div></div><span class="environment"><i></i>{{ isStatic ? '静态展示版 · 真实数据快照' : '本地真实数据 · 只读接入' }}</span></header>
     <main>
-      <section class="page-intro"><div><p class="eyebrow">PRECIOUS METALS / 黄金研究</p><h1>黄金市场指标看板</h1><p class="intro-note">从交易、持仓与资金流观察黄金市场</p></div><button class="refresh-button" :disabled="refreshing || pending" @click="refresh"><span aria-hidden="true" :class="{ spinning: refreshing }">↻</span>{{ refreshing ? '正在重新加载…' : isStatic ? '重新加载展示数据' : '刷新真实数据' }}</button></section>
+      <section class="page-intro"><div><p class="eyebrow">PRECIOUS METALS / 黄金研究</p><h1><span class="family-title">黄金家族</span>黄金市场指标看板</h1><p class="intro-note">从交易、持仓与资金流观察黄金市场</p></div><button class="refresh-button" :disabled="refreshing || pending" @click="refresh"><span aria-hidden="true" :class="{ spinning: refreshing }">↻</span>{{ refreshing ? '正在重新加载…' : isStatic ? '重新加载展示数据' : '刷新真实数据' }}</button></section>
       <p v-if="isStatic" class="static-notice">静态展示版：数据不会随电脑中的文件自动更新。重新加载仅读取已发布的快照；观察日期和口径以各指标标注为准。网页中的真实数值和历史序列可被访问或下载。</p>
       <div class="data-summary"><span>数据截至 <strong>{{ asOf }}</strong><small>各来源频率不同</small></span><span v-if="isStatic">快照生成 <strong>{{ localTime(meta?.generated_at) }}</strong><small>北京时间</small></span><span>{{ isStatic ? '页面读取' : '最近刷新' }} <strong>{{ localTime(clientRefreshedAt) }}</strong></span><span class="summary-status"><i :class="{ warning: failures.length || missingCount }"></i>{{ pending ? '读取中' : failures.length ? failures.length + (isStatic ? ' 个区域读取异常' : ' 个接口异常') : isStatic ? '展示数据已载入' : '接口已连接' }}<small v-if="!pending">{{ missingCount }} 项数据缺失 · {{ countStatus('滞后') }} 项滞后{{ isStatic ? '（快照生成时）' : '' }}</small></span></div>
       <DashboardPages @select="loadPage">
@@ -209,8 +218,8 @@ onMounted(loadAll)
         </div>
         <p class="section-footnote">黄金现价价差＝Au(T+D)（元/克）−伦敦金现（美元/金衡盎司）×USDCNY（CNY/美元，在岸汇率）÷31.1034768。1金衡盎司＝31.1034768克。仅比较同名日期各自收盘，不代表同步溢价或可交易套利空间。</p>
         <div class="chart-grid">
-          <ChartPanel title="黄金隐含汇率与人民币汇率" latest-time="15:30" description="隐含汇率＝Au(T+D)÷伦敦金现×31.1034768；实线为隐含汇率，虚线为市场汇率" :series="[fxLine('gold_implied_fx', '黄金隐含汇率', '#287985'), fxLine('usdcnh', '美元兑离岸人民币', '#ad945b', { lineStyle: { type: 'dashed' } }), fxLine('usdcny', '美元兑在岸人民币', '#6d83ab', { lineStyle: { type: 'dashed' } })]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('gold_implied_fx') || withheldReason('usdcnh') || withheldReason('usdcny')" note="人民币/美元；按同日金价计算，市场汇率为北京时间15:30报价。空值保留断点，不补值。" />
-          <ChartPanel title="沪金溢价（汇率差值）" latest-time="15:30" description="隐含汇率分别减去美元兑离岸人民币、美元兑在岸人民币；正值为溢价，负值为折价" :series="[line('gold_premium_cnh', '沪金溢价（相对离岸）', '#ad945b'), line('gold_premium_cny', '沪金溢价（相对在岸）', '#6d83ab')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('gold_premium_cnh') || withheldReason('gold_premium_cny')" note="单位：人民币/美元。两条线各自按同日有效数据计算；显示汇率差值，不乘100%。空值保留断点。" />
+          <ChartPanel title="黄金隐含汇率与人民币汇率" latest-time="15:30" description="隐含汇率＝Au(T+D)÷伦敦金现×31.1034768；实线为隐含汇率，虚线为市场汇率" :series="[fxLine('gold_implied_fx', '黄金隐含汇率', '#287985', { connectNulls: true }), fxLine('usdcnh', '美元兑离岸人民币', '#ad945b', { connectNulls: true, lineStyle: { type: 'dashed' } }), fxLine('usdcny', '美元兑在岸人民币', '#6d83ab', { connectNulls: true, lineStyle: { type: 'dashed' } })]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('gold_implied_fx') || withheldReason('usdcnh') || withheldReason('usdcny')" note="人民币/美元；按同日金价计算，市场汇率为北京时间15:30报价。折线跨空值连接前后有效点，不补值。" />
+          <ChartPanel title="沪金溢价（汇率差值）" latest-time="15:30" description="隐含汇率分别减去美元兑离岸人民币、美元兑在岸人民币；正值为溢价，负值为折价" :series="[line('gold_premium_cnh', '沪金溢价（相对离岸）', '#ad945b', { connectNulls: true }), line('gold_premium_cny', '沪金溢价（相对在岸）', '#6d83ab', { connectNulls: true })]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('gold_premium_cnh') || withheldReason('gold_premium_cny')" note="单位：人民币/美元。两条线各自按同日有效数据计算；显示汇率差值，不乘100%。折线跨空值连接前后有效点，不补值。" />
         </div>
         <p v-if="!priceWithheld" class="section-footnote">来源：{{ sourceLabel('AuTD.csv') }} · 文件更新 {{ localTime(item('au_td_close')?.metadata.updated_at) }} · 缓存加载 {{ localTime(blocks.price.data?.loaded_at) }} · 发布日期未知（null）。</p>
       </DashboardSection>
@@ -284,6 +293,15 @@ onMounted(loadAll)
         </div>
         <p class="section-footnote">左右图可独立选择类别和下属项目。人民币表单位为亿元人民币，美元表单位为亿美元；直接使用原表各级合计及差额，不叠加包含项。售汇柱取相反数以向下展示，原始金额不变。</p>
       </DashboardSection>
+      <DashboardSection id="gold-silver-retail" title="金银比与珠宝零售">
+        <div class="section-heading"><div><span class="section-number">07</span><h2>金银比与珠宝零售</h2></div><span>金银比 · 日度 / 珠宝零售 · 月度</span></div>
+        <div class="chart-grid">
+          <ChartPanel title="金银比（倍）" description="Au(T+D)与Ag(T+D)同日收盘价之比，统一为元/克后计算" :series="[line('gold_silver_ratio', '金银比', '#287985')]" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason('gold_silver_ratio')" note="金银比＝Au(T+D)收盘价×1000÷Ag(T+D)收盘价。Ag(T+D)原始单位为元/千克；同日期匹配，缺失不补值。" />
+          <ChartPanel title="金银珠宝零售" :description="jewelryRetailMode === 'monthly' ? '当月值（2月累计填充）与当月同比（2月累计填充）' : '累计值与累计同比'" :series="jewelryRetailSeries" :loading="blocks.price.loading" :error="blocks.price.error" :reason="withheldReason(jewelryRetailMode === 'monthly' ? 'jewelry_retail_monthly' : 'jewelry_retail_cumulative')" note="左轴：零售额（亿元）柱状图；右轴：同比（%）折线图。直接采用原表数据和2月累计填充列，不另行拆分月份或填补空值。" range="5Y">
+            <template #controls><label>口径<select v-model="jewelryRetailMode" aria-label="金银珠宝零售口径"><option value="monthly">当月值</option><option value="cumulative">累计值</option></select></label></template>
+          </ChartPanel>
+        </div>
+      </DashboardSection>
       </DashboardPage>
 
       <DashboardPage page="foreign" label="国外">
@@ -302,14 +320,14 @@ onMounted(loadAll)
       </DashboardSection>
 
       <DashboardSection id="gold-etf-volatility" title="黄金ETF波动率指数">
-        <div class="section-heading"><div><span class="section-number">07</span><h2>黄金ETF波动率指数</h2></div><span>Cboe GVZ · 日度</span></div>
+        <div class="section-heading"><div><span class="section-number">08</span><h2>黄金ETF波动率指数</h2></div><span>Cboe GVZ · 日度</span></div>
         <div class="chart-grid">
           <ChartPanel title="黄金ETF波动率指数（GVZ，%）" :series="[line('gold_etf_volatility_index', '黄金ETF波动率指数（GVZ）', '#ad945b')]" :loading="blocks.price.loading" :error="blocks.price.error" note="来源：Cboe 芝加哥期权交易所；按CSV原始日度数值展示" />
         </div>
       </DashboardSection>
 
       <DashboardSection id="treasury-yields" title="美债收益率">
-        <div class="section-heading"><div><span class="section-number">08</span><h2>美债收益率</h2></div><span>FRED · 日度</span></div>
+        <div class="section-heading"><div><span class="section-number">09</span><h2>美债收益率</h2></div><span>FRED · 日度</span></div>
         <div class="chart-grid">
           <ChartPanel title="美债收益率与期限利差（%）" description="左轴：10年、2年美债收益率（%）；右轴：10年－2年期限利差（百分点）" :series="[line('ust_10y_yield', '10年美债收益率', '#ad945b', { connectNulls: true }), line('ust_2y_yield', '2年美债收益率', '#287985', { connectNulls: true }), line('ust_10y_2y_spread', '10年－2年期限利差', '#6d83ab', { connectNulls: true, yAxisIndex: 1 })]" :loading="blocks.price.loading" :error="blocks.price.error" note="期限利差采用FRED T10Y2Y原始序列；原始空值保留，仅图线跨空值连接" />
           <ChartPanel title="10年美债收益率、实际利率与盈亏平衡通胀率（%）" description="左轴：10年美债收益率、10年实际利率（%）；右轴：10年盈亏平衡通胀率（%）" :series="[line('ust_10y_yield', '10年美债收益率', '#ad945b', { connectNulls: true }), line('ust_10y_real_yield', '10年实际利率', '#287985', { connectNulls: true }), line('ust_10y_breakeven_inflation', '10年盈亏平衡通胀率（BEI）', '#b77964', { connectNulls: true, yAxisIndex: 1 })]" :loading="blocks.price.loading" :error="blocks.price.error" note="来源：FRED DGS10、DFII10、T10YIE；原始空值保留，仅图线跨空值连接" />
@@ -317,7 +335,7 @@ onMounted(loadAll)
       </DashboardSection>
 
       <DashboardSection id="positions" title="CFTC 黄金非商业持仓">
-        <div class="section-heading"><div><span class="section-number">09</span><h2>CFTC 黄金非商业持仓</h2></div><span>周度非商业持仓 · 原表单位为吨</span></div>
+        <div class="section-heading"><div><span class="section-number">10</span><h2>CFTC 黄金非商业持仓</h2></div><span>周度非商业持仓 · 原表单位为吨</span></div>
         <div class="metric-grid position-grid"><MetricCard v-for="card in positionCards" :key="card.id" :item="item(card.id)" :label="card.label" :loading="blocks.cftc.loading" :error="blocks.cftc.error" /></div>
         <div class="chart-grid">
           <ChartPanel title="CFTC 多空持仓与净多头（吨）" description="多头、空头堆叠柱状图与净多头折线叠加" :series="[line('cftc_long', '非商业多头', '#5e9eab', { type: 'bar', stack: 'positions' }), line('cftc_short', '非商业空头', '#c98a6f', { type: 'bar', stack: 'positions' }), line('cftc_net_long', '非商业净多头', '#294e62')]" :loading="blocks.cftc.loading" :error="blocks.cftc.error" note="堆叠为多空总规模，净多头使用来源净值列" />
@@ -327,14 +345,14 @@ onMounted(loadAll)
       </DashboardSection>
 
       <DashboardSection id="spdr" title="SPDR 黄金 ETF 份额">
-        <div class="section-heading"><div><span class="section-number">10</span><h2>SPDR 黄金 ETF 份额</h2></div><StatusBadge status="日度" /></div>
+        <div class="section-heading"><div><span class="section-number">11</span><h2>SPDR 黄金 ETF 份额</h2></div><StatusBadge status="日度" /></div>
         <div class="chart-grid">
           <ChartPanel title="SPDR 黄金持仓趋势（吨）" :series="[line('spdr_gold_holdings', 'SPDR 持有黄金', '#ad945b')]" :loading="blocks.etf.loading" :error="blocks.etf.error" note="采用总持有黄金数，不以 ETF 份额或价格替代持仓" />
         </div>
       </DashboardSection>
 
       <DashboardSection id="london" title="伦敦金银库存">
-        <div class="section-heading"><div><span class="section-number">11</span><h2>伦敦金银库存</h2></div><StatusBadge status="月度" /></div>
+        <div class="section-heading"><div><span class="section-number">12</span><h2>伦敦金银库存</h2></div><StatusBadge status="月度" /></div>
         <div class="chart-grid">
           <ChartPanel title="伦敦黄金库存趋势（吨）" :series="[line('london_gold', '黄金库存', '#ad945b')]" :loading="blocks.inventory.loading" :error="blocks.inventory.error" />
           <ChartPanel title="伦敦白银库存趋势（吨）" :series="[line('london_silver', '白银库存', '#6d83ab')]" :loading="blocks.inventory.loading" :error="blocks.inventory.error" />
@@ -344,7 +362,7 @@ onMounted(loadAll)
       <ComexInventory :items="blocks.inventory.data?.indicators || []" :summary="blocks.inventory.data?.comex" :loading="blocks.inventory.loading" :error="blocks.inventory.error" />
 
       <DashboardSection id="global-etf" title="全球黄金 ETF 流量">
-        <div class="section-heading"><div><span class="section-number">13</span><h2>全球黄金 ETF 流量</h2></div><span>周度与月度分开展示</span></div>
+        <div class="section-heading"><div><span class="section-number">14</span><h2>全球黄金 ETF 流量</h2></div><span>周度与月度分开展示</span></div>
         <div class="tab-row" role="tablist" aria-label="全球 ETF 观察频率"><button v-for="tab in [{ id: 'weekly', name: '全球流量 · 周度' }, { id: 'monthly', name: '全球流量 · 月度' }]" :key="tab.id" role="tab" :aria-selected="etfTab === tab.id" :class="{ selected: etfTab === tab.id }" @click="etfTab = tab.id">{{ tab.name }}</button></div>
         <div class="filter-bar"><span>地区筛选</span><label v-for="r in regions" :key="r.id"><input v-model="selectedRegions" type="checkbox" :value="r.id"><i class="region-dot" :style="{ background: regionColors[r.id] }"></i>{{ r.name }}</label><label class="unit-select">统计口径<select v-model="flowUnit" aria-label="全球ETF流量口径"><option value="tonnes">吨数流量</option><option value="usd">美元资金流</option></select></label></div>
         <div class="chart-grid">
@@ -355,7 +373,7 @@ onMounted(loadAll)
       </DashboardSection>
 
       <DashboardSection id="global-central-bank" title="全球央行购金">
-        <div class="section-heading"><div><span class="section-number">14</span><h2>全球央行购金</h2></div><StatusBadge status="月度" /></div>
+        <div class="section-heading"><div><span class="section-number">15</span><h2>全球央行购金</h2></div><StatusBadge status="月度" /></div>
         <div class="filter-bar country-filter"><label>数据月份<select v-model="countryMonth" aria-label="央行购金排名月份"><option v-for="month in countryMonths" :key="month" :value="month">{{ month }}</option></select></label><span class="central-report-count">纳入机构数：{{ format(reportedCount, 0) }} / {{ centralScope?.included_entities.length || '未提供' }}</span><span>机构缺失或空值按0处理</span></div>
         <p class="central-month-summary">{{ countryMonth || '数据月份暂缺' }} · 买入量 {{ format(centralPoint('global_central_bank_gross_purchases')) }} 吨 · 卖出量 {{ format(centralPoint('global_central_bank_gross_sales')) }} 吨 · 净买入 {{ format(centralPoint('global_central_bank_net_purchases')) }} 吨</p>
         <div class="chart-grid">
@@ -375,7 +393,7 @@ onMounted(loadAll)
       <DashboardPage page="cross" label="交叉展示" :pickable="false"><CrossDisplay :items="all" :blocks="blocks" /></DashboardPage>
       <DashboardPage page="research" label="研报复现" :pickable="false"><ResearchReplication /></DashboardPage>
       <DashboardPage page="health" label="数据健康度" :picker-options="healthPickerOptions" :picker-selected="selectedHealthModules" @picker-update="updateHealthModules">
-      <DashboardSection id="health" title="数据健康度"><div class="section-heading"><div><span class="section-number">16</span><h2>数据健康度</h2></div><span>{{ allMetadata.length }} 个指标 · {{ meta?.files.length || '—' }} 个文件</span></div><div class="health-filters"><input v-model="healthSearch" placeholder="搜索指标或来源文件" aria-label="搜索数据健康度"><select v-model="healthFrequency" aria-label="健康度频率筛选"><option>全部</option><option>日度</option><option>周度</option><option>月度</option><option>未提供</option></select><select v-model="healthStatus" aria-label="健康度状态筛选"><option>全部</option><option>正常</option><option>滞后</option><option>短历史</option><option>仅最新值</option><option>人工接入</option><option value="未确认">每日17点更新</option><option>数据缺失</option></select><span>数据更新计划：每日17点</span></div>
+      <DashboardSection id="health" title="数据健康度"><div class="section-heading"><div><span class="section-number">17</span><h2>数据健康度</h2></div><span>{{ allMetadata.length }} 个指标 · {{ meta?.files.length || '—' }} 个文件</span></div><div class="health-filters"><input v-model="healthSearch" placeholder="搜索指标或来源文件" aria-label="搜索数据健康度"><select v-model="healthFrequency" aria-label="健康度频率筛选"><option>全部</option><option>日度</option><option>周度</option><option>月度</option><option>未提供</option></select><select v-model="healthStatus" aria-label="健康度状态筛选"><option>全部</option><option>正常</option><option>滞后</option><option>短历史</option><option>仅最新值</option><option>人工接入</option><option value="未确认">每日17点更新</option><option>数据缺失</option></select><span>数据更新计划：每日17点</span></div>
         <div v-if="blocks.meta.loading" class="table-message">正在读取元数据…</div><div v-else-if="blocks.meta.error" class="alert caution">元信息接口失败，使用已成功接口的指标元数据；文件级信息暂不可用。</div>
         <div class="health-table"><table><thead><tr><th>数据项 / 来源</th><th>更新频率</th><th>最新观察期</th><th>历史起始</th><th>文件最近更新</th><th>数据延迟</th><th>自动化状态</th><th>数据状态</th></tr></thead><tbody><tr v-for="m in visibleHealth" :key="m.indicator_id"><td><strong>{{ m.indicator_name }}</strong><small>{{ sourceLabel(m) }}{{ m.indicator_id.startsWith('file:') && m.sheet ? ' · ' + m.sheet : '' }}</small></td><td>{{ m.frequency }}</td><td>{{ m.coverage_end || '未提供' }}</td><td>{{ m.coverage_start || '未提供' }}</td><td>{{ localTime(m.updated_at) }}</td><td>{{ m.delay_days == null ? '未提供' : m.delay_days + ' 天' }}</td><td><StatusBadge :status="automationStatusLabel(m.automation_status)" /></td><td><StatusBadge :status="m.status" /><span v-if="m.status !== '滞后' && m.statuses?.includes('滞后')" class="secondary-status">滞后</span></td></tr><tr v-if="!visibleHealth.length"><td colspan="8" class="table-message">{{ pending ? '读取中…' : '没有符合筛选条件的数据项' }}</td></tr></tbody></table></div>
         <div class="pagination"><span>共 {{ healthRows.length }} 项 · 第 {{ healthPage }} / {{ healthPages }} 页</span><button :disabled="healthPage <= 1" @click="healthPage--">上一页</button><button :disabled="healthPage >= healthPages" @click="healthPage++">下一页</button></div>
@@ -388,6 +406,7 @@ onMounted(loadAll)
 </template>
 
 <style scoped>
+.family-title { color:#aa965e; display:inline-block; margin-right:.5em; }
 .static-notice { margin:16px 0 0; padding:10px 12px; border-left:2px solid #b69b64; background:#f7f4eb; color:#867348; font-size:11px; line-height:1.8; }
 .chart-grid > :only-child { grid-column: 1 / -1; }
 .trade-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }

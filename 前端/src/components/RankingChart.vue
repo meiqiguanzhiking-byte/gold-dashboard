@@ -1,9 +1,10 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { echarts, axisLabel, tooltipRow, tooltipStyle } from '../charts.js'
 import { escapeHtml, format } from '../data.js'
 import StatusBadge from './StatusBadge.vue'
 import { sourceLabel } from '../source-labels.js'
+import { useChartVisibility } from '../chart-visibility.js'
 const props = defineProps({ title: String, rows: { type: Array, default: () => [] }, period: String, unit: String, error: String, loading: Boolean, note: String, negative: Boolean, nameFormatter: Function })
 const expanded = ref(false), el = ref(null)
 const visible = computed(() => expanded.value ? props.rows : props.rows.slice(0, 5))
@@ -16,9 +17,11 @@ function tooltip(point) {
   const indicatorName = original.startsWith(row.name) ? translated + original.slice(row.name.length) : translated + ' · ' + original
   return tooltipRow({ ...row.item, metadata: { ...row.item.metadata, indicator_name: indicatorName } }, row.point, point.color) + '<div>原表名称：' + escapeHtml(row.name) + '</div>'
 }
-let chart, observer
+let chart
+const visibility = useChartVisibility(el, draw, () => chart?.resize())
 async function draw() {
   await nextTick()
+  if (!visibility.canDraw()) return
   if (props.loading || props.error || !visible.value.length) { chart?.dispose(); chart = null; return }
   chart ||= echarts.init(el.value)
   chart.setOption({ animation: false,
@@ -30,10 +33,8 @@ async function draw() {
   }, true)
   chart.resize()
 }
-watch([() => props.rows, () => props.loading, () => props.error, () => props.nameFormatter, expanded], draw, { deep: true })
-function refreshPageChart() { nextTick(() => chart?.resize()) }
-onMounted(() => { draw(); window.addEventListener('dashboard-page-visible', refreshPageChart); observer = new ResizeObserver(() => chart?.resize()); observer.observe(el.value) })
-onBeforeUnmount(() => { window.removeEventListener('dashboard-page-visible', refreshPageChart); observer?.disconnect(); chart?.dispose() })
+watch([() => props.rows, () => props.loading, () => props.error, () => props.nameFormatter, expanded], visibility.requestDraw)
+onBeforeUnmount(() => chart?.dispose())
 </script>
 <template>
   <article class="chart-panel ranking-panel"><header class="panel-header"><div><h3>{{ title }}</h3><p>统计期间：{{ period || '未提供' }} · {{ unit || '单位未提供' }}</p></div><StatusBadge :status="loading ? '加载中' : error ? '接口失败' : rows.length ? unit === '未提供' ? '未确认' : '正常' : '数据缺失'" /></header>

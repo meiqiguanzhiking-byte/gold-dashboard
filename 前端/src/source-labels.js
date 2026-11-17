@@ -17,6 +17,8 @@ const sourceLabels = {
   '黄金期货主力合约.csv': '上海期货交易所主力合约序列',
   '黄金ETF份额.xlsx': '上海证券交易所和深圳证券交易所',
   '银行结售汇.xlsx': '银行结售汇.xlsx（月度原表）',
+  'AgTD.csv': '上海黄金交易所',
+  '金银珠宝零售.xlsx': '金银珠宝零售.xlsx（月度原表）',
   'CFTC黄金非商业持仓量.csv': 'CFTC 美国商品期货交易委员会',
   'CFTC黄金交易量和持仓量.csv': 'CME Group 芝商所',
   'SPDR黄金ETF份额.xlsx': 'WGC 世界黄金协会',
@@ -33,6 +35,7 @@ const sourceLabels = {
 }
 
 export function sourceLabel(metadataOrSource) {
+  if (metadataOrSource?.indicator_id === 'gold_silver_ratio') return '上海黄金交易所（AuTD、AgTD同日收盘价）'
   if (/^basis_au\d{4}_\d+$/.test(metadataOrSource?.indicator_id || '')) return '上海期货交易所；上海黄金交易所'
   if (['gold_futures_spread', 'gold_futures_secondary_spread', 'gold_futures_spread_details'].includes(metadataOrSource?.indicator_id)) return '黄金期货主力合约.csv（近端、远端主力三类报价折算）'
   if (['gold_futures_contract'].includes(metadataOrSource?.indicator_id)) return '上海期货交易所；Barchart 官网 → CME 芝商所 / SGX 新加坡交易所（同日同到期合约折算）'

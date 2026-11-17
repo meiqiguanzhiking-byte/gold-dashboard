@@ -11,7 +11,9 @@ VOLATILITY_SOURCE = "黄金ETF波动率指数.csv"
 TREASURY_SOURCE = "美债收益率.xlsx"
 GRAMS_PER_TROY_OUNCE = 31.1034768
 FORMULA = "Au(T+D)（元/克）−伦敦金现（美元/金衡盎司）×USDCNY（CNY/美元）÷31.1034768"
-TIMING_NOTE = "按相同观察日期匹配Au(T+D)收盘价、北京时间15:30伦敦金现及汇率；不再限制截至昨日，不顺延日期。"
+USDCNY_TIMING_NOTE = "在岸CNY取北京时间同日15:30前最近有效已结束K线；无可用K线时采用网站相同CT日期标签日线close。较早K线存在时差，日线备用可能含15:30之后信息，不能全部视为同步报价。"
+USDCNY_QUALITY_NOTE = "在岸CNY已隔离结构异常与多证据极端孤立错价，普通统计候选保留价格待复核；原值、实际取价时间和原因见源CSV质量明细。部分修订使用后续恢复证据，不代表当时已知。"
+TIMING_NOTE = "按相同观察日期匹配Au(T+D)收盘价与北京时间15:30伦敦金现、在岸CNY目标价格；不顺延日期。" + USDCNY_TIMING_NOTE
 BASIS_NOTE = "海外折算使用在岸人民币CNY汇率；国内外收盘时点可能不同，该价差不代表可交易套利空间。"
 
 
@@ -37,9 +39,9 @@ def add_international_price_indicators(builder):
                            source_reference=reference, source_unit=unit, change_unit=unit,
                            change_kind="absolute_and_percent", input_sources=[SOURCE],
                            display_digits=4 if key in ("usdcnh", "usdcny") else 2,
-                           public_use_status="未确认", price_basis="Barchart精确结束于北京时间15:30的完整30分钟K线收盘价。",
-                           observation_time="15:30", observation_timezone="Asia/Shanghai",
-                           warnings=["来源为Barchart北京时间15:30半小时K线收盘价；伦敦金现不是LBMA AM/PM定盘价；汇率分别为离岸CNH、在岸CNY市场报价，不是人民币中间价。",
+                           public_use_status="未确认", price_basis=(USDCNY_TIMING_NOTE if key == "usdcny" else "Barchart精确结束于北京时间15:30的完整30分钟K线收盘价。"),
+                           observation_time=("15:30（目标，实际时间可能不同）" if key == "usdcny" else "15:30"), observation_timezone="Asia/Shanghai",
+                           warnings=([USDCNY_TIMING_NOTE, USDCNY_QUALITY_NOTE] if key == "usdcny" else []) + ["来源为Barchart市场报价；伦敦金现不是LBMA AM/PM定盘价；汇率分别为离岸CNH、在岸CNY市场报价，不是人民币中间价。",
                                      "缺失不补零、不前值填充，最新期缺失不回退。"])
         finish_change(item)
 
@@ -70,9 +72,9 @@ def add_international_price_indicators(builder):
     missing = [i["metadata"]["indicator_id"] for i in inputs if not i["metadata"]["valid_count"]]
     item = builder.add("price", "gold_domestic_spread", "黄金现价价差", "元/克", "日度", SOURCE, SHEET,
                        column="黄金现价价差", frame=spread_frame, values=values, missing_fields=missing,
-                       warnings=[TIMING_NOTE, BASIS_NOTE, "三项同日有效才计算，缺任一项保留断点；周末或节假日不补值。"],
+                       warnings=[TIMING_NOTE, USDCNY_QUALITY_NOTE, BASIS_NOTE, "三项同日有效才计算，缺任一项保留断点；周末或节假日不补值。"],
                        input_sources=[DOMESTIC_SOURCE, SOURCE], input_indicators=["au_td_close", "london_gold_spot", "usdcny"],
-                       method=FORMULA, comparison_basis="同日期匹配：Au(T+D)收盘价与北京时间15:30海外价格及汇率",
+                       method=FORMULA, comparison_basis="同日期匹配：Au(T+D)收盘价、北京时间15:30伦敦金现与在岸CNY目标价格（允许同日较早或日线备用）",
                        observation_time="15:30", observation_timezone="Asia/Shanghai",
                        grams_per_troy_ounce=GRAMS_PER_TROY_OUNCE, change_unit="元/克", change_kind="absolute",
                        public_use_status="未确认")
@@ -115,7 +117,7 @@ def add_implied_exchange_rates(builder):
                            observation_time="15:30", observation_timezone="Asia/Shanghai",
                            grams_per_troy_ounce=GRAMS_PER_TROY_OUNCE,
                            comparison_basis="同日期Au(T+D)收盘价及北京时间15:30伦敦金现、市场汇率",
-                           warnings=["同日期匹配，缺项保留空值，不插值或前值填充。",
+                           warnings=([USDCNY_TIMING_NOTE, USDCNY_QUALITY_NOTE] if fx == "usdcny" else []) + ["同日期匹配，缺项保留空值，不插值或前值填充。",
                                      "沪金溢价为汇率差值，不是百分比，也不是元/克价差。"])
         item["metadata"]["updated_at"] = max((items[k]["metadata"]["updated_at"] for k in inputs
                                                  if items[k]["metadata"]["updated_at"]), default=None)

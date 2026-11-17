@@ -1,12 +1,14 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { echarts, tooltipStyle, tooltipRow, axisLabel } from '../charts.js'
 import { regions, ranges, filteredHistory, format } from '../data.js'
 import StatusBadge from './StatusBadge.vue'
 import { sourceLabel } from '../source-labels.js'
+import { useChartVisibility } from '../chart-visibility.js'
 const props = defineProps({ items: { type: Array, default: () => [] }, selected: { type: Array, default: () => [] }, loading: Boolean, error: String })
 const range = ref('1Y'), el = ref(null)
-let chart, observer
+let chart
+const visibility = useChartVisibility(el, draw, () => chart?.resize())
 const activeRegions = computed(() => regions.filter(r => props.selected.includes(r.id)))
 const get = id => props.items.find(item => item.metadata.indicator_id === id)
 const latestDate = computed(() => props.items.filter(i => i.metadata.frequency === '月度').map(i => i.metadata.coverage_end).filter(Boolean).sort().at(-1))
@@ -15,6 +17,7 @@ const dates = computed(() => [...new Set(histories.value.flatMap(h => h.map(p =>
 const status = computed(() => props.loading ? '加载中' : props.error ? '接口失败' : !dates.value.length ? '数据缺失' : props.items.some(i => i.metadata.frequency === '月度' && i.metadata.statuses?.includes('滞后')) ? '滞后' : '正常')
 async function draw() {
   await nextTick()
+  if (!visibility.canDraw()) return
   if (props.loading || props.error || !dates.value.length) { chart?.dispose(); chart = null; return }
   chart ||= echarts.init(el.value)
   const values = [], missing = []
@@ -40,10 +43,8 @@ async function draw() {
     ],
   }, true)
 }
-watch([() => props.items, () => props.selected, () => props.loading, () => props.error, range], draw, { deep: true })
-function refreshPageChart() { nextTick(() => chart?.resize()) }
-onMounted(() => { draw(); window.addEventListener('dashboard-page-visible', refreshPageChart); observer = new ResizeObserver(() => chart?.resize()); observer.observe(el.value) })
-onBeforeUnmount(() => { window.removeEventListener('dashboard-page-visible', refreshPageChart); observer?.disconnect(); chart?.dispose() })
+watch([() => props.items, () => props.selected, () => props.loading, () => props.error, range], visibility.requestDraw)
+onBeforeUnmount(() => chart?.dispose())
 </script>
 <template>
   <article class="chart-panel wide"><header class="panel-header"><div><h3>全球黄金 ETF 月度地区净流量热力图（吨）</h3><p>横向比较月份，纵向比较地区；灰色表示缺失，与真实零值分开</p></div><StatusBadge :status="status" /></header>

@@ -1,12 +1,19 @@
 <script setup>
-import { inject } from 'vue'
+import { computed, inject, provide, ref, watch } from 'vue'
 import DailyBrief from './DailyBrief.vue'
 import DailyNews from './DailyNews.vue'
 import SectionPicker from './SectionPicker.vue'
 defineProps({ items: Array, meta: Object, blocks: Object })
 const section = inject('dashboardDailySection')
+const pageVisible = inject('dashboardContentVisible')
+const newsActive = computed(() => pageVisible.value && section.value === 'news')
+const chartsActive = computed(() => pageVisible.value && section.value === 'charts')
+const newsVisited = ref(newsActive.value), chartsVisited = ref(chartsActive.value)
+watch(newsActive, value => { if (value) newsVisited.value = true }, { flush: 'sync' })
+watch(chartsActive, value => { if (value) chartsVisited.value = true }, { flush: 'sync' })
+provide('dashboardContentVisible', chartsActive)
 const selectSection = inject('dashboardSelectDaily')
-const options = [{ id: 'news', name: '每日资讯' }, { id: 'charts', name: '日频数据可视化' }, { id: 'quant', name: '量化分析周报' }]
+const options = [{ id: 'news', name: '每日资讯' }, { id: 'charts', name: '日频数据可视化' }, { id: 'quant', name: '量化分析日报' }]
 </script>
 
 <template>
@@ -14,13 +21,13 @@ const options = [{ id: 'news', name: '每日资讯' }, { id: 'charts', name: '�
     <nav class="daily-options" aria-label="每日速递栏目">
       <button v-for="option in options" :key="option.id" :aria-pressed="section === option.id" @click="selectSection(option.id)">{{ option.name }}</button>
     </nav>
-    <DailyNews v-show="section === 'news'" :meta="meta" :active="section === 'news'" />
+    <DailyNews v-if="newsVisited" v-show="section === 'news'" :meta="meta" :active="newsActive" />
     <div v-show="section === 'charts'" class="daily-charts">
       <SectionPicker label="每日速递" />
-      <DailyBrief :items="items" :meta="meta" :blocks="blocks" />
+      <DailyBrief v-if="chartsVisited" v-memo="[chartsActive, chartsActive ? items : null, chartsActive ? meta : null, chartsActive ? blocks : null]" :items="items" :meta="meta" :blocks="blocks" />
     </div>
-    <section v-show="section === 'quant'" class="daily-quant" aria-label="量化分析周报">
-      <p class="daily-eyebrow">QUANTITATIVE RESEARCH / 黄金投研</p><h2>量化分析周报</h2>
+    <section v-show="section === 'quant'" class="daily-quant" aria-label="量化分析日报">
+      <p class="daily-eyebrow">QUANTITATIVE RESEARCH / 黄金投研</p><h2>量化分析日报</h2>
       <div class="daily-placeholder">待建设，后续接入。</div>
     </section>
   </div>

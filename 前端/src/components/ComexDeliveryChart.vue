@@ -1,11 +1,12 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { echarts, tooltipStyle } from '../charts.js'
 import { escapeHtml, localTime } from '../data.js'
 import { deliveryColor, deliveryIssuedNumber, deliveryNumber, deliverySideColor, deliveryView } from '../deliveries.js'
 import { deliveryInstitution } from '../delivery-institutions.js'
 import StatusBadge from './StatusBadge.vue'
 import { sourceLabel } from '../source-labels.js'
+import { useChartVisibility } from '../chart-visibility.js'
 
 const props = defineProps({ symbol: String, product: Object, loading: Boolean, error: String })
 const title = computed(() => props.symbol === 'GC' ? '标准黄金期货 GC' : '微型黄金期货 MGC')
@@ -13,7 +14,11 @@ const isGc = computed(() => props.symbol === 'GC'), hideNoData = ref(false)
 const chineseNames = ref(false)
 const months = ref([]), legend = ref({}), el = ref(null), viewport = ref(null)
 const labelInset = ref(174)
-let initialized = false, chart, observer, generation = 0
+let initialized = false, chart, generation = 0, drawnWidth = 0
+const visibility = useChartVisibility(el, draw, () => {
+  if (el.value?.clientWidth !== drawnWidth) draw()
+  else chart?.resize()
+})
 watch(() => props.product?.available_months, available => {
   if (!available?.length) return
   if (!initialized) { months.value = available.slice(-3); initialized = true }
@@ -34,10 +39,11 @@ function tooltip(params) {
 async function draw() {
   const current = ++generation
   await nextTick()
-  if (current !== generation || !el.value) return
+  if (current !== generation || !visibility.canDraw()) return
   if (empty.value) { chart?.dispose(); chart = null; return }
   chart ||= echarts.init(el.value)
   const width = el.value.clientWidth
+  drawnWidth = width
   const labelWidth = width < 440 ? 124 : width < 580 ? 165 : 215
   labelInset.value = labelWidth + 9
   const firstVisible = view.value.series.findIndex(series => legend.value[series.name] !== false)
@@ -58,15 +64,8 @@ async function draw() {
   chart.resize()
 }
 function toggle(month) { legend.value = { ...legend.value, [month]: legend.value[month] === false } }
-function resize() { nextTick(draw) }
-watch([() => props.product, () => props.loading, () => props.error, months, legend, hideNoData, chineseNames], draw, { deep: true })
-onMounted(() => {
-  draw()
-  window.addEventListener('dashboard-page-visible', resize)
-  observer = new ResizeObserver(() => { if (el.value?.clientWidth) draw() })
-  observer.observe(viewport.value)
-})
-onBeforeUnmount(() => { ++generation; window.removeEventListener('dashboard-page-visible', resize); observer?.disconnect(); chart?.dispose() })
+watch([() => props.product, () => props.loading, () => props.error, months, legend, hideNoData, chineseNames], visibility.requestDraw, { deep: false })
+onBeforeUnmount(() => { ++generation; chart?.dispose() })
 </script>
 
 <template>

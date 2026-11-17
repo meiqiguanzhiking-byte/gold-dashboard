@@ -58,6 +58,11 @@ try {
   await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname.slice(5)
     const json = (value, status = 200) => route.fulfill({ status, json: value })
+    if (path === 'bootstrap') {
+      if (mode === 'category-failure') return json({ detail: 'bootstrap unavailable' }, 503)
+      const batch = batches[batchIndex]
+      return json(mode === 'mixed' ? { ...batch, price: { ...batch.price, loaded_at: 'old-batch' } } : batch)
+    }
     if (path === 'health') return json({ status: 'ok', loaded_at: batches[batchIndex].meta.loaded_at })
     if (path === 'reload') {
       reloads++
@@ -108,7 +113,7 @@ try {
     mode = failure
     await button.click()
     await settled()
-    await page.locator('.alert.error').filter({ hasText: '页面保留上次完整数据' }).waitFor()
+    await page.locator('.alert.error').filter({ hasText: '页面保留上次数据' }).waitFor()
     await page.waitForFunction(() => !document.querySelector('.daily-main-metrics')?.textContent.includes('读取中'))
     assert.deepEqual(await page.locator('.daily-main-metrics').allTextContents(), before)
     assert.equal(await page.locator('.data-summary').textContent(), refreshedTime)
@@ -131,7 +136,7 @@ try {
   assert.equal(await page.locator('.alert.error').count(), 0)
   await page.locator('.report-status').filter({ hasText: 'AI优化（规则校验通过）' }).waitFor()
   assert.equal(await page.locator('#daily-report-body').textContent(), aiText)
-  assert.match(await page.locator('.report-notice').textContent(), /今日已保存稿/)
+  await page.locator('.report-notice').filter({ hasText: '今日已保存稿' }).waitFor()
   await page.getByRole('tab', { name: '数值规则', exact: true }).click()
   assert.notEqual(await page.locator('#daily-report-body').textContent(), aiText)
   assert.equal(await page.locator('.daily-card').count(), before.length)

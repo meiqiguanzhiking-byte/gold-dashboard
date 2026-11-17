@@ -1,9 +1,13 @@
 <script setup>
-import { inject, nextTick, onMounted, onBeforeUnmount, provide, ref, shallowRef } from 'vue'
+import { computed, inject, nextTick, onMounted, onBeforeUnmount, provide, ref, shallowRef, watch } from 'vue'
 import SectionPicker from './SectionPicker.vue'
 const props = defineProps({ page: String, label: String, pickable: { type: Boolean, default: true }, pickerOptions: { type: Array, default: null }, pickerSelected: { type: Array, default: null } })
 defineEmits(['picker-update'])
 const activePage = inject('dashboardActivePage')
+const visible = computed(() => activePage.value === props.page)
+const visited = ref(visible.value)
+watch(visible, value => { if (value) visited.value = true }, { flush: 'sync' })
+provide('dashboardContentVisible', visible)
 const storageKey = `gold-dashboard:sections:v1:${props.page}`
 const sections = shallowRef([])
 const hidden = ref([])
@@ -32,5 +36,5 @@ provide('dashboardSections', {
   register(section) { sections.value = [...sections.value, section] },
 })
 </script>
-<template><div v-show="activePage === page" :id="'page-panel-' + page" class="page-panel" role="tabpanel" :aria-labelledby="'page-tab-' + page" :aria-label="label"><SectionPicker v-if="pickable" :label="label" :options="pickerOptions" :selected="pickerSelected" @update:selected="$emit('picker-update', $event)" /><slot /></div></template>
+<template><div v-show="visible" :id="'page-panel-' + page" class="page-panel" role="tabpanel" :aria-labelledby="'page-tab-' + page" :aria-label="label"><template v-if="visited"><SectionPicker v-if="pickable" :label="label" :options="pickerOptions" :selected="pickerSelected" @update:selected="$emit('picker-update', $event)" /><slot /></template></div></template>
 <style scoped>.page-panel{min-width:0}</style>

@@ -1,14 +1,16 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import StatusBadge from './StatusBadge.vue'
 import { sourceLabel } from '../source-labels.js'
 import { echarts, axisLabel, tooltipRow, tooltipStyle } from '../charts.js'
 import { filteredHistory, numeric, ranges, palette, escapeHtml } from '../data.js'
 import { adaptiveYAxis, axisTransition, timeZoom } from '../adaptive-axis.js'
+import { useChartVisibility } from '../chart-visibility.js'
 
 const props = defineProps({ title: String, description: String, series: { type: Array, default: () => [] }, seriesForRange: Function, validTooltipOnly: Boolean, loading: Boolean, error: String, reason: String, note: String, tooltipDetails: Function, range: { type: String, default: '1Y' }, fixedRange: Boolean, latestTime: String })
 const localRange = ref(props.range), el = ref(null)
-let chart, resizeObserver, adaptive
+let chart, adaptive
+const visibility = useChartVisibility(el, draw, () => chart?.resize())
 let previousDates = '', previousRange = ''
 const axisInfo = ref('')
 const hasLines = computed(() => available.value.some(s => !s.type || s.type === 'line'))
@@ -32,6 +34,7 @@ const coverage = computed(() => dates.value.length ? dates.value[0] + ' — ' + 
 
 async function draw() {
   await nextTick()
+  if (!visibility.canDraw()) return
   if (emptyReason.value || !el.value) { adaptive?.dispose(); adaptive = null; chart?.dispose(); chart = null; axisInfo.value = ''; return }
   if (!chart) { chart = echarts.init(el.value); adaptive = adaptiveYAxis(chart) }
   const prior = chart.getOption()
@@ -53,7 +56,7 @@ async function draw() {
     ...axisTransition,
     textStyle: { fontFamily: 'Segoe UI, Microsoft YaHei, sans-serif' },
     grid: { left: 18, right: axisCount > 1 ? 30 : 22, top: 54, bottom: 58, containLabel: true },
-    legend: { type: 'scroll', top: 2, left: 0, right: 0, selected: chart.getOption()?.legend?.[0]?.selected || {}, textStyle: { color: '#667579', fontSize: 10 }, icon: 'roundRect', itemWidth: 12, itemHeight: 5 },
+    legend: { type: 'scroll', top: 2, left: 0, right: 0, selected: prior?.legend?.[0]?.selected || {}, textStyle: { color: '#667579', fontSize: 10 }, icon: 'roundRect', itemWidth: 12, itemHeight: 5 },
     tooltip: { ...tooltipStyle, trigger: 'axis', formatter(params) {
       const rows = params.map(p => {
         const s = available.value[p.seriesIndex]
@@ -77,11 +80,15 @@ async function draw() {
   } })
 }
 function resetZoom() { chart?.dispatchAction({ type: 'dataZoom', start: 0, end: 100 }) }
-function resizeVisibleChart() { if (el.value?.clientWidth && el.value?.clientHeight) chart?.resize() }
-function refreshPageChart() { nextTick(resizeVisibleChart) }
-watch([() => props.series, () => props.seriesForRange, () => props.loading, () => props.error, () => props.reason, localRange], draw, { deep: true })
-onMounted(() => { draw(); window.addEventListener('dashboard-page-visible', refreshPageChart); resizeObserver = new ResizeObserver(resizeVisibleChart); if (el.value) resizeObserver.observe(el.value) })
-onBeforeUnmount(() => { window.removeEventListener('dashboard-page-visible', refreshPageChart); resizeObserver?.disconnect(); adaptive?.dispose(); chart?.dispose() })
+watch([() => props.series, () => props.seriesForRange, () => props.loading, () => props.error, () => props.reason, localRange], (values, previous) => {
+  const sameSeries = previous && values[0].length === previous[0].length && values[0].every((series, index) => {
+    const old = previous[0][index]
+    return Object.keys(series).length === Object.keys(old).length && Object.keys(series).every(key => series[key] === old[key])
+  })
+  if (sameSeries && values.slice(1).every((value, index) => value === previous[index + 1])) return
+  visibility.requestDraw()
+})
+onBeforeUnmount(() => { adaptive?.dispose(); chart?.dispose() })
 </script>
 <template>
   <article class="chart-panel">

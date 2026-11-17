@@ -1,6 +1,5 @@
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, shallowReactive, shallowRef, ref } from 'vue'
 import { isStatic, request } from '@live-source'
-import { readLiveBatch } from './dashboard-refresh.js'
 export { isStatic }
 
 export const categories = ['etf', 'futures', 'cftc', 'au-td', 'central-bank', 'inventory', 'price']
@@ -21,6 +20,7 @@ const healthSourceGroups = [
   ['黄金期货.csv'],
   ['黄金ETF份额.xlsx'],
   ['银行结售汇.xlsx'],
+  ['AgTD.csv', '金银珠宝零售.xlsx'],
   ['CFTC黄金非商业持仓量.csv', 'CFTC黄金交易量和持仓量.csv'],
   ['SPDR黄金ETF份额.xlsx'],
   ['伦敦金银库存.xlsx'],
@@ -62,25 +62,30 @@ export function filteredHistory(item, range, end) {
   return points.filter(p => dateNumber(p.observation_date) >= start && dateNumber(p.observation_date) <= dateNumber(last))
 }
 export function useDashboard() {
-  const blocks = reactive(Object.fromEntries([...categories, 'meta'].map(key => [key, { data: null, loading: true, error: '', complete: false }])))
+  // 历史数组是只读快照；只追踪分类引用替换，避免把数十万条记录转为深层响应式对象。
+  const blocks = shallowReactive(Object.fromEntries([...categories, 'meta'].map(key => [key,
+    shallowReactive({ data: null, loading: true, error: '', complete: false }),
+  ])))
   const refreshing = ref(false), reloadError = ref(''), clientRefreshedAt = ref(null), notice = ref('')
-  const briefItems = ref(null), briefError = ref('')
+  const briefItems = shallowRef(null), briefError = ref('')
   const jobs = new Map()
-  let syncTimer, checking = false
-  let activePage = 'daily', initialized = false
+  let syncTimer, checking = false, activePage = 'daily', initialized = false
+  const pageCategories = {
+    cross: categories,
+    domestic: ['price', 'etf', 'au-td', 'futures', 'central-bank'],
+    foreign: ['price', 'etf', 'inventory', 'cftc', 'central-bank'],
+  }
   function loadBlock(key) {
     if (refreshing.value) return Promise.resolve()
     if (jobs.has(key)) return jobs.get(key)
     const block = blocks[key]
-    block.loading = true
-    block.error = ''
+    block.loading = true; block.error = ''
     const job = (async () => {
       try {
         const data = await request(key)
         if (!isStatic && key !== 'meta' && blocks.meta.data?.loaded_at && data.loaded_at !== blocks.meta.data.loaded_at) throw new Error('数据批次已变化，请点击刷新真实数据')
         block.data = data; block.complete = true
-      }
-      catch (error) { block.error = error.message }
+      } catch (error) { block.error = error.message }
       finally { block.loading = false; jobs.delete(key) }
     })()
     jobs.set(key, job)
@@ -88,92 +93,70 @@ export function useDashboard() {
   }
   async function loadPage(page) {
     activePage = page
-    if (!isStatic || !initialized || refreshing.value) return
-    const needed = { cross: categories, domestic: ['price', 'etf', 'au-td', 'futures', 'central-bank'], foreign: ['price', 'etf', 'inventory', 'cftc', 'central-bank'] }[page] || []
-    await Promise.allSettled(needed.filter(key => !blocks[key].complete).map(loadBlock))
+    if (!initialized || refreshing.value) return
+    await Promise.allSettled((pageCategories[page] || []).filter(key => !blocks[key].complete).map(loadBlock))
+  }
+  function applyBootstrap(initial) {
+    if (!initial.meta?.loaded_at || categories.some(key => !Array.isArray(initial[key]?.indicators)
+      || initial[key].loaded_at !== initial.meta.loaded_at)) throw new Error('首屏数据批次不完整，请重新加载')
+    for (const key of [...categories, 'meta']) Object.assign(blocks[key], {
+      data: initial[key], loading: false, error: '', complete: key === 'meta',
+    })
+    // 日报始终使用独立精简数据；打开历史图表不会重算日报或改变其统计口径。
+    briefItems.value = categories.flatMap(key => initial[key].indicators)
+    briefError.value = ''
+    initialized = true
+    clientRefreshedAt.value = new Date().toISOString()
   }
   async function loadAll() {
-    if (isStatic) {
-      try {
-        const initial = await request('bootstrap')
-        for (const key of [...categories, 'meta']) Object.assign(blocks[key], { data: initial[key], loading: false, error: '', complete: key === 'meta' })
-        briefItems.value = categories.flatMap(key => initial[key].indicators)
-        briefError.value = ''
-        initialized = true
-        await loadPage(activePage)
-      } catch (error) {
-        briefError.value = error.message
-        for (const block of Object.values(blocks)) { block.error = error.message; block.loading = false }
-      }
-    } else {
-      await Promise.allSettled([...categories, 'meta'].map(loadBlock))
-      const version = blocks.meta.data?.loaded_at
-      for (const key of categories) {
-        if (version && blocks[key].data && blocks[key].data.loaded_at !== version) {
-          Object.assign(blocks[key], { data: null, complete: false, error: '数据批次已变化，请点击刷新真实数据' })
-        }
-      }
+    try { applyBootstrap(await request('bootstrap')); await loadPage(activePage) }
+    catch (error) {
+      briefError.value = error.message
+      for (const block of Object.values(blocks)) { block.error = error.message; block.loading = false }
     }
-    if (blocks.meta.data) clientRefreshedAt.value = new Date().toISOString()
+  }
+  async function replaceBatch(reload) {
+    refreshing.value = true
+    await Promise.allSettled([...jobs.values()])
+    const previous = Object.fromEntries(Object.entries(blocks).map(([key, block]) => [key, { ...block }]))
+    try {
+      if (reload) await request('reload', { method: 'POST' })
+      // 后端首屏接口自身来自同一内存快照；静态首屏来自同一发布索引。
+      const initial = await request('bootstrap')
+      applyBootstrap(initial)
+    } catch (error) {
+      for (const [key, block] of Object.entries(previous)) Object.assign(blocks[key], block)
+      throw error
+    } finally { refreshing.value = false }
+    await loadPage(activePage)
   }
   async function refresh() {
     if (refreshing.value) return
-    refreshing.value = true
-    reloadError.value = ''
-    notice.value = ''
-    // 旧的懒加载先完成，避免刷新后被旧请求覆盖。
-    await Promise.allSettled([...jobs.values()])
-    const previous = Object.fromEntries(Object.entries(blocks).map(([key, block]) => [key, { ...block }]))
-    for (const block of Object.values(blocks)) { block.loading = true; block.error = '' }
+    reloadError.value = ''; notice.value = ''
     try {
-      await request('reload', { method: 'POST' })
-      if (isStatic) {
-        const initial = await request('bootstrap')
-        for (const key of [...categories, 'meta']) Object.assign(blocks[key], { data: initial[key], loading: false, error: '', complete: key === 'meta' })
-        briefItems.value = categories.flatMap(key => initial[key].indicators)
-        briefError.value = ''
-        initialized = true
-      } else {
-        const batch = await readLiveBatch(request, categories, categoryNames)
-        for (const key of [...categories, 'meta']) Object.assign(blocks[key], { data: batch[key], loading: false, error: '', complete: true })
-      }
-      clientRefreshedAt.value = new Date().toISOString()
-      notice.value = isStatic ? '已重新读取已发布的展示数据；本机文件变化不会自动更新此页面' : blocks.meta.data?.status === 'ok' ? '真实数据已同步更新' : '缓存已加载，部分文件读取失败，请查看数据健康度'
-    } catch (error) {
-      for (const [key, block] of Object.entries(previous)) Object.assign(blocks[key], block)
-      reloadError.value = '重新加载失败：' + error.message + '。页面保留上次完整数据，请重试。'
-    } finally { refreshing.value = false }
-    if (isStatic && !reloadError.value) await loadPage(activePage)
+      await replaceBatch(true)
+      notice.value = isStatic ? '已重新读取已发布的展示数据；本机文件变化不会自动更新此页面'
+        : blocks.meta.data?.status === 'ok' ? '真实数据已同步更新' : '缓存已加载，部分文件读取失败，请查看数据健康度'
+    } catch (error) { reloadError.value = '重新加载失败：' + error.message + '。页面保留上次数据，请重试。' }
   }
   async function syncUpdatedBatch() {
     if (isStatic || checking || refreshing.value || jobs.size || !blocks.meta.data || document.hidden) return
     checking = true
-    let previous
     try {
       const health = await request('health')
-      if (health.loaded_at === blocks.meta.data.loaded_at) return
-      refreshing.value = true
-      previous = Object.fromEntries(Object.entries(blocks).map(([key, block]) => [key, { ...block }]))
-      for (const block of Object.values(blocks)) { block.loading = true; block.error = '' }
-      const batch = await readLiveBatch(request, categories, categoryNames)
-      for (const key of [...categories, 'meta']) Object.assign(blocks[key], { data: batch[key], loading: false, error: '', complete: true })
-      clientRefreshedAt.value = new Date().toISOString()
-      reloadError.value = ''
-      notice.value = '已同步后端更新的数据；AI日报按新观察日自动准备'
-    } catch (error) {
-      if (previous) {
-        for (const [key, block] of Object.entries(previous)) Object.assign(blocks[key], block)
-        reloadError.value = '自动同步暂未完成，页面保留上次完整数据，请重试。'
-      }
-    } finally { if (previous) refreshing.value = false; checking = false }
+      if (health.loaded_at === blocks.meta.data.loaded_at || refreshing.value) return
+      await replaceBatch(false)
+      reloadError.value = ''; notice.value = '已同步后端更新的数据；AI日报按新观察日自动准备'
+    } catch { reloadError.value = '自动同步暂未完成，页面保留上次数据，请重试。' }
+    finally { checking = false }
   }
   onMounted(() => { if (!isStatic) syncTimer = setInterval(syncUpdatedBatch, 30000) })
   onBeforeUnmount(() => clearInterval(syncTimer))
   const all = computed(() => categories.flatMap(category => blocks[category].data?.indicators || []))
-  const dailyItems = computed(() => isStatic ? briefItems.value || [] : all.value)
-  const dailyBlocks = computed(() => isStatic ? Object.fromEntries(categories.map(key => [key,
+  const dailyItems = computed(() => briefItems.value || [])
+  const dailyBlocks = computed(() => Object.fromEntries(categories.map(key => [key,
     { loading: refreshing.value || (!briefItems.value && !briefError.value), error: briefError.value },
-  ])) : blocks)
+  ])))
   const index = computed(() => Object.fromEntries(all.value.map(item => [item.metadata.indicator_id, item])))
   function item(id) { return index.value[id] }
   const meta = computed(() => blocks.meta.data)

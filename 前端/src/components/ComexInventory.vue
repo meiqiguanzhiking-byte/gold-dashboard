@@ -1,6 +1,7 @@
 <script setup>
 import DashboardSection from './DashboardSection.vue'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { useChartVisibility } from '../chart-visibility.js'
 import StatusBadge from './StatusBadge.vue'
 import { sourceLabel } from '../source-labels.js'
 import { echarts, axisLabel, tooltipStyle } from '../charts.js'
@@ -27,7 +28,8 @@ const fact = computed(() => {
   const describe = (name, value) => value == null ? `${name}暂不可计算` : Math.abs(value) < .005 ? `${name}较基期持平` : `${name}较基期${value > 0 ? '增加' : '下降'} ${stockNumber(Math.abs(value))}%`
   return [describe('注册库存', view.value.endChange.registered), describe('合格库存', view.value.endChange.eligible)].join('，') + '。'
 })
-let structureChart, indexChart, observer, structureAxis, indexAxis
+let structureChart, indexChart, structureAxis, indexAxis
+const visibility = useChartVisibility(structureEl, draw, () => { structureChart?.resize(); indexChart?.resize() })
 const structureInfo = ref(''), indexInfo = ref('')
 const marker = color => `<span style="display:inline-block;width:12px;height:5px;margin-right:6px;background:${color}"></span>`
 const rowLine = (name, value, color, unit = '吨') => `<div>${marker(color)}${escapeHtml(name)}：${validNumber(value) ? stockNumber(value) + ' ' + unit : '数据暂缺'}</div>`
@@ -63,7 +65,7 @@ function inventorySeries(name, key, color, stack) {
 }
 async function draw() {
   await nextTick()
-  if (!structureEl.value || !indexEl.value) return
+  if (!visibility.canDraw() || !indexEl.value) return
   if (empty.value) { structureAxis?.dispose(); indexAxis?.dispose(); structureAxis = indexAxis = null; structureChart?.dispose(); indexChart?.dispose(); structureChart = indexChart = null; structureInfo.value = indexInfo.value = ''; return }
   if (!structureChart) { structureChart = echarts.init(structureEl.value); structureAxis = adaptiveYAxis(structureChart) }
   const v = view.value, few = v.visible.length <= 12, dates = v.visible.map(row => row.date)
@@ -115,15 +117,13 @@ async function draw() {
   structureChart.group = group; indexChart.group = group; echarts.connect(group)
 }
 function resetZoom() { structureChart?.dispatchAction({ type: 'dataZoom', start: 0, end: 100 }) }
-function refreshPageCharts() { nextTick(() => { structureChart?.resize(); indexChart?.resize() }) }
-watch([view, () => props.loading, () => props.error], draw, { deep: true })
-onMounted(() => { draw(); window.addEventListener('dashboard-page-visible', refreshPageCharts); observer = new ResizeObserver(() => { structureChart?.resize(); indexChart?.resize() }); observer.observe(structureEl.value); observer.observe(indexEl.value) })
-onBeforeUnmount(() => { window.removeEventListener('dashboard-page-visible', refreshPageCharts); observer?.disconnect(); echarts.disconnect('comex-inventory-linked'); structureAxis?.dispose(); indexAxis?.dispose(); structureChart?.dispose(); indexChart?.dispose() })
+watch([view, () => props.loading, () => props.error], visibility.requestDraw)
+onBeforeUnmount(() => { echarts.disconnect('comex-inventory-linked'); structureAxis?.dispose(); indexAxis?.dispose(); structureChart?.dispose(); indexChart?.dispose() })
 </script>
 
 <template>
   <DashboardSection id="comex" title="COMEX 金银库存与结构" class="comex-section">
-    <div class="section-heading comex-heading"><div><span class="section-number">12</span><h2>COMEX 金银库存与结构</h2></div>
+    <div class="section-heading comex-heading"><div><span class="section-number">13</span><h2>COMEX 金银库存与结构</h2></div>
       <div class="comex-controls"><label>金属<select v-model="metal" aria-label="COMEX 金属"><option value="gold">黄金</option><option value="silver">白银</option></select></label><label>区间<select v-model="range" aria-label="COMEX 时间范围"><option value="30">近30日</option><option value="90">近90日</option><option value="ALL">全部</option></select></label><button class="text-button" aria-label="COMEX 重置缩放" @click="resetZoom">重置缩放</button><span>最新观察 {{ view.lastDate || '未提供' }}</span><StatusBadge :status="state" /></div>
     </div>
     <div class="comex-coverage">吨数口径 · {{ summary?.metals?.[metal]?.coverage_start || '—' }} — {{ summary?.metals?.[metal]?.coverage_end || '—' }} · {{ summary?.metals?.[metal]?.record_count ?? 0 }} 个观察期 / {{ summary?.metals?.[metal]?.valid_record_count ?? 0 }} 个完整有效记录 · 所选区间 {{ view.visible.length }} 期 / {{ view.validCount }} 期完整 · 历史{{ view.historyStatus === '短历史' ? '覆盖较短' : view.historyStatus }}</div>

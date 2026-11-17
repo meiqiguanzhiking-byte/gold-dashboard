@@ -6,6 +6,7 @@ import { sourceLabel } from '../source-labels.js'
 const props = defineProps({ meta: Object, active: Boolean })
 const news = ref(null), pending = ref(false), error = ref(''), category = ref('全部')
 let timer, controller, sequence = 0
+let signature = ''
 const categories = computed(() => ['全部', ...new Set((news.value?.events || []).map(event => event.category))])
 const events = computed(() => (news.value?.events || []).filter(event => category.value === '全部' || event.category === category.value))
 const old = computed(() => news.value?.stale || news.value?.report_date && news.value.report_date !== new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date()))
@@ -19,14 +20,27 @@ async function read() {
   pending.value = true; error.value = ''
   try {
     const result = await request('daily-news', { signal: controller.signal })
-    if (current === sequence) news.value = result
-  } catch { if (current === sequence) error.value = '资讯暂时读取失败，保留上次结果。' }
+    if (current === sequence && props.active && !document.hidden) {
+      const nextSignature = JSON.stringify(result)
+      if (nextSignature !== signature) { news.value = result; signature = nextSignature }
+    }
+  } catch { if (current === sequence && props.active) error.value = '资讯暂时读取失败，保留上次结果。' }
   finally { if (current === sequence) pending.value = false }
 }
-watch([() => props.active, () => props.meta], read, { immediate: true })
+function stopPolling() {
+  clearInterval(timer); timer = null
+  sequence++; controller?.abort(); pending.value = false
+}
+function syncPolling() {
+  stopPolling()
+  if (!props.active || document.hidden) return
+  read()
+  if (!isStatic) timer = setInterval(read, 15000)
+}
+watch([() => props.active, () => props.meta], syncPolling, { immediate: true })
 watch(categories, values => { if (!values.includes(category.value)) category.value = '全部' })
-onMounted(() => { if (!isStatic) timer = setInterval(() => { if (!document.hidden) read() }, 15000) })
-onBeforeUnmount(() => { sequence++; clearInterval(timer); controller?.abort() })
+onMounted(() => document.addEventListener('visibilitychange', syncPolling))
+onBeforeUnmount(() => { stopPolling(); document.removeEventListener('visibilitychange', syncPolling) })
 </script>
 
 <template>

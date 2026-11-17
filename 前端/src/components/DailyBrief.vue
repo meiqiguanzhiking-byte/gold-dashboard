@@ -1,5 +1,5 @@
 <script setup>
-import { computed, inject, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, inject, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import StatusBadge from './StatusBadge.vue'
 import DailyBriefMetric from './DailyBriefMetric.vue'
 import DailyTermStructure from './DailyTermStructure.vue'
@@ -9,6 +9,7 @@ import { isStatic, localTime } from '../data.js'
 import { beijingDate, buildDailyBrief, dailyIndicatorGroups, dailyThresholdGroups, filterDailyMovements, isNumber, numberText } from '../daily-brief.js'
 
 const props = defineProps({ items: { type: Array, default: () => [] }, meta: Object, blocks: Object })
+const contentVisible = inject('dashboardContentVisible')
 const navigate = inject('dashboardNavigate')
 const { register, hidden, setHidden } = inject('dashboardSections')
 for (const section of [
@@ -20,7 +21,10 @@ for (const section of [
 ]) register(section)
 const now = ref(new Date())
 let clock
-onMounted(() => { clock = setInterval(() => { now.value = new Date() }, 30000) })
+watch(contentVisible, value => {
+  clearInterval(clock)
+  if (value) { now.value = new Date(); clock = setInterval(() => { now.value = new Date() }, 30000) }
+}, { immediate: true })
 onBeforeUnmount(() => clearInterval(clock))
 const reportDate = computed(() => beijingDate(now.value))
 const brief = computed(() => buildDailyBrief(props.items, reportDate.value))

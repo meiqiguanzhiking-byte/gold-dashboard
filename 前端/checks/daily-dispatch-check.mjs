@@ -37,7 +37,7 @@ try {
       await news.locator('.news-placeholder').filter({ hasText: '静态版暂不展示' }).waitFor()
       assert.equal(await news.locator('.news-timeline li').count(), 0)
     }
-    await options.getByRole('button', { name: '量化分析周报', exact: true }).click()
+    await options.getByRole('button', { name: '量化分析日报', exact: true }).click()
     await page.locator('.daily-quant').waitFor()
     assert.match(await page.locator('.daily-quant').textContent(), /后续接入/)
     await page.getByRole('tab', { name: '每日速递', exact: true }).hover()
