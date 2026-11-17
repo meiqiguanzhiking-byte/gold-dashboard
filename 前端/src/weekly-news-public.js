@@ -1,5 +1,4 @@
-// 本地接入新来源不等于获准公开；Pages 构建不打包内部资讯正文。
-export const weeklyNews = {
-  publicationWithheld: true,
-  events: [],
-}
+// 用户于2026-11-17授权将本期每周资讯发布至GitHub静态展示。
+// 复用同一份已核验摘要及来源链接，保持本地与公开版口径一致。
+// 后续新增来源仍按其公开授权范围处理。
+export { weeklyNews } from './weekly-news.js'
