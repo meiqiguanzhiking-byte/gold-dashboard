@@ -71,6 +71,7 @@ export function useDashboard() {
   const jobs = new Map()
   let syncTimer, checking = false, activePage = 'daily', initialized = false
   const pageCategories = {
+    weekly: ['price', 'au-td'],
     cross: categories,
     domestic: ['price', 'etf', 'au-td', 'futures', 'central-bank'],
     foreign: ['price', 'etf', 'inventory', 'cftc', 'central-bank'],

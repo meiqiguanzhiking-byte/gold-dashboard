@@ -87,6 +87,7 @@ async function draw() {
       }).join('')
     } }, dataZoom: zoom,
     series: chosen.value.map((item, index) => ({ name: seriesName(index), type: 'line', yAxisIndex: index,
+      latestValueLabel: { digits: item.metadata.display_digits ?? 2, fixedDigits: item.metadata.display_fixed_digits },
       showSymbol: true, symbolSize: 3, connectNulls: false, smooth: false, lineStyle: { width: 2 }, itemStyle: { color: palette[index] },
       data: histories.value[index].map(p => [dateNumber(p.observation_date), numeric(p) ? p.value : null]),
     })),

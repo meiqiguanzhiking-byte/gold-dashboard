@@ -4,6 +4,8 @@
   "publication_status": "用户已于2026-10-26确认全量数据及新增价格、汇率来源可以公开；展示快照仍仅导出页面所需指标",
   "indicator_ids": [
     "au_td_close",
+    "au_td_close_1500",
+    "gold_futures_weekly_quotes",
     "gold_silver_ratio",
     "jewelry_retail_monthly",
     "jewelry_retail_monthly_yoy",

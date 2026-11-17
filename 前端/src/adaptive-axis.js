@@ -45,7 +45,7 @@ export function visibleExtents(series, windows, selected = {}, axisCount = 1) {
   return Array.from({ length: axisCount }, (_, axisIndex) => {
     const bound = series.filter(s => (s.yAxisIndex || 0) === axisIndex)
     // 只要该轴承载柱或堆叠面积，即使图例暂时隐藏它也保留零基线。
-    const zeroBaseline = bound.some(s => s.type === 'bar' || (s.stack && s.areaStyle != null))
+    const zeroBaseline = bound.some(s => s.type === 'bar' || (s.stack && s.areaStyle != null) || s.areaStyle?.origin === 0)
     let minimum = Infinity, maximum = -Infinity, count = 0
     const stacks = new Map()
     const include = value => { minimum = Math.min(minimum, value); maximum = Math.max(maximum, value) }

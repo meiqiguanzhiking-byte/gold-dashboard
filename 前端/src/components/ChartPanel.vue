@@ -50,6 +50,12 @@ async function draw() {
     showSymbol: s.showSymbol ?? dates.value.length < 20, symbolSize: 4, connectNulls: s.connectNulls ?? false, smooth: false,
     lineStyle: { width: 2, ...s.lineStyle }, itemStyle: { color: s.color || palette[index % palette.length] }, barMaxWidth: 22,
     emphasis: { focus: 'series' },
+    latestValueLabel: /^domestic_\d+_/.test(s.item.metadata.indicator_id || '') ? false : {
+      digits: s.item.metadata.display_digits ?? 2, fixedDigits: s.item.metadata.display_fixed_digits,
+      rawValues: dates.value.map(date => pointMaps[index].get(date)?.value),
+      offset: s.item.metadata.indicator_id === 'usdcnh' ? [0, -14]
+        : s.item.metadata.indicator_id === 'usdcny' ? [0, 14] : undefined,
+    },
     data: dates.value.map(date => { const point = pointMaps[index].get(date); const value = point?.value != null && s.valueTransform ? s.valueTransform(point.value) : point?.value ?? null; return s.signed && value != null ? { value, itemStyle: { color: value >= 0 ? '#278b94' : '#c27e65' } } : value }),
   }))
   chart.setOption({

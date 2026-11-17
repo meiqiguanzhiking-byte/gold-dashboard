@@ -4,12 +4,14 @@ import StatusBadge from './StatusBadge.vue'
 import { basisHistory } from '../futures-basis-history.js'
 
 const props = defineProps({ quotes: Object, spot: Object, loading: Boolean, error: String })
-const history = computed(() => basisHistory(props.quotes, props.spot))
+const history = computed(() => basisHistory(props.quotes, props.spot).filter(day =>
+  day.quotes.some(row => typeof row.spot === 'number' && Number.isFinite(row.spot) && row.spot > 0)))
 const byDate = computed(() => new Map(history.value.map(row => [row.observation_date, row.quotes])))
 const dates = computed(() => [...byDate.value.keys()].sort().reverse())
 const selectedDate = ref('')
 watch(dates, values => { if (!values.includes(selectedDate.value)) selectedDate.value = values[0] || '' }, { immediate: true })
-const rows = computed(() => byDate.value.get(selectedDate.value) || [])
+const rows = computed(() => (byDate.value.get(selectedDate.value) || []).filter(row =>
+  /^au\d{2}(02|04|06|08|10|12)$/i.test(row.contract || '')))
 const message = computed(() => props.loading ? '正在读取真实数据…' : props.error ? '接口请求失败：' + props.error : !rows.value.length ? '该日无可用合约记录。' : '')
 const status = computed(() => props.loading ? '加载中' : props.error ? '接口失败' : !rows.value.some(row => row.value != null) ? '数据缺失' : props.quotes?.metadata.status || '正常')
 const number = value => typeof value === 'number' && Number.isFinite(value)
@@ -20,21 +22,21 @@ const detail = row => `最后交易日：${row.expiry_date || '未确认'}；剩
 <template>
   <article class="chart-panel basis-panel" aria-labelledby="futures-basis-title" data-futures-basis-table>
     <header class="panel-header">
-      <div><h3 id="futures-basis-title">黄金期货各合约升贴水率</h3><p>价格与基差：元/克 · 升贴水率：年化百分比</p></div>
+      <div><h3 id="futures-basis-title">黄金期货各合约升贴水率</h3><p>仅显示偶数交割月合约 · 价格与基差：元/克 · 升贴水率：年化百分比</p></div>
       <div class="basis-controls"><label>日期<select v-model="selectedDate" aria-label="黄金期货升贴水率日期" :disabled="loading || !dates.length"><option v-for="date in dates" :key="date" :value="date">{{ date }}</option></select></label><StatusBadge :status="status" /></div>
     </header>
     <p class="basis-asof">{{ selectedDate || '日期未提供' }} · {{ rows.length }} 个合约</p>
     <div v-if="message" class="basis-message" role="status">{{ message }}</div>
     <div v-else class="basis-table-scroll" tabindex="0" aria-label="黄金期货升贴水率表格，可横向滚动">
       <table class="basis-table" aria-label="黄金期货各合约升贴水率">
-        <thead><tr><th scope="col">期货名称</th><th scope="col">期货价格</th><th scope="col">Au(T+D)收盘价</th><th scope="col">基差</th><th scope="col">升贴水率</th></tr></thead>
+        <thead><tr><th scope="col">期货名称</th><th scope="col">期货价格</th><th scope="col">Au(T+D)15点收盘价</th><th scope="col">基差</th><th scope="col">升贴水率</th></tr></thead>
         <tbody><tr v-for="row in rows" :key="row.contract" :data-contract="row.contract">
           <th scope="row" :title="detail(row)">{{ row.contract }}</th>
           <td>{{ number(row.close) }}</td><td>{{ number(row.spot) }}</td><td>{{ number(row.basis) }}</td><td :title="detail(row)">{{ row.value == null ? '—' : number(row.value) + '%' }}</td>
         </tr></tbody>
       </table>
     </div>
-    <p class="basis-note">基差＝期货价格−同日Au(T+D)收盘价。升贴水率＝基差÷Au(T+D)收盘价×365÷剩余自然日×100%。缺失或剩余天数≤0时显示“—”。</p>
+    <p class="basis-note">基差＝期货价格−同日Au(T+D)15点收盘价。升贴水率＝基差÷Au(T+D)15点收盘价×365÷剩余自然日×100%。仅列出15点收盘价有数据的日期；缺失或剩余天数≤0时显示“—”。</p>
     <div class="chart-source">来源：上海期货交易所；上海黄金交易所</div>
   </article>
 </template>

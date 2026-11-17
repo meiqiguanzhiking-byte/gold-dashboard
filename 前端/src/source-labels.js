@@ -37,7 +37,7 @@ const sourceLabels = {
 export function sourceLabel(metadataOrSource) {
   if (metadataOrSource?.indicator_id === 'gold_silver_ratio') return '上海黄金交易所（AuTD、AgTD同日收盘价）'
   if (/^basis_au\d{4}_\d+$/.test(metadataOrSource?.indicator_id || '')) return '上海期货交易所；上海黄金交易所'
-  if (['gold_futures_spread', 'gold_futures_secondary_spread', 'gold_futures_spread_details'].includes(metadataOrSource?.indicator_id)) return '黄金期货主力合约.csv（近端、远端主力三类报价折算）'
+  if (['gold_futures_spread', 'gold_futures_secondary_spread', 'gold_futures_spread_details', 'gold_futures_weekly_quotes'].includes(metadataOrSource?.indicator_id)) return '黄金期货主力合约.csv（近端、远端主力三类报价折算）'
   if (['gold_futures_contract'].includes(metadataOrSource?.indicator_id)) return '上海期货交易所；Barchart 官网 → CME 芝商所 / SGX 新加坡交易所（同日同到期合约折算）'
   if ((metadataOrSource?.futures_product || metadataOrSource?.main_futures_product) === 'comex') return 'Barchart 官网 → CME 芝商所'
   if ((metadataOrSource?.futures_product || metadataOrSource?.main_futures_product) === 'sgx_usdcnh') return 'Barchart 官网 → SGX 新加坡交易所'

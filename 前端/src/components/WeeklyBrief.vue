@@ -2,6 +2,9 @@
 import { computed, inject, ref } from 'vue'
 import { weeklyNews } from '@weekly-news'
 import { sourceLabel } from '../source-labels.js'
+import WeeklyVisualization from './WeeklyVisualization.vue'
+
+defineProps({ items: { type: Array, default: () => [] }, blocks: Object })
 
 const section = inject('dashboardWeeklySection')
 const selectSection = inject('dashboardSelectWeekly')
@@ -49,7 +52,8 @@ const currentTitle = computed(() => options.find(option => option.id === section
         <p class="weekly-footnote">事实依据所列官方原文；黄金相关关注点为传导路径说明。官员讲话及研究观点均不代表新的FOMC决定。</p>
       </template>
     </section>
-    <section v-else class="weekly-pending" :aria-label="currentTitle"><p class="weekly-eyebrow">WEEKLY REVIEW / 黄金投研</p><h2>{{ currentTitle }}</h2><div class="weekly-placeholder">待建设，后续接入。</div></section>
+    <WeeklyVisualization v-show="section === 'charts'" :items="items" :blocks="blocks" />
+    <section v-if="section === 'quant'" class="weekly-pending" :aria-label="currentTitle"><p class="weekly-eyebrow">WEEKLY REVIEW / 黄金投研</p><h2>{{ currentTitle }}</h2><div class="weekly-placeholder">待建设，后续接入。</div></section>
   </div>
 </template>
 

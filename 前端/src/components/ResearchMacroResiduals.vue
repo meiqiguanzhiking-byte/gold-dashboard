@@ -41,7 +41,7 @@ function draw() {
       return `${percent(b.lower)} 至 ${percent(b.upper)}<br/>月份数：${b.count}`
     } },
     xAxis: { ...base.xAxis, data: a.distribution.bins.map(b => percent((b.lower + b.upper) / 2, 1)), axisLabel: { ...axisLabel, rotate: 35 } },
-    series: [{ name: '月份数', type: 'bar', barCategoryGap: '5%', data: a.distribution.bins.map(b => b.count) }],
+    series: [{ name: '月份数', type: 'bar', latestValueLabel: false, barCategoryGap: '5%', data: a.distribution.bins.map(b => b.count) }],
   })
   optionFor(acfEl.value, { ...base,
     tooltip: { ...tooltipStyle, trigger: 'axis', formatter: params => {
@@ -50,7 +50,7 @@ function draw() {
     } },
     xAxis: { ...base.xAxis, data: a.autocorrelation.map(p => p.lag + '月') },
     yAxis: { ...base.yAxis, min: 0, max: 1, interval: .2 },
-    series: [{ name: '偏离率自相关', type: 'bar', barMaxWidth: 24, data: a.autocorrelation.map(p => p.value) }],
+    series: [{ name: '偏离率自相关', type: 'bar', latestValueLabel: false, barMaxWidth: 24, data: a.autocorrelation.map(p => p.value) }],
   })
   for (const [side, el] of [['high', highEl.value], ['low', lowEl.value]]) {
     const groups = a.groups.filter(g => g.side === side)

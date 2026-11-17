@@ -140,6 +140,9 @@ def strict_sum(frame, columns):
 def build_indicators(tables):
     b = Builder(tables)
     add_price_indicators(b)
+    b.columns("price", "AuTD.csv", None, "日度", [
+        ("au_td_close_1500", "Au(T+D) 15点收盘价", "15点收盘价", "元/克"),
+    ], warnings=["升贴水率使用同日15点收盘价；缺失不以交易日收盘价替代。"])
     add_gold_silver_retail(b)
     add_international_price_indicators(b)
     add_treasury_yield_indicators(b)

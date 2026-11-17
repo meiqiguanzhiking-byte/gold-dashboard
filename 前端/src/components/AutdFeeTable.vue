@@ -7,6 +7,7 @@ import { summarizeAutdFees } from '../autd-fees.js'
 
 const props = defineProps({ item: Object, loading: Boolean, error: String })
 const windows = computed(() => summarizeAutdFees(props.item))
+const todayDirection = computed(() => props.loading ? '加载中…' : props.error ? '数据暂缺' : windows.value[0].observations[0]?.direction || '数据暂缺')
 const message = computed(() => props.loading ? '正在读取真实数据…' : props.error ? '接口请求失败：' + props.error : !windows.value[0].count ? '数据暂缺：未取得交收方向记录。' : '')
 const status = computed(() => props.loading ? '加载中' : props.error ? '接口失败' : !windows.value[0].valid ? '数据缺失' : windows.value.some(w => w.incomplete || w.unknown) ? '样本不足或方向缺失' : props.item?.metadata.status || '正常')
 const days = (w, side) => w.valid ? w[side] : '数据暂缺'
@@ -14,7 +15,7 @@ const days = (w, side) => w.valid ? w[side] : '数据暂缺'
 
 <template>
   <article class="chart-panel autd-fee-panel" aria-labelledby="autd-fee-title">
-    <header class="panel-header"><div><h3 id="autd-fee-title">Au(T+D) 延期费情况</h3><p>最近7个、30个交易观测日 · 支付方向天数</p></div><StatusBadge :status="status" /></header>
+    <header class="panel-header"><div><div class="fee-title-row"><h3 id="autd-fee-title">Au(T+D) 延期费情况</h3><span class="fee-today" :title="'最新观察日：' + (windows[0].end || '未提供')">今日方向：<strong :class="{ 'direction-green': todayDirection === '空支付给多', 'direction-red': todayDirection === '多支付给空' }">{{ todayDirection }}</strong></span></div><p>最近7个、30个交易观测日 · 支付方向天数</p></div><StatusBadge :status="status" /></header>
     <p class="fee-asof">截至最新观察日：{{ windows[0].end || '未提供' }}</p>
     <div v-if="message" class="fee-message" role="status">{{ message }}</div>
     <template v-else>
@@ -37,6 +38,11 @@ const days = (w, side) => w.valid ? w[side] : '数据暂缺'
 
 <style scoped>
 .autd-fee-panel { display:flex; flex-direction:column; }
+.fee-title-row { display:flex; align-items:center; flex-wrap:wrap; gap:8px 16px; }
+.fee-today { font-size:11px; color:#63787e; }
+.fee-today strong { font-weight:700; }
+.fee-today .direction-green { color:#21864b; }
+.fee-today .direction-red { color:#c83e3e; }
 .fee-asof { margin:16px 0 12px; font-size:10px; color:#829296; }
 .fee-table { width:100%; table-layout:fixed; border-collapse:collapse; font-size:11px; text-align:center; }
 .fee-table th,.fee-table td { border:1px solid #dfe7e3; padding:13px 5px; overflow-wrap:anywhere; }

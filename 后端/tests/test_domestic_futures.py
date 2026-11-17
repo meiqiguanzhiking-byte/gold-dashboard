@@ -92,7 +92,7 @@ class DomesticFuturesData(unittest.TestCase):
         tables = {(DOMESTIC_SOURCE, None): Table(DOMESTIC_SOURCE, None, self.domestic, None)}
         builder = Builder(tables)
         add_domestic_futures(builder)
-        self.assertEqual(len(builder.groups["price"]), 6)
+        self.assertEqual(len(builder.groups["price"]), 7)
         indicators = {item["metadata"]["indicator_id"]: item for item in builder.groups["price"]}
         self.assertIsNotNone(indicators["gold_futures_close"]["latest"]["value"])
         self.assertIsNone(indicators["gold_futures_spread"]["latest"]["value"])
@@ -180,6 +180,19 @@ class DomesticFuturesData(unittest.TestCase):
     def test_missing_schema_never_falls_back_to_another_contract_rule(self):
         self.assertEqual(spread_curve_rows(self.domestic), [])
         self.assertEqual(spread_curve_rows(self.spread_fixture().drop(columns="近端主力合约")), [])
+
+    def test_weekly_quotes_preserve_each_raw_leg_and_invalid_values(self):
+        frame = self.spread_fixture()
+        frame.loc[1, "COMEX期货近端主力价格"] = float("nan")
+        frame.loc[0, "USDCNH期货远端主力价格"] = 0
+        rows = spread_curve_rows(frame)
+        for row, raw in zip(rows, frame.to_dict("records")):
+            quotes = json.loads(row["weekly_quotes"])
+            for rank, label in (("main", "近端主力"), ("secondary", "远端主力")):
+                self.assertEqual(quotes[rank]["contract"], raw[label + "合约"])
+                for key, product in (("domestic", "黄金期货"), ("overseas", "COMEX期货"), ("fx", "USDCNH期货")):
+                    value = raw[product + label + "价格"]
+                    self.assertEqual(quotes[rank][key], value if pd.notna(value) and value > 0 else None)
 
 
 if __name__ == "__main__":

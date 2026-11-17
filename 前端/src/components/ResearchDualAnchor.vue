@@ -51,8 +51,8 @@ function draw() {
       xAxis: { ...base.xAxis, data: g.histogram.map(b => percent((b.lower + b.upper) / 2, 1)), axisLabel: { ...axisLabel, rotate: 35 } },
       yAxis: { ...base.yAxis, min: 0, axisLabel: { ...axisLabel, formatter: '{value}%' } },
       series: [
-        { name: g.name, type: 'bar', data: g.histogram.map(b => b.share == null ? null : b.share * 100), barCategoryGap: '8%', itemStyle: { color: i ? '#c27e65' : '#287985' } },
-        { name: '全样本', type: 'line', showSymbol: false, data: r.baseline.histogram.map(b => b.share * 100), lineStyle: { color: '#b28d54', width: 1.5, type: 'dashed' }, itemStyle: { color: '#b28d54' } },
+        { name: g.name, type: 'bar', latestValueLabel: false, data: g.histogram.map(b => b.share == null ? null : b.share * 100), barCategoryGap: '8%', itemStyle: { color: i ? '#c27e65' : '#287985' } },
+        { name: '全样本', type: 'line', latestValueLabel: false, showSymbol: false, data: r.baseline.histogram.map(b => b.share * 100), lineStyle: { color: '#b28d54', width: 1.5, type: 'dashed' }, itemStyle: { color: '#b28d54' } },
       ],
     })
   }

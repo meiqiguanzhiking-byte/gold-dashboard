@@ -44,7 +44,17 @@ async function draw() {
       nameTextStyle: { color: '#718082', fontSize: 10, align: 'left' }, axisLabel,
       splitLine: { lineStyle: { color: '#edf1f0' } } },
     series: props.model.curves.map((curve, index) => ({
-      name: curve.name, type: 'line', data: curve.points.map(point => point.value),
+      name: curve.name, type: 'line', latestValueLabel: false,
+      data: curve.points.map((point, category) => {
+        const ordered = props.model.curves.map((other, seriesIndex) => ({ value: other.points[category]?.value, seriesIndex }))
+          .filter(p => isNumber(p.value)).sort((a, b) => b.value - a.value || a.seriesIndex - b.seriesIndex)
+        const rank = ordered.findIndex(p => p.seriesIndex === index)
+        const position = rank === 0 ? 'top' : rank === ordered.length - 1 ? 'bottom'
+          : category === props.model.categories.length - 1 ? 'left' : 'right'
+        return { value: point.value, label: { show: isNumber(point.value), position, distance: 8,
+          formatter: isNumber(point.value) ? numberText(point.value) : '', fontSize: 10, color: colors[index],
+          backgroundColor: 'rgba(255,255,255,0.75)', padding: [2, 4], borderRadius: 2 } }
+      }),
       smooth: false, connectNulls: false, showSymbol: true, symbol: ['circle', 'rect', 'diamond'][index], symbolSize: 7,
       lineStyle: { color: colors[index], width: 2, type: lineTypes[index] }, itemStyle: { color: colors[index] },
       emphasis: { focus: 'series' },

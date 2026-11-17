@@ -77,7 +77,10 @@ async function draw() {
     series = [inventorySeries('注册库存', 'registered', colors.registered, v.totalsAgree ? 'inventory' : undefined), inventorySeries('合格库存', 'eligible', colors.eligible, v.totalsAgree ? 'inventory' : undefined)]
     series.push(inventorySeries('总库存（原表）', 'total', colors.boundary))
   }
-  structureChart.setOption({ ...axisTransition, grid: { left: 18, right: 36, top: 52, bottom: 58, containLabel: true },
+  series.forEach((line, index) => {
+    line.latestValueLabel = { position: 'right', offset: [0, index === series.length - 1 ? -14 : index === series.length - 2 ? 14 : 0] }
+  })
+  structureChart.setOption({ ...axisTransition, grid: { left: 18, right: 110, top: 52, bottom: 58, containLabel: true },
     legend: { type: 'scroll', top: 4, left: 0, right: 0, itemWidth: 12, itemHeight: 5, icon: 'roundRect', textStyle: { fontSize: 10, color: '#667579' } },
     tooltip: { ...tooltipStyle, trigger: 'axis', formatter: structureTooltip },
     xAxis: commonXAxis(dates, series.some(s => s.type === 'bar')),

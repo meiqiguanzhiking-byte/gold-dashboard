@@ -99,7 +99,7 @@ def spread_curve_rows(frame):
         date = record["日期"]
         if not isinstance(date, str):
             continue
-        row, details = {"时间": date}, []
+        row, details, quotes = {"时间": date}, [], {}
         for prefix, rank in (("main", "近端主力"), ("secondary", "远端主力")):
             raw_contract = record[rank + "合约"]
             contract = str(raw_contract).strip().lower() if pd.notna(raw_contract) else None
@@ -113,11 +113,13 @@ def spread_curve_rows(frame):
                 value is not None for value in (domestic_close, gold, fx)) else None
             row[prefix + "_spread"] = spread
             row[prefix + "_contract"] = contract
+            quotes[prefix] = {"contract": contract, "domestic": domestic_close, "overseas": gold, "fx": fx}
             details.append(f"{rank}：{contract or '缺失'}"
                            f" · 国内原价 {domestic_close if domestic_close is not None else '缺失'} 元/克"
                            f" · COMEX {gold if gold is not None else '缺失'} 美元/金衡盎司"
                            f" · USDCNH期货 {fx if fx is not None else '缺失'} CNH/美元")
         row["spread_detail"] = "；".join(details)
+        row["weekly_quotes"] = json.dumps(quotes, ensure_ascii=False, allow_nan=False)
         output.append(row)
     return output
 
@@ -149,7 +151,11 @@ def add_domestic_futures(builder):
                 contract_expiries=basis_expiries,
                 method="保存全部合约当日原价及持仓量；供每日速递及主力连续曲线选约使用")
     frame = pd.DataFrame(rows, columns=["时间", "close", "detail"])
-    spread_frame = pd.DataFrame(spread_rows, columns=["时间", "main_spread", "secondary_spread", "spread_detail"])
+    spread_frame = pd.DataFrame(spread_rows, columns=["时间", "main_spread", "secondary_spread", "spread_detail", "weekly_quotes"])
+    builder.add("price", "gold_futures_weekly_quotes", "指定近远端主力原始报价", "文本", "日度", SPREAD_SOURCE,
+                column="weekly_quotes", frame=spread_frame, input_sources=[SPREAD_SOURCE],
+                method=METHOD, public_use_status="未确认", missing_fields=spread_missing,
+                warnings=["结构化保存指定合约及国内、COMEX、USDCNH期货原价；无效报价为空，不补值。"])
     domestic_missing, overseas_missing = [], []
     for target, table, required in [(domestic_missing, domestic, ["时间", "合约", "交割月份", "收盘价（元/克）"]),
                                     (overseas_missing, overseas, ["日期", "合约", "到期期限", "黄金期货价格", "USDCNH期货价格"])]:

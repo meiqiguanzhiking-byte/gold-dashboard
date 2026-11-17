@@ -5,7 +5,7 @@ import { escapeHtml, format } from '../data.js'
 import StatusBadge from './StatusBadge.vue'
 import { sourceLabel } from '../source-labels.js'
 import { useChartVisibility } from '../chart-visibility.js'
-const props = defineProps({ title: String, rows: { type: Array, default: () => [] }, period: String, unit: String, error: String, loading: Boolean, note: String, negative: Boolean, nameFormatter: Function })
+const props = defineProps({ title: String, rows: { type: Array, default: () => [] }, period: String, unit: String, error: String, loading: Boolean, note: String, negative: Boolean, nameFormatter: Function, showValues: { type: Boolean, default: true } })
 const expanded = ref(false), el = ref(null)
 const visible = computed(() => expanded.value ? props.rows : props.rows.slice(0, 5))
 const displayName = name => props.nameFormatter ? props.nameFormatter(name) : name
@@ -29,7 +29,7 @@ async function draw() {
     tooltip: { ...tooltipStyle, trigger: 'item', formatter: tooltip },
     xAxis: { type: 'value', name: props.unit, nameLocation: 'middle', nameGap: 22, nameTextStyle: { fontSize: 10 }, axisLabel, splitLine: { lineStyle: { color: '#edf1f0' } } },
     yAxis: { type: 'category', inverse: true, data: visible.value.map(r => r.name), axisLabel: { ...axisLabel, color: '#55676d', width: longNames.value ? 180 : 110, overflow: 'truncate', formatter: displayName }, axisTick: { show: false }, axisLine: { show: false } },
-    series: [{ type: 'bar', barMaxWidth: 18, itemStyle: { color: props.negative ? '#c27e65' : '#278b94' }, label: { show: true, position: props.negative ? 'left' : 'right', formatter: p => format(p.value), fontSize: 10, color: '#647578' }, data: visible.value.map(r => r.point.value) }],
+    series: [{ type: 'bar', barMaxWidth: 18, latestValueLabel: props.showValues, itemStyle: { color: props.negative ? '#c27e65' : '#278b94' }, label: { show: props.showValues, position: props.negative ? 'left' : 'right', formatter: p => format(p.value), fontSize: 10, color: '#647578' }, data: visible.value.map(r => r.point.value) }],
   }, true)
   chart.resize()
 }
