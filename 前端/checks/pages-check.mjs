@@ -21,7 +21,8 @@ await page.route('**/*', route => {
   return route.continue()
 })
 async function loaded(p = page) {
-  await p.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled && document.querySelectorAll('#daily-brief .daily-card').length === 25)
+  await p.waitForFunction(() => !document.querySelector('.refresh-button')?.disabled &&
+    (document.querySelector('#page-tab-daily')?.getAttribute('aria-selected') !== 'true' || document.querySelectorAll('#daily-brief .daily-card').length === 25))
 }
 async function layout(width) {
   await page.setViewportSize({ width, height: 1000 })
@@ -50,6 +51,7 @@ async function chartInk(selector) {
   }, 0))
 }
 async function waitForInk(selector) {
+  await page.locator(selector.replace(/\s+canvas$/, '')).first().scrollIntoViewIfNeeded()
   await page.locator(selector).first().waitFor()
   await page.locator(selector).first().scrollIntoViewIfNeeded()
   const deadline = Date.now() + 120000
@@ -68,7 +70,7 @@ try {
   const generatedDate = snapshot.generated_at.slice(0, 10).split('-').map(Number).join('/')
   assert.ok((await page.locator('.data-summary').textContent()).includes(generatedDate))
   assert.equal(await page.getByRole('button', { name: '刷新真实数据', exact: true }).count(), 0)
-  assert.equal(await page.locator('main section.section').count(), 22)
+  assert.equal(await page.locator('#page-panel-daily section.section').count(), 1)
   assert.deepEqual(await page.locator('.page-tabs > .page-tab-entry > button[role="tab"]').allTextContents(), ['每日速递⌄', '每周速递⌄', '国内', '国外', '交叉展示', '研报复现⌄', '数据健康度'])
   await page.getByRole('tab', { name: '研报复现' }).click()
   assert.equal(await page.locator('#page-panel-research .research-module').count(), 3)
@@ -79,6 +81,7 @@ try {
   await loaded()
   await page.waitForTimeout(200)
   for (const id of ['central-bank', 'au-td', 'futures', 'domestic-etf']) {
+    await page.locator('#' + id).scrollIntoViewIfNeeded()
     await page.locator('#' + id + ' canvas').first().waitFor()
     assert.ok(await chartInk('#' + id + ' canvas') > 15, id + ' 图表应包含真实绘制内容')
   }
