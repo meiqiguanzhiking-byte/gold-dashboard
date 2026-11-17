@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "daily_news_public_sources": [],
+  "daily_news_public_sources": ["chinanews-finance", "chinanews-world", "fed-press", "fed-speeches", "fed-research"],
   "publication_status": "用户已于2026-10-26确认全量数据及新增价格、汇率来源可以公开；展示快照仍仅导出页面所需指标",
   "indicator_ids": [
     "au_td_close",
