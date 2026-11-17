@@ -35,7 +35,7 @@ const formula = computed(() => {
   }).join('')
 })
 async function load() {
-  if (isStatic || loading.value) return
+  if (loading.value) return
   loading.value = true; error.value = ''
   try { result.value = await request('research/macro-monthly'); await nextTick(); draw() }
   catch (e) { error.value = e.message }
@@ -89,8 +89,8 @@ onBeforeUnmount(() => { observer?.disconnect(); priceChart?.dispose(); deviation
 
 <template>
   <div class="macro-replication">
-    <p v-if="isStatic" class="macro-note">此复现暂仅在本地展示，尚未发布复现数据。</p>
-    <p v-else-if="loading">正在读取合并月表并估计长期价格中枢…</p>
+    <p v-if="isStatic" class="macro-note">当前展示已冻结的研报复现结果。</p>
+    <p v-if="loading">正在读取合并月表并估计长期价格中枢…</p>
     <p v-else-if="error" role="alert">{{ error }} <button @click="load">重试</button></p>
     <template v-if="result">
       <p class="macro-period">最新完整月份 {{ result.latest.month }} · 回归样本 {{ result.sample.start }}—{{ result.sample.end }} · {{ result.sample.count }}个月</p>

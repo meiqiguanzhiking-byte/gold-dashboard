@@ -163,6 +163,12 @@ def export():
         snapshot["deliveries"] = deliveries
     snapshot["daily_report"] = build_public_report(exported, snapshot["generated_at"])
     snapshot["daily_news"] = public_news(policy)
+    # 研报静态结果保持冻结，仅运行export_research.py时更新。
+    previous_output = ROOT / "展示版/数据/data/snapshot.json"
+    if previous_output.exists():
+        research = json.loads(previous_output.read_text(encoding="utf-8")).get("research")
+        if research is not None:
+            snapshot["research"] = research
     validate_public(snapshot)
     output = ROOT / "展示版" / "数据" / "data" / "snapshot.json"
     output.parent.mkdir(parents=True, exist_ok=True)

@@ -59,10 +59,18 @@ export function buildPagesData(snapshot) {
     { coverage_start: contract.coverage_start, coverage_end: contract.coverage_end },
   ]))
   delete compact.deliveries
+  delete compact.research
+  const research = {}
+  for (const [model, value] of Object.entries(snapshot.research?.models || {})) {
+    const source = encode({ schema_version: 1, model, result: value })
+    const name = `data/research-${model}-${createHash('sha256').update(source).digest('hex').slice(0, 16)}.json`
+    assets.set(name, source)
+    research[model] = name
+  }
   const inventory = encode({ generated_at: snapshot.generated_at, deliveries: snapshot.deliveries ?? null })
   const inventoryName = `data/deliveries-${createHash('sha256').update(inventory).digest('hex').slice(0, 16)}.json`
   assets.set(inventoryName, inventory)
-  const bootstrap = { schema_version: 1, snapshot: compact, categories, deliveries: inventoryName }
+  const bootstrap = { schema_version: 1, snapshot: compact, categories, deliveries: inventoryName, research }
   assets.set('data/bootstrap.json', encode(bootstrap))
   return { bootstrap, assets }
 }

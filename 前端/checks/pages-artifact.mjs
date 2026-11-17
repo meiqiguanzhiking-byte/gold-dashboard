@@ -15,7 +15,7 @@ const forbidden = /\b[A-Za-z]:[\\/]|localhost|127\.0\.0\.1|\/api\/|Traceback|BEG
 const snapshot = JSON.parse(await readFile(snapshotPath, 'utf8'))
 assert.equal(snapshot.schema_version, 1)
 assert.ok(!forbidden.test(JSON.stringify(snapshot)), '快照不得包含本机地址、路径、接口或密钥')
-assert.deepEqual(Object.keys(snapshot).filter(key => !['deliveries', 'daily_report', 'daily_news'].includes(key)).sort(), ['comex', 'files', 'generated_at', 'groups', 'publication', 'schema_version'])
+assert.deepEqual(Object.keys(snapshot).filter(key => !['deliveries', 'daily_report', 'daily_news', 'research'].includes(key)).sort(), ['comex', 'files', 'generated_at', 'groups', 'publication', 'schema_version'])
 if (snapshot.daily_news) {
   assert.equal(snapshot.daily_news.publication_scope, 'public_only')
   if (snapshot.daily_news.status === 'withheld') assert.deepEqual(snapshot.daily_news.events, [])
@@ -91,6 +91,17 @@ if (!totalShares.metadata.publication_withheld) {
 assert.ok(!ids.has('spdr_close') && !ids.has('spdr_volume') && !ids.has('cftc_trading_volume'))
 assert.ok([...ids].filter(id => /^domestic_/.test(id)).every(id => !id.endsWith('_nav')))
 const prepared = buildPagesData(snapshot)
+if (snapshot.research) {
+  assert.equal(snapshot.research.mode, 'frozen')
+  assert.deepEqual(Object.keys(snapshot.research.models).sort(), ['dual-anchor', 'etf-monthly', 'macro-monthly'])
+  assert.equal(prepared.bootstrap.snapshot.research, undefined, '研报数据按需加载，不放入首屏')
+  for (const [model, result] of Object.entries(snapshot.research.models)) {
+    const data = JSON.parse(prepared.assets.get(prepared.bootstrap.research[model]))
+    assert.equal(data.model, model)
+    assert.deepEqual(data.result, result)
+    assert.equal(result.sample.count, 284)
+  }
+}
 const initial = expandSnapshot(prepared.bootstrap.snapshot)
 const full = expandSnapshot(snapshot)
 const flatten = groups => Object.entries(groups).filter(([key]) => key !== 'meta').flatMap(([, group]) => group.indicators)

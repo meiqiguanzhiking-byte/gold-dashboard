@@ -16,7 +16,7 @@ const pp = v => v == null ? '—' : (v > 0 ? '+' : '') + (v * 100).toFixed(2)
 const stateName = computed(() => Object.fromEntries((result.value?.state_counts || []).map(s => [s.state, s.name])))
 const events = computed(() => result.value?.divergence.flatMap(g => g.events.map(e => ({ ...e, name: g.name }))).sort((a, b) => b.start.localeCompare(a.start)) || [])
 async function load() {
-  if (isStatic || loading.value) return
+  if (loading.value) return
   loading.value = true; error.value = ''
   try { result.value = await request('research/dual-anchor'); emit('loaded', result.value); await nextTick(); draw() }
   catch (e) { error.value = e.message }
@@ -120,8 +120,8 @@ onBeforeUnmount(() => { observer?.disconnect(); for (const chart of charts.value
 
 <template>
   <div class="dual-anchor">
-    <p v-if="isStatic" class="dual-note">此复现暂仅在本地展示。</p>
-    <p v-else-if="loading">正在匹配ETF与宏观锚信号…</p>
+    <p v-if="isStatic" class="dual-note">当前展示已冻结的研报复现结果。</p>
+    <p v-if="loading">正在匹配ETF与宏观锚信号…</p>
     <p v-else-if="error" role="alert">{{ error }} <button @click="load">重试</button></p>
     <template v-if="result">
       <p class="dual-note">信号样本 {{ result.sample.start }}—{{ result.sample.end }}，共{{ result.sample.count }}个月；次月收益可检验至{{ result.sample.return_end }}，偏离率至{{ result.sample.deviation_end }}。</p>

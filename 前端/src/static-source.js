@@ -109,6 +109,14 @@ export async function request(path) {
     return { status: 'ok' }
   }
   const index = await bootstrap()
+  if (path.startsWith('research/')) {
+    const model = path.slice('research/'.length)
+    const file = index.research?.[model]
+    if (!file) throw new Error('该研报的静态结果尚未发布')
+    const data = await resource(file)
+    if (data.schema_version !== 1 || data.model !== model || !data.result) throw new Error('研报静态数据格式无效')
+    return data.result
+  }
   if (path === 'bootstrap') return expandSnapshot(index.snapshot)
   if (path === 'meta') return expandSnapshot(index.snapshot).meta
   const key = index.snapshot.generated_at + ':' + path

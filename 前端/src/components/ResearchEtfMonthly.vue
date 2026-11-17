@@ -13,7 +13,7 @@ const pvalue = v => v < .0001 ? '<0.0001' : v.toFixed(4)
 const selected = computed(() => result.value?.pairs.find(p => p.month === selectedMonth.value))
 const coef = computed(() => result.value?.coefficients || [])
 async function load() {
-  if (isStatic || loading.value) return
+  if (loading.value) return
   loading.value = true; error.value = ''
   try { result.value = await request('research/etf-monthly'); await nextTick(); draw() }
   catch (e) { error.value = e.message }
@@ -60,8 +60,8 @@ onBeforeUnmount(() => { observer?.disconnect(); rollingChart?.dispose(); groupCh
 
 <template>
   <div class="etf-replication">
-    <p v-if="isStatic" class="etf-note">此复现暂仅在本地展示，尚未发布复现数据。</p>
-    <p v-else-if="loading">正在读取合并月表并计算…</p>
+    <p v-if="isStatic" class="etf-note">当前展示已冻结的研报复现结果。</p>
+    <p v-if="loading">正在读取合并月表并计算…</p>
     <p v-else-if="error" role="alert">{{ error }} <button class="text-button" @click="load">重试</button></p>
     <template v-if="result">
       <div class="etf-summary">
