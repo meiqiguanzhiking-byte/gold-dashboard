@@ -1,11 +1,11 @@
 import * as echarts from 'echarts/core'
 import { LineChart, BarChart, HeatmapChart, CustomChart, ScatterChart, BoxplotChart } from 'echarts/charts'
-import { GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, VisualMapComponent, MarkLineComponent, MarkPointComponent } from 'echarts/components'
+import { GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, VisualMapComponent, MarkLineComponent, MarkPointComponent, MarkAreaComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import { escapeHtml, format } from './data.js'
 import { latestValueLabels } from './latest-value-labels.js'
 
-echarts.use([LineChart, BarChart, HeatmapChart, CustomChart, ScatterChart, BoxplotChart, GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, VisualMapComponent, MarkLineComponent, MarkPointComponent, CanvasRenderer])
+echarts.use([LineChart, BarChart, HeatmapChart, CustomChart, ScatterChart, BoxplotChart, GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, VisualMapComponent, MarkLineComponent, MarkPointComponent, MarkAreaComponent, CanvasRenderer])
 echarts.registerPreprocessor(latestValueLabels)
 export { echarts }
 export function tooltipRow(item, point, color) {

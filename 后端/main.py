@@ -1,5 +1,6 @@
 """黄金市场本地只读数据 API。"""
 import asyncio
+import os
 from contextlib import asynccontextmanager
 from contextlib import suppress
 from datetime import date
@@ -20,14 +21,17 @@ from daily_report import report_service
 from daily_refresh import DailySourceMonitor
 from daily_news import news_service
 from dashboard_bootstrap import compact_dashboard
+from spot_research import read_spot_market
 
 
 @asynccontextmanager
 async def lifespan(app):
     monitor = DailySourceMonitor(store, report_service, news=news_service)
     await asyncio.to_thread(store.reload)
-    report_service.prewarm(store.snapshot)
-    news_service.prewarm(store.snapshot)
+    # 纯界面维护重启可跳过启动时的日报生成和资讯采集，文件变更监测保持原逻辑。
+    if os.environ.get("GOLD_PREWARM_ON_START", "1") != "0":
+        report_service.prewarm(store.snapshot)
+        news_service.prewarm(store.snapshot)
     task = asyncio.create_task(monitor.run())
     try:
         yield
@@ -55,6 +59,16 @@ def health():
     return {"status": meta["status"], "loaded_at": meta["loaded_at"],
             "file_count": len(meta["files"]), "indicator_count": len(meta["indicators"]),
             "read_errors": meta["read_errors"]}
+
+
+@app.get("/api/spot-research/market")
+def spot_research_market():
+    try:
+        return read_spot_market()
+    except FileNotFoundError:
+        raise HTTPException(404, "未找到现价研究行情数据文件")
+    except (ValueError, KeyError, UnicodeError, OSError):
+        raise HTTPException(422, "现价研究数据读取失败，请检查日期、指标列及数值格式")
 
 
 @app.get("/api/meta")

@@ -8,6 +8,7 @@ from price import SOURCE as DOMESTIC_SOURCE
 SOURCE = "伦敦金现与汇率_北京时间1530收盘价.xlsx"
 SHEET = "北京时间1530"
 VOLATILITY_SOURCE = "黄金ETF波动率指数.csv"
+USD_INDEX_SOURCE = "美元指数.csv"
 TREASURY_SOURCE = "美债收益率.xlsx"
 GRAMS_PER_TROY_OUNCE = 31.1034768
 FORMULA = "Au(T+D)（元/克）−伦敦金现（美元/金衡盎司）×USDCNY（CNY/美元）÷31.1034768"
@@ -54,6 +55,18 @@ def add_international_price_indicators(builder):
                        source_reference="https://www.cboe.com/us/indices/dashboard/gvz/", index_symbol="GVZ",
                        display_digits=2, change_unit="百分点", change_kind="absolute_and_percent",
                        warnings=["来源：Cboe 芝加哥期权交易所；按CSV原始日度数值展示，不插值、不前值填充。"])
+    finish_change(item)
+
+    usd_index = builder.tables.get((USD_INDEX_SOURCE, None))
+    usd_frame = usd_index.frame.rename(columns={"Date": "日期"}).copy() if usd_index else pd.DataFrame(columns=["日期", "Close"])
+    usd_values = pd.to_numeric(usd_frame["Close"], errors="coerce") if "Close" in usd_frame else pd.Series(float("nan"), index=usd_frame.index)
+    usd_values = usd_values.where(usd_values.gt(0)).replace([float("inf"), -float("inf")], float("nan"))
+    item = builder.add("price", "usd_index", "美元指数", "点", "日度", USD_INDEX_SOURCE,
+                       frame=usd_frame, column="Close", values=usd_values,
+                       source_reference="https://quote.eastmoney.com/gb/zsUDI.html", index_symbol="UDI",
+                       display_digits=2, change_unit="点", change_kind="absolute_and_percent",
+                       warnings=["来源：东方财富UDI美元指数日线收盘值，单位指数点；非美元指数期货或ICE官方结算价。",
+                                 "保留来源观察日期，按日期升序展示；缺失不补零、不插值、不前值填充。"])
     finish_change(item)
 
     items = {i["metadata"]["indicator_id"]: i for i in builder.groups["price"]}

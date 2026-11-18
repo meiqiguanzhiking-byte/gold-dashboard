@@ -71,7 +71,7 @@ try {
   assert.ok((await page.locator('.data-summary').textContent()).includes(generatedDate))
   assert.equal(await page.getByRole('button', { name: '刷新真实数据', exact: true }).count(), 0)
   assert.equal(await page.locator('#page-panel-daily section.section').count(), 1)
-  assert.deepEqual(await page.locator('.page-tabs > .page-tab-entry > button[role="tab"]').allTextContents(), ['每日速递⌄', '每周速递⌄', '国内', '国外', '交叉展示', '研报复现⌄', '数据健康度'])
+  assert.deepEqual(await page.locator('.page-tabs > .page-tab-entry > button[role="tab"]').allTextContents(), ['每日速递⌄', '每周速递⌄', '国内', '国外', '交叉展示', '量化研究⌄', '研报复现⌄', '数据健康度'])
   await page.getByRole('tab', { name: '研报复现' }).click()
   assert.equal(await page.locator('#page-panel-research .research-module').count(), 3)
   await page.getByRole('tab', { name: '每日速递', exact: true }).click()
@@ -98,7 +98,7 @@ try {
   await page.getByRole('tab', { name: '国外' }).click()
   await loaded()
   await page.waitForTimeout(250)
-  for (const id of ['positions', 'spdr', 'london', 'comex', 'global-etf']) {
+  for (const id of ['usd-index', 'positions', 'spdr', 'london', 'comex', 'global-etf']) {
     await waitForInk('#' + id + ' canvas')
     assert.ok(await chartInk('#' + id + ' canvas') > 15, id + ' 图表应包含真实绘制内容')
   }

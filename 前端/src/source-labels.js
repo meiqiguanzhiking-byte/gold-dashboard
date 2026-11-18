@@ -28,6 +28,7 @@ const sourceLabels = {
   '全球央行购金.csv': 'WGC 世界黄金协会',
   '伦敦金现与汇率_北京时间1530收盘价.xlsx': 'Barchart 官网',
   '黄金ETF波动率指数.csv': 'Cboe 芝加哥期权交易所',
+  '美元指数.csv': '东方财富（UDI美元指数）',
   '美债收益率.xlsx': 'FRED 美联储经济数据网站',
   '黄金交割.xlsx': 'CME Group 芝商所',
   'COMEX黄金与汇率期货_北京时间15收盘价.csv': 'Barchart 官网 → CME 芝商所 / SGX 新加坡交易所',

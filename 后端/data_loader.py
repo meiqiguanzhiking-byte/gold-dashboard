@@ -35,7 +35,7 @@ def read_csv(path):
 
 
 def describe_frame(frame, sheet):
-    date_col = next((name for name in ("时间", "日期") if name in frame.columns), None)
+    date_col = next((name for name in ("时间", "日期", "Date") if name in frame.columns), None)
     dates = parse_dates(frame[date_col]) if date_col else pd.Series(dtype="datetime64[ns]")
     start, end = dates.min(), dates.max()
     return {
