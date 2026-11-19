@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
 import ChartPanel from './components/ChartPanel.vue'
 import BankFxChart from './components/BankFxChart.vue'
 import MetricCard from './components/MetricCard.vue'
@@ -14,16 +14,18 @@ import { openInterestMainSeries } from './open-interest-continuous.js'
 import { mainContractBasisSeries } from './futures-basis-history.js'
 import AutdFeeTable from './components/AutdFeeTable.vue'
 import DailyDispatch from './components/DailyDispatch.vue'
-import WeeklyBrief from './components/WeeklyBrief.vue'
-import CrossDisplay from './components/CrossDisplay.vue'
-import ResearchReplication from './components/ResearchReplication.vue'
-import QuantResearch from './components/QuantResearch.vue'
 import DashboardPages from './components/DashboardPages.vue'
 import DashboardPage from './components/DashboardPage.vue'
 import DashboardSection from './components/DashboardSection.vue'
 import { centralBankEntityName } from './central-bank-names.js'
 import { sourceLabel } from './source-labels.js'
 import { useDashboard, isStatic, categoryNames, format, localTime, regions, regionColors, palette, numeric, sortHealthSources, dateNumber } from './data.js'
+
+// 首屏只下载日频看板；其他独立栏目首次打开时再加载程序，切回时保留原实例。
+const WeeklyBrief = defineAsyncComponent(() => import('./components/WeeklyBrief.vue'))
+const CrossDisplay = defineAsyncComponent(() => import('./components/CrossDisplay.vue'))
+const ResearchReplication = defineAsyncComponent(() => import('./components/ResearchReplication.vue'))
+const QuantResearch = defineAsyncComponent(() => import('./components/QuantResearch.vue'))
 
 const { blocks, meta, all, dailyItems, dailyBlocks, item, refreshing, reloadError, clientRefreshedAt, notice, loadAll, loadPage, refresh, loadBlock } = useDashboard()
 const futuresPriceMode = ref('adjusted')

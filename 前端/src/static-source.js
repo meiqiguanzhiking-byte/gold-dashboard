@@ -24,7 +24,7 @@ export function expandSnapshot(snapshot) {
 
 async function download(path, fresh = false) {
   if (!/^(?:data\/)[a-z0-9-]+\.json$/.test(path)) throw new Error('展示数据路径无效')
-  if (activeDownloads >= 3) await new Promise(resolve => waiting.push(resolve))
+  if (activeDownloads >= 6) await new Promise(resolve => waiting.push(resolve))
   else activeDownloads++
   try {
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -83,7 +83,7 @@ async function loadGroup(index, category) {
   const items = index.snapshot.groups[category].map(item => ({ ...item, points: [] }))
   const byId = new Map(items.map(item => [item.metadata.indicator_id, item]))
   for (const part of parts) {
-    if (part.generated_at !== index.snapshot.generated_at || part.category !== category) throw new Error('展示数据批次不一致，请重新加载')
+    if (part.schema_version !== 1 || part.category !== category) throw new Error('展示数据格式不一致，请重新加载')
     for (const segment of part.segments) {
       const item = byId.get(segment.id)
       if (!item || item.points.length !== segment.offset) throw new Error('展示数据分片不完整，请重试')
@@ -94,7 +94,7 @@ async function loadGroup(index, category) {
   let deliveries
   if (category === 'inventory') {
     const part = await resource(index.deliveries)
-    if (part.generated_at !== index.snapshot.generated_at) throw new Error('交割数据批次不一致，请重新加载')
+    if (part.schema_version !== 1) throw new Error('交割数据格式不一致，请重新加载')
     deliveries = part.deliveries
   }
   return expandSnapshot({ ...index.snapshot, deliveries, groups: { [category]: items } })[category]

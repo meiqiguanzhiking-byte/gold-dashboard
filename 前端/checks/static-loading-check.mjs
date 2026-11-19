@@ -43,7 +43,7 @@ try {
   assert.equal(requests.length, 0, '健康度元信息也应随首屏直接可用')
   await page.getByRole('tab', { name: '国内', exact: true }).click()
   await ready()
-  assert.ok(maximum <= 3, '同时最多下载三个分片')
+  assert.ok(maximum <= 6, '同时最多下载六个分片')
   assert.ok([...attempts].some(([name, count]) => name.startsWith('price-') && count === 2), '临时失败应自动重试')
   assert.ok([...attempts].some(([name, count]) => name.startsWith('central-bank-') && count === 3), '持续失败应有界重试')
   assert.equal(await page.locator('.alert.error[role=alert]').count(), 1, '失败应局限于对应分类')

@@ -130,7 +130,7 @@ for (const [category, paths] of Object.entries(prepared.bootstrap.categories)) {
     const content = prepared.assets.get(file)
     assert.ok(Buffer.byteLength(content) <= chunkLimit)
     const part = JSON.parse(content)
-    assert.equal(part.generated_at, snapshot.generated_at)
+    assert.equal(part.schema_version, 1)
     for (const segment of part.segments) {
       const item = byId.get(segment.id)
       assert.equal(item.points.length, segment.offset)
@@ -139,6 +139,9 @@ for (const [category, paths] of Object.entries(prepared.bootstrap.categories)) {
   }
   assert.deepEqual(rebuilt, snapshot.groups[category], '历史拆分重组必须逐值一致：' + category)
 }
+const republished = buildPagesData({ ...snapshot, generated_at: '2099-01-01T00:00:00+08:00' })
+assert.deepEqual(republished.bootstrap.categories, prepared.bootstrap.categories, '仅快照时间变化不能使历史缓存失效')
+assert.equal(republished.bootstrap.deliveries, prepared.bootstrap.deliveries, '未变化的交割数据应复用内容缓存')
 if (!snapshotOnly) {
   async function walk(dir) {
     const files = []

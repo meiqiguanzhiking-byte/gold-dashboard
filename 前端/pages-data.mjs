@@ -3,7 +3,8 @@ import { createHash } from 'node:crypto'
 import { dailyThresholdGroups, yearStart, percentileGroups } from './src/daily-brief.js'
 
 const encode = value => JSON.stringify(value)
-export const chunkLimit = 96 * 1024
+// 减少高延迟网络中的请求往返，同时保留有界小文件和单片重试。
+export const chunkLimit = 384 * 1024
 
 // 所有派生文件均来自同一份已审阅快照；保留每个原值、空值与观察日期。
 export function buildPagesData(snapshot) {
@@ -30,7 +31,8 @@ export function buildPagesData(snapshot) {
     }
     if (batch.length) batches.push(batch)
     categories[category] = batches.map(segments => {
-      const source = encode({ generated_at: snapshot.generated_at, category, segments })
+      // 内容哈希已固定版本；不把导出时间放进历史片，避免日更使旧历史缓存全部失效。
+      const source = encode({ schema_version: 1, category, segments })
       if (Buffer.byteLength(source) > chunkLimit) throw new Error('静态数据分片超出大小上限')
       const hash = createHash('sha256').update(source).digest('hex').slice(0, 16)
       const name = `data/${category}-${hash}.json`
@@ -67,7 +69,7 @@ export function buildPagesData(snapshot) {
     assets.set(name, source)
     research[model] = name
   }
-  const inventory = encode({ generated_at: snapshot.generated_at, deliveries: snapshot.deliveries ?? null })
+  const inventory = encode({ schema_version: 1, deliveries: snapshot.deliveries ?? null })
   const inventoryName = `data/deliveries-${createHash('sha256').update(inventory).digest('hex').slice(0, 16)}.json`
   assets.set(inventoryName, inventory)
   const bootstrap = { schema_version: 1, snapshot: compact, categories, deliveries: inventoryName, research }
