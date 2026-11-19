@@ -92,6 +92,15 @@ try {
     await market.getByRole('group', { name: '行情走势日期筛选' }).getByLabel('开始日期', { exact: true }).fill('2020-01-01')
     await waitForInk('[data-chart-title="行情走势"] canvas')
     await market.getByLabel('开始日期', { exact: true }).fill(snapshot.spot_market.start)
+    if (await page.locator('.rolling-ic-panel').count()) {
+      await waitForInk('[data-chart-title="252日滚动IC"] canvas')
+      const rolling = page.locator('.rolling-ic-panel')
+      assert.equal(await rolling.getByLabel('研究对象', { exact: true }).locator('option').count(), 4)
+      assert.ok(await rolling.getByLabel('日频因子', { exact: true }).locator('option').count() > 0)
+      await rolling.getByLabel('配对方式', { exact: true }).selectOption('same-level')
+      await waitForInk('[data-chart-title="252日滚动IC"] canvas')
+      await rolling.getByLabel('配对方式', { exact: true }).selectOption('next-change')
+    }
   }
   await page.getByRole('button', { name: '期货研究', exact: true }).click()
   await page.locator('#page-panel-quant .quant-empty').waitFor()

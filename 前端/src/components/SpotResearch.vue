@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import SpotMarketChart from './SpotMarketChart.vue'
 import SpotSpreadStatistics from './SpotSpreadStatistics.vue'
+import SpotRollingIC from './SpotRollingIC.vue'
 const marketData = ref(null)
 
 const pages = [
@@ -28,6 +29,7 @@ const activePage = ref('factors')
       <template v-if="page.id === 'factors'">
         <SpotMarketChart @loaded="marketData = $event" />
         <SpotSpreadStatistics :data="marketData" />
+        <SpotRollingIC :data="marketData" />
       </template>
       <div v-else class="spot-empty">{{ page.name }}内容待添加</div>
     </section>
