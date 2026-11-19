@@ -1,7 +1,7 @@
 // 沿用参考图的人工分期，不根据统计结果自动寻找分界。
 export const spreadPhases = [
-  { start: '2012-09-01', end: '2020-03-31', label: '常态溢价', description: '以正溢价为主', color: '#e9eef4' },
-  { start: '2020-04-01', end: '2020-12-31', label: '持续折价', description: '持续深度折价', color: '#e0eee7' },
+  { start: '2012-09-01', end: '2019-12-31', label: '常态溢价', description: '以正溢价为主', color: '#e9eef4' },
+  { start: '2020-01-01', end: '2020-12-31', label: '持续折价', description: '持续深度折价', color: '#e0eee7' },
   { start: '2021-01-01', end: '2022-07-31', label: '溢价恢复', description: '恢复温和溢价', color: '#e9eef4' },
   { start: '2022-08-01', end: '2023-07-31', label: '溢价抬升', description: '溢价中枢抬升', color: '#f6eddb' },
   { start: '2023-08-01', end: '2024-06-30', label: '高溢价', description: '持续高溢价', color: '#f4e1e1' },

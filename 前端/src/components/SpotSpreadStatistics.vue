@@ -72,7 +72,7 @@ onBeforeUnmount(() => chart?.dispose())
         <table><caption class="sr-only">价差全样本描述性统计</caption><tbody><tr v-for="[label, value] in summaryRows" :key="label"><th scope="row">{{ label }}</th><td>{{ value }}</td></tr></tbody></table>
       </section>
       <section class="phase-table"><h4>分阶段指标</h4><div class="phase-table-scroll">
-        <table><caption class="sr-only">价差分阶段描述性统计</caption><thead><tr><th scope="col">阶段</th><th scope="col">数据表现</th><th scope="col">平均价差<br>元/克</th><th scope="col">标准差<br>元/克</th><th scope="col">正价差占比</th><th scope="col">平均相对溢价</th></tr></thead>
+        <table><caption class="sr-only">价差分阶段描述性统计</caption><thead><tr><th scope="col">阶段</th><th scope="col">数据表现</th><th scope="col">平均价差（元/克）</th><th scope="col">标准差（元/克）</th><th scope="col">正价差占比</th><th scope="col">平均相对溢价</th></tr></thead>
           <tbody><tr v-for="phase in model.phases" :key="phase.start"><th scope="row">{{ phase.start.slice(0, 7) }}—{{ phase.end ? phase.end.slice(0, 7) : (data?.end || '至今') }}<small>有效 {{ phase.n }} · 缺失 {{ phase.missing }}</small></th><td>{{ phase.description }}</td><td>{{ num(phase.mean, 2, true) }}</td><td>{{ num(phase.std) }}</td><td>{{ num(phase.positive, 1) }}<template v-if="phase.n">%</template></td><td :title="'相对溢价有效样本：' + phase.relativeN">{{ num(phase.relative, 3, true) }}<template v-if="phase.relative != null">%</template></td></tr></tbody>
         </table></div>
       </section>
@@ -83,5 +83,13 @@ onBeforeUnmount(() => chart?.dispose())
 
 <style scoped>
 .spread-statistics{margin-top:24px;background:#fff;border:1px solid #dce4e1;border-radius:6px;padding:20px 22px;color:#344e54;min-width:0}.spread-statistics>header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}.spread-statistics h3{font-size:17px;font-weight:600;color:#263c40;margin:0;border-left:3px solid #b29a61;padding-left:10px}.spread-statistics header span,.stats-note,.stats-method{font-size:11px;color:#728486;line-height:1.8}.stats-note{margin:12px 0}.spread-chart-scroll{overflow-x:auto}.spread-stage-chart{height:420px;min-width:900px;width:100%}.stats-tables{display:grid;grid-template-columns:minmax(320px,.85fr) minmax(0,1.5fr);gap:28px;margin-top:24px}.stats-tables section{min-width:0}.stats-tables h4{font-size:14px;margin:0 0 10px;color:#263c40;font-weight:600}.stats-tables table{width:100%;border-collapse:collapse;font-size:12px;line-height:1.7}.stats-tables th,.stats-tables td{padding:14px 8px;border-bottom:1px solid #edf1f0;text-align:right;font-weight:400;font-variant-numeric:tabular-nums}.stats-tables th:first-child,.stats-tables td:nth-child(2){text-align:left}.summary-table th{width:42%;text-align:left}.summary-table td{white-space:normal;text-align:right}.phase-table table{min-width:650px}.phase-table-scroll{overflow-x:auto}.phase-table thead th{font-weight:600;color:#263c40;white-space:nowrap}.phase-table tbody th{min-width:140px}.phase-table td{white-space:nowrap}.phase-table small{display:block;font-size:10px;color:#849092}.stats-method{margin-top:20px;border-top:1px solid #edf1f0;padding-top:12px}.stats-method summary{cursor:pointer}.stats-method p{margin:8px 0}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}@media(max-width:1100px){.stats-tables{grid-template-columns:1fr;gap:24px}}@media(max-width:600px){.spread-statistics{padding:16px 12px}.stats-tables th,.stats-tables td{padding:12px 5px}}
+.stats-tables section{display:grid;grid-template-rows:auto 1fr}
+.summary-table table{height:100%}
+.summary-table th,.summary-table td{vertical-align:middle}
+.phase-table table{min-width:780px}
+.phase-table th,.phase-table td{padding:16px 10px;text-align:left;vertical-align:middle;line-height:1.8}
+.phase-table thead th{padding-top:12px;padding-bottom:12px}
+.phase-table small{margin-top:3px}
+@media(max-width:1100px){.summary-table table{height:auto}}
 </style>
 

@@ -1,6 +1,7 @@
 """现价研究行情：只读指定 CSV，不填充、不重新计算原始指标。"""
 import csv
 import math
+import re
 from datetime import datetime
 
 from config import DATA_DIR
@@ -14,14 +15,41 @@ COLUMNS = [
 ]
 
 
+def factor_group(header):
+    if header.startswith("银行结售汇 ·"):
+        return "外汇供求"
+    if header.startswith("金银珠宝零售 ·"):
+        return "消费需求"
+    if "ETF" in header or "SPDR" in header:
+        return "投资需求"
+    if "波动率" in header or "历史波动率" in header:
+        return "波动状态"
+    if "持仓" in header:
+        return "持仓结构"
+    if any(word in header for word in ("美债", "利率", "利差", "通胀", "美元指数", "汇率", "USDCNH", "沪金溢价", "金银比")):
+        return "利率与美元"
+    return None
+
+
 def read_spot_market(path=SOURCE):
-    columns = [{"id": key, "name": name, "unit": unit} for key, name, unit in COLUMNS]
+    columns = [{"id": key, "name": name, "unit": unit, "group": "研究对象"} for key, name, unit in COLUMNS]
     headers = [f"{name}（{unit}）" for _, name, unit in COLUMNS]
     points, seen = [], set()
     with path.open(encoding="utf-8-sig", newline="") as stream:
         reader = csv.DictReader(stream)
         if not {"日期", *headers}.issubset(reader.fieldnames or []):
             raise ValueError("行情数据缺少日期或所需指标列")
+        for header in reader.fieldnames:
+            if header in headers or header == "日期" or "所属月份" in header:
+                continue
+            group = factor_group(header)
+            if not group:
+                raise ValueError(f"未配置因子分组：{header}")
+            match = re.match(r"^(.*)（([^（）]+)）$", header)
+            if not match:
+                raise ValueError(f"未配置因子单位：{header}")
+            columns.append({"id": "factor_" + str(len(columns)), "name": match[1], "unit": match[2], "group": group})
+            headers.append(header)
         for row in reader:
             day = datetime.strptime(row["日期"].strip(), "%Y/%m/%d").date().isoformat()
             if day in seen:
