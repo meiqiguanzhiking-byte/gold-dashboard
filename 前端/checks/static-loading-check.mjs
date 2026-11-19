@@ -21,7 +21,7 @@ await page.route('**/data/*.json', async route => {
   try {
     await new Promise(resolve => setTimeout(resolve, 80))
     if (name === 'snapshot.json') return await route.fulfill({ status: 503, body: 'Unavailable' })
-    if (name.startsWith('central-bank-') && failCentral || name === 'bootstrap.json' && failRefresh || name.startsWith('price-') && attempts.get(name) === 1) {
+    if (name.startsWith('central-bank-') && failCentral || name === 'bootstrap.json' && failRefresh || /^(?:price-|spot-market-)/.test(name) && attempts.get(name) === 1) {
       return await route.fulfill({ status: 503, body: 'Unavailable' })
     }
     return await route.continue()
@@ -74,6 +74,13 @@ try {
   const months = new Set(snapshot.groups['central-bank'].filter(item => item.metadata.country && item.metadata.aggregation_included).flatMap(item => item.points.map(point => point[0])))
   assert.equal(await page.getByLabel('央行购金排名月份').locator('option').count(), months.size, '直接进入国外页也须加载央行全部历史')
   assert.ok(!requests.some(url => url.includes('snapshot.json')))
+  if (snapshot.spot_market) {
+    await page.getByRole('tab', { name: '量化研究', exact: true }).click()
+    await page.waitForFunction(() => document.querySelector('.spot-market')?.getAttribute('aria-busy') === 'false'
+      && document.querySelector('.spot-market header span')?.textContent.includes('个观察日'), null, { timeout: 120000 })
+    assert.ok([...attempts].some(([name, count]) => name.startsWith('spot-market-') && count === 2), '研究数据的临时失败应自动重试')
+    assert.ok((await page.locator('.spot-market header').textContent()).includes(snapshot.spot_market.end))
+  }
   assert.deepEqual(errors, [])
   console.log(JSON.stringify({ passed: true, initialJsonRequests: 0, maximumConcurrentDownloads: maximum,
     verified: ['embedded-daily-data', 'health-without-network', 'category-on-demand', 'bounded-retry', 'failure-isolation', 'retry-only-failed-category', 'refresh-failure-retains-data', 'reuse-versioned-chunks'] }))

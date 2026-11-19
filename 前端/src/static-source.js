@@ -109,6 +109,29 @@ export async function request(path) {
     return { status: 'ok' }
   }
   const index = await bootstrap()
+  if (path === 'spot-research/market') {
+    const key = index.snapshot.generated_at + ':' + path
+    if (!groups.has(key)) {
+      const promise = (async () => {
+        if (!index.spotMarket) throw new Error('现价研究数据尚未发布')
+        const manifest = await resource(index.spotMarket)
+        if (manifest.schema_version !== 1 || manifest.publication_scope !== 'public_only' || !Array.isArray(manifest.chunks) || !Array.isArray(manifest.columns)) throw new Error('现价研究数据索引格式无效')
+        const parts = await Promise.all(manifest.chunks.map(resource))
+        const points = []
+        for (const part of parts) {
+          if (part.schema_version !== 1 || part.offset !== points.length || !Array.isArray(part.points)
+            || part.points.some(row => row.length !== manifest.columns.length + 1)) throw new Error('现价研究历史分片不完整，请重试')
+          points.push(...part.points)
+        }
+        if (points.length !== manifest.point_count || points[0]?.[0] !== manifest.start || points.at(-1)?.[0] !== manifest.end) throw new Error('现价研究历史不完整，请重试')
+        const { schema_version, chunks, point_count, ...metadata } = manifest
+        return { ...metadata, points }
+      })()
+      groups.set(key, promise)
+      promise.catch(() => { if (groups.get(key) === promise) groups.delete(key) })
+    }
+    return groups.get(key)
+  }
   if (path.startsWith('research/')) {
     const model = path.slice('research/'.length)
     const file = index.research?.[model]

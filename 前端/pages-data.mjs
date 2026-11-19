@@ -62,6 +62,28 @@ export function buildPagesData(snapshot) {
   ]))
   delete compact.deliveries
   delete compact.research
+  delete compact.spot_market
+  let spotMarket
+  if (snapshot.spot_market) {
+    const { points, ...metadata } = snapshot.spot_market
+    const chunks = []
+    for (let offset = 0; offset < points.length;) {
+      let count = Math.min(1000, points.length - offset), source
+      while (true) {
+        source = encode({ schema_version: 1, offset, points: points.slice(offset, offset + count) })
+        if (Buffer.byteLength(source) <= chunkLimit) break
+        if (count === 1) throw new Error('单条现价研究数据超出分片大小上限')
+        count = Math.max(1, Math.floor(count / 2))
+      }
+      const name = `data/spot-market-${createHash('sha256').update(source).digest('hex').slice(0, 16)}.json`
+      assets.set(name, source)
+      chunks.push(name)
+      offset += count
+    }
+    const source = encode({ schema_version: 1, ...metadata, point_count: points.length, chunks })
+    spotMarket = `data/spot-market-index-${createHash('sha256').update(source).digest('hex').slice(0, 16)}.json`
+    assets.set(spotMarket, source)
+  }
   const research = {}
   for (const [model, value] of Object.entries(snapshot.research?.models || {})) {
     const source = encode({ schema_version: 1, model, result: value })
@@ -72,7 +94,7 @@ export function buildPagesData(snapshot) {
   const inventory = encode({ schema_version: 1, deliveries: snapshot.deliveries ?? null })
   const inventoryName = `data/deliveries-${createHash('sha256').update(inventory).digest('hex').slice(0, 16)}.json`
   assets.set(inventoryName, inventory)
-  const bootstrap = { schema_version: 1, snapshot: compact, categories, deliveries: inventoryName, research }
+  const bootstrap = { schema_version: 1, snapshot: compact, categories, deliveries: inventoryName, research, ...(spotMarket ? { spotMarket } : {}) }
   assets.set('data/bootstrap.json', encode(bootstrap))
   return { bootstrap, assets }
 }

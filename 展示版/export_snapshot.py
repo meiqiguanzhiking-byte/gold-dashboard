@@ -16,6 +16,7 @@ from indicators import build_indicators
 from deliveries import build_deliveries, SOURCE as DELIVERY_SOURCE
 from public_report import build_public_report
 from daily_news import public_news
+from spot_research import read_spot_market
 
 METADATA_FIELDS = (
     "indicator_id", "indicator_name", "unit", "frequency", "source", "sheet", "updated_at",
@@ -162,6 +163,26 @@ def export():
     }
     if deliveries is not None:
         snapshot["deliveries"] = deliveries
+    if policy.get("include_spot_research"):
+        source = "境内外现价价差_全历史.csv"
+        dependencies = [source, *policy["spot_research_sources"]]
+        if any(policy["source_permissions"].get(name) != "approved" or name in policy["withheld_sources"] for name in dependencies):
+            raise ValueError("现价研究相关来源未获准公开；未覆盖快照")
+        path = DATA_DIR / "现价量化数据表" / source
+        before = path.read_bytes()
+        market = read_spot_market(path)
+        if before != path.read_bytes():
+            raise ValueError("现价研究文件读取期间发生变化；未覆盖快照")
+        allowed_columns = set(policy["spot_research_columns"])
+        labels = [f'{column["name"]}（{column["unit"]}）' for column in market["columns"]]
+        if not allowed_columns.issubset(labels):
+            raise ValueError("现价研究获准指标缺失；未覆盖快照")
+        selected = [index for index, label in enumerate(labels) if label in allowed_columns]
+        if selected[:4] != [0, 1, 2, 3]:
+            raise ValueError("现价研究须保留四项研究对象")
+        market["columns"] = [market["columns"][index] for index in selected]
+        market["points"] = [[row[0], *(row[index + 1] for index in selected)] for row in market["points"]]
+        snapshot["spot_market"] = {**market, "publication_scope": "public_only"}
     snapshot["daily_report"] = build_public_report(exported, snapshot["generated_at"])
     snapshot["daily_news"] = public_news(policy)
     # 研报静态结果保持冻结，仅运行export_research.py时更新。

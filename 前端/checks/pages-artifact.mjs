@@ -6,6 +6,7 @@ import { buildPagesData, chunkLimit } from '../pages-data.mjs'
 import { expandSnapshot } from '../src/static-source.js'
 import { buildDailyBrief, beijingDate } from '../src/daily-brief.js'
 import { bankFxLevels, bankFxSeries } from '../src/bank-fx.js'
+import { simplifyFxFactors } from '../src/spot-fx-factors.js'
 import { gzipSync } from 'node:zlib'
 
 const project = fileURLToPath(new URL('../../', import.meta.url))
@@ -16,7 +17,7 @@ const forbidden = /\b[A-Za-z]:[\\/]|localhost|127\.0\.0\.1|\/api\/|Traceback|BEG
 const snapshot = JSON.parse(await readFile(snapshotPath, 'utf8'))
 assert.equal(snapshot.schema_version, 1)
 assert.ok(!forbidden.test(JSON.stringify(snapshot)), '快照不得包含本机地址、路径、接口或密钥')
-assert.deepEqual(Object.keys(snapshot).filter(key => !['deliveries', 'daily_report', 'daily_news', 'research'].includes(key)).sort(), ['comex', 'files', 'generated_at', 'groups', 'publication', 'schema_version'])
+assert.deepEqual(Object.keys(snapshot).filter(key => !['deliveries', 'daily_report', 'daily_news', 'research', 'spot_market'].includes(key)).sort(), ['comex', 'files', 'generated_at', 'groups', 'publication', 'schema_version'])
 if (snapshot.daily_news) {
   assert.equal(snapshot.daily_news.publication_scope, 'public_only')
   if (snapshot.daily_news.status === 'withheld') assert.deepEqual(snapshot.daily_news.events, [])
@@ -140,6 +141,32 @@ for (const [category, paths] of Object.entries(prepared.bootstrap.categories)) {
   assert.deepEqual(rebuilt, snapshot.groups[category], '历史拆分重组必须逐值一致：' + category)
 }
 const republished = buildPagesData({ ...snapshot, generated_at: '2099-01-01T00:00:00+08:00' })
+if (policy.include_spot_research) {
+  const market = snapshot.spot_market
+  assert.equal(market.publication_scope, 'public_only')
+  assert.equal(policy.source_permissions[market.source], 'approved')
+  assert.deepEqual(market.columns.map(c => `${c.name}（${c.unit}）`), policy.spot_research_columns)
+  assert.equal(prepared.bootstrap.snapshot.spot_market, undefined, '现价研究完整数据不得进入首屏')
+  const { schema_version, chunks, point_count, ...metadata } = JSON.parse(prepared.assets.get(prepared.bootstrap.spotMarket))
+  assert.equal(schema_version, 1)
+  const points = []
+  for (const file of chunks) {
+    const content = prepared.assets.get(file)
+    assert.ok(Buffer.byteLength(content) <= chunkLimit)
+    const part = JSON.parse(content)
+    assert.equal(part.schema_version, 1)
+    assert.equal(part.offset, points.length)
+    points.push(...part.points)
+  }
+  assert.equal(points.length, point_count)
+  assert.deepEqual({ ...metadata, points }, market, '研究分片重组须与本地快照逐值一致')
+  assert.deepEqual(points.map(row => row[0]), points.map(row => row[0]).sort())
+  assert.ok(points.every(row => row.length === market.columns.length + 1 && row.slice(1).every(v => v === null || typeof v === 'number' && Number.isFinite(v))))
+  const displayed = simplifyFxFactors(market)
+  assert.equal(displayed.columns.filter(c => c.group === '外汇供求').length, 5)
+  assert.deepEqual(displayed.points.map(row => row.slice(0, 5)), market.points.map(row => row.slice(0, 5)), '研究对象与统计输入必须保持原值及空值')
+  assert.equal(republished.bootstrap.spotMarket, prepared.bootstrap.spotMarket)
+}
 assert.deepEqual(republished.bootstrap.categories, prepared.bootstrap.categories, '仅快照时间变化不能使历史缓存失效')
 assert.equal(republished.bootstrap.deliveries, prepared.bootstrap.deliveries, '未变化的交割数据应复用内容缓存')
 if (!snapshotOnly) {

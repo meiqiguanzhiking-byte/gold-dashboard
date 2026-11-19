@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { chromium } from 'playwright'
+import { simplifyFxFactors } from '../src/spot-fx-factors.js'
+import { buildSpreadStatistics } from '../src/spot-spread-statistics.js'
 
 const base = process.env.GOLD_PAGES_URL || 'http://127.0.0.1:4173/pages-preview/'
 const target = new URL(base)
@@ -72,8 +74,25 @@ try {
   assert.equal(await page.getByRole('button', { name: '刷新真实数据', exact: true }).count(), 0)
   assert.equal(await page.locator('#page-panel-daily section.section').count(), 1)
   assert.ok(!requests.some(r => /\/assets\/(?:WeeklyBrief|CrossDisplay|ResearchReplication|QuantResearch)-/.test(r.url)), '首屏不应提前下载其他栏目的程序')
+  assert.ok(!requests.some(r => r.url.includes('/data/spot-market-')), '首屏不得提前下载现价研究数据')
   assert.deepEqual(await page.locator('.page-tabs > .page-tab-entry > button[role="tab"]').allTextContents(), ['每日速递⌄', '每周速递⌄', '国内', '国外', '交叉展示', '量化研究⌄', '研报复现⌄', '数据健康度'])
   await page.getByRole('tab', { name: '量化研究', exact: true }).click()
+  if (snapshot.spot_market) {
+    await waitForInk('[data-chart-title="行情走势"] canvas')
+    const market = page.locator('.spot-market')
+    await page.waitForFunction(() => document.querySelector('.spot-market')?.getAttribute('aria-busy') === 'false')
+    assert.ok((await market.locator('header').textContent()).includes(snapshot.spot_market.end))
+    assert.equal(await market.getByLabel('开始日期', { exact: true }).inputValue(), snapshot.spot_market.start)
+    assert.equal(await market.getByLabel('结束日期', { exact: true }).inputValue(), snapshot.spot_market.end)
+    const displayed = simplifyFxFactors(snapshot.spot_market)
+    assert.equal(await market.locator('.factor-group input').count(), displayed.columns.length)
+    const summary = buildSpreadStatistics(displayed.points).summary
+    assert.ok((await page.locator('.spread-statistics header').textContent()).includes(summary.n.toLocaleString('zh-CN')))
+    assert.ok((await page.locator('.summary-table').textContent()).includes(summary.mean.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })))
+    await market.getByRole('group', { name: '行情走势日期筛选' }).getByLabel('开始日期', { exact: true }).fill('2020-01-01')
+    await waitForInk('[data-chart-title="行情走势"] canvas')
+    await market.getByLabel('开始日期', { exact: true }).fill(snapshot.spot_market.start)
+  }
   await page.getByRole('button', { name: '期货研究', exact: true }).click()
   await page.locator('#page-panel-quant .quant-empty').waitFor()
   await page.getByRole('tab', { name: '研报复现' }).click()

@@ -4,7 +4,7 @@ import { echarts, axisLabel, tooltipStyle } from '../charts.js'
 import { useChartVisibility } from '../chart-visibility.js'
 import { adaptiveYAxis } from '../adaptive-axis.js'
 import { escapeHtml, format } from '../data.js'
-import { isStatic, request } from '@live-source'
+import { request } from '@live-source'
 import { simplifyFxFactors } from '../spot-fx-factors.js'
 import { spreadPhases } from '../spot-spread-statistics.js'
 const emit = defineEmits(['loaded'])
@@ -53,7 +53,6 @@ function showAllHistory() {
 }
 
 async function load() {
-  if (isStatic) { error.value = '此图使用本地研究数据，展示版暂未接入。'; return }
   loading.value = true
   error.value = ''
   try {
@@ -159,7 +158,7 @@ onBeforeUnmount(() => { controller.abort(); axes?.dispose(); chart?.dispose() })
       <div ref="element" class="spot-market-canvas" data-chart-title="行情走势" role="img" :aria-label="'行情走势叠加折线图：' + visible.map(item => item.name).join('、')" />
       <div v-if="loading || error || dateError || !visible.length || !filteredPoints.length" class="spot-market-status" role="status">
         <span v-if="loading">正在读取行情数据…</span>
-        <span v-else-if="error">{{ error }} <button v-if="!isStatic" @click="load">重试</button></span>
+        <span v-else-if="error">{{ error }} <button @click="load">重试</button></span>
         <span v-else-if="dateError">请调整起止日期。</span>
         <span v-else-if="!visible.length">请勾选需要展示的指标。</span>
         <span v-else>所选时间窗口内没有观察数据，请调整日期。</span>
