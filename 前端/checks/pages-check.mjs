@@ -95,11 +95,11 @@ try {
     if (await page.locator('.rolling-ic-panel').count()) {
       await waitForInk('[data-chart-title="252日滚动IC"] canvas')
       const rolling = page.locator('.rolling-ic-panel')
-      assert.equal(await rolling.getByLabel('研究对象', { exact: true }).locator('option').count(), 4)
-      assert.ok(await rolling.getByLabel('日频因子', { exact: true }).locator('option').count() > 0)
-      await rolling.getByLabel('配对方式', { exact: true }).selectOption('same-level')
+      assert.equal(await rolling.getByRole('combobox', { name: /^研究对象/ }).locator('option').count(), 4)
+      assert.ok(await rolling.getByRole('combobox', { name: /^日频因子/ }).locator('option').count() > 0)
+      await rolling.getByRole('combobox', { name: /^配对方式/ }).selectOption('same-level')
       await waitForInk('[data-chart-title="252日滚动IC"] canvas')
-      await rolling.getByLabel('配对方式', { exact: true }).selectOption('next-change')
+      await rolling.getByRole('combobox', { name: /^配对方式/ }).selectOption('next-change')
     }
   }
   await page.getByRole('button', { name: '期货研究', exact: true }).click()
