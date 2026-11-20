@@ -29,6 +29,8 @@ function draw() {
   const points = props.data?.points || [], dates = points.map(point => point[0]), m = model.value
   if (!points.length) { chart.clear(); return }
   const previousZoom = chart.getOption()?.dataZoom?.[0]
+  const unclassified = points.filter(point => point[0] < '2012-10-01')
+  const shadedPhases = [...(unclassified.length ? [{ label: '数据不足', observedStart: unclassified[0][0], observedEnd: unclassified.at(-1)[0], color: '#f0f1f0' }] : []), ...m.phases]
   chart.setOption({ animation: false, textStyle: { fontFamily: 'Segoe UI, Microsoft YaHei, sans-serif' },
     grid: { left: 72, right: 30, top: 56, bottom: 95 },
     legend: { bottom: 45, data: ['日度观测', '60 个观察日滚动均值'], textStyle: { color: '#667579', fontSize: 11 } },
@@ -44,7 +46,7 @@ function draw() {
     series: [
       { name: '日度观测', type: 'line', data: points.map(point => point[1]), showSymbol: false, smooth: false, connectNulls: false, latestValueLabel: false,
         lineStyle: { color: '#a7afb9', width: 1 }, itemStyle: { color: '#a7afb9' }, z: 2,
-        markArea: { silent: true, label: { position: 'insideTop', color: '#536474', fontSize: 11 }, data: m.phases.filter(p => p.observedStart).map(p => [
+        markArea: { silent: true, label: { position: 'insideTop', color: '#536474', fontSize: 11 }, data: shadedPhases.filter(p => p.observedStart).map(p => [
           { name: p.label, xAxis: p.observedStart, itemStyle: { color: p.color } }, { xAxis: p.observedEnd }]) },
         markLine: { silent: true, symbol: 'none', label: { show: false }, lineStyle: { color: '#687480', width: 1, type: 'solid' }, data: [{ yAxis: 0 }] },
         markPoint: { symbol: 'circle', symbolSize: 7, data: [m.summary.min, m.summary.max].filter(Boolean).map((p, i) => ({
@@ -64,7 +66,7 @@ onBeforeUnmount(() => chart?.dispose())
 <template>
   <article class="spread-statistics">
     <header><h3>价差描述性统计</h3><span v-if="data">{{ data.start }} — {{ data.end }} · 有效 {{ model.summary.n.toLocaleString() }} 个观察日 · 缺失 {{ model.summary.missing }} 个</span></header>
-    <p class="stats-note">全历史样本，独立于上方行情走势日期筛选。背景阶段沿用参考图的人工划分。</p>
+    <p class="stats-note">全历史样本，独立于上方行情走势日期筛选。背景为参考月度中位数状态、人工合并的六段历史区间；深色均线仅用于趋势展示。2012年9月有效观察日不足10个，标为数据不足，仅计入全样本，不计入六阶段。</p>
     <div class="spread-chart-scroll"><div ref="element" class="spread-stage-chart" data-chart-title="价差阶段性划分" role="img" aria-label="价差阶段性划分：日度价差、60个观察日滚动均值、六个阶段背景及全样本极值" /></div>
     <p v-if="!data" class="stats-note" role="status">等待行情数据；请先确认上方行情数据已成功读取。</p>
     <div class="stats-tables">
@@ -73,11 +75,11 @@ onBeforeUnmount(() => chart?.dispose())
       </section>
       <section class="phase-table"><h4>分阶段指标</h4><div class="phase-table-scroll">
         <table><caption class="sr-only">价差分阶段描述性统计</caption><thead><tr><th scope="col">阶段</th><th scope="col">数据表现</th><th scope="col">平均价差（元/克）</th><th scope="col">标准差（元/克）</th><th scope="col">正价差占比</th><th scope="col">平均相对溢价</th></tr></thead>
-          <tbody><tr v-for="phase in model.phases" :key="phase.start"><th scope="row">{{ phase.start.slice(0, 7) }}—{{ phase.end ? phase.end.slice(0, 7) : (data?.end || '至今') }}<small>有效 {{ phase.n }} · 缺失 {{ phase.missing }}</small></th><td>{{ phase.description }}</td><td>{{ num(phase.mean, 2, true) }}</td><td>{{ num(phase.std) }}</td><td>{{ num(phase.positive, 1) }}<template v-if="phase.n">%</template></td><td :title="'相对溢价有效样本：' + phase.relativeN">{{ num(phase.relative, 3, true) }}<template v-if="phase.relative != null">%</template></td></tr></tbody>
+          <tbody><tr v-for="phase in model.phases" :key="phase.start"><th scope="row">{{ phase.start }}—{{ phase.end || data?.end || '至今' }}<small>有效 {{ phase.n }} · 缺失 {{ phase.missing }}</small></th><td>{{ phase.description }}</td><td>{{ num(phase.mean, 2, true) }}</td><td>{{ num(phase.std) }}</td><td>{{ num(phase.positive, 1) }}<template v-if="phase.n">%</template></td><td :title="'相对溢价有效样本：' + phase.relativeN">{{ num(phase.relative, 3, true) }}<template v-if="phase.relative != null">%</template></td></tr></tbody>
         </table></div>
       </section>
     </div>
-    <details class="stats-method"><summary>统计口径与数据来源</summary><p>来源：{{ data?.source || '境内外现价价差_全历史.csv' }}。价差大于 0 计为正价差，占比分母为有效价差样本；缺失不补零、不前填。标准差使用样本标准差（n−1），中间 90% 为第 5 与第 95 百分位数（线性插值）。极值相同时显示最早日期。</p><p>相对溢价＝价差 ÷（黄金现价−价差）×100%，分母为海外金价折合人民币价格；仅纳入价差和黄金现价有效且分母大于 0 的日期，再计算每日相对溢价的算术平均。60 个观察日滚动均值仅在窗口内 60 项价差全部有效时显示，最初 59 项及缺失窗口留空。</p><p>阶段边界按参考图固定，不代表模型识别或对未来的判断；阶段名称为参考描述，数值随当前文件重算。末阶段截止到文件最新观察日。</p></details>
+    <details class="stats-method"><summary>统计口径与数据来源</summary><p>来源：{{ data?.source || '境内外现价价差_全历史.csv' }}。价差大于 0 计为正价差，占比分母为有效价差样本；缺失不补零、不前填。标准差使用样本标准差（n−1），中间 90% 为第 5 与第 95 百分位数（线性插值）。极值相同时显示最早日期。</p><p>相对溢价＝价差 ÷（黄金现价−价差）×100%，分母为海外金价折合人民币价格；仅纳入价差和黄金现价有效且分母大于 0 的日期，再计算每日相对溢价的算术平均。60 个观察日滚动均值仅在窗口内 60 项价差全部有效时显示，最初 59 项及缺失窗口留空。</p><p>分期依据：月度中位价差低于−1为折价，−1至+1为零附近，高于+1至+3为温和溢价，高于+3至+7为较高溢价，高于+7为高溢价（元/克）；不足10个有效观察日的月份为数据不足。六个展示区间是在月度状态结果上，经人工合并后确认的历史概括，不是阈值自动输出，也不是实时交易状态。2012年9月仍纳入全样本统计，但不归入六阶段。最后一段延伸至最新观察日。</p></details>
   </article>
 </template>
 
@@ -92,4 +94,6 @@ onBeforeUnmount(() => chart?.dispose())
 .phase-table small{margin-top:3px}
 @media(max-width:1100px){.summary-table table{height:auto}}
 </style>
+
+
 

@@ -6,7 +6,7 @@ import { adaptiveYAxis } from '../adaptive-axis.js'
 import { escapeHtml, format } from '../data.js'
 import { request } from '@live-source'
 import { simplifyFxFactors } from '../spot-fx-factors.js'
-import { spreadPhases } from '../spot-spread-statistics.js'
+import { buildSpreadPhases } from '../spot-spread-statistics.js'
 const emit = defineEmits(['loaded'])
 
 const researchObjects = [
@@ -17,6 +17,7 @@ const researchObjects = [
 ]
 const selected = ref(researchObjects.map(item => item.id))
 const data = ref(null), loading = ref(false), error = ref(''), element = ref(null)
+const spreadPhases = computed(() => buildSpreadPhases(data.value?.points || []))
 const palette = ['#8c6ca0', '#287985', '#ad945b', '#6d83ab']
 const groupNames = ['研究对象', '投资需求', '波动状态', '持仓结构', '利率与美元', '外汇供求', '消费需求']
 const indicators = computed(() => (data.value?.columns || researchObjects.map(item => ({ ...item, group: '研究对象' })))
@@ -145,7 +146,7 @@ onBeforeUnmount(() => { controller.abort(); axes?.dispose(); chart?.dispose() })
         <button :disabled="!data" :aria-expanded="phaseMenuOpen" aria-controls="spot-history-phases" @focus="phaseMenuOpen = !!data" @keydown.down.prevent="phaseMenuOpen = !!data" @click="showAllHistory">全部历史 <span aria-hidden="true">▾</span></button>
         <div v-show="phaseMenuOpen" id="spot-history-phases" class="history-phases" role="group" aria-label="选择历史阶段">
           <button v-for="phase in spreadPhases" :key="phase.start" type="button" @click="selectPhase(phase)">
-            <span>{{ phase.label }}</span><small>{{ phase.start.slice(0, 7) }} — {{ phase.end ? phase.end.slice(0, 7) : (data?.end || '最新观察日') }}</small>
+            <span>{{ phase.label }}</span><small>{{ phase.start }} — {{ phase.end ? phase.end : (data?.end || '最新观察日') }}</small>
           </button>
         </div>
       </div>
@@ -192,3 +193,4 @@ fieldset{border:0;padding:0;margin:20px 0 12px;display:flex;flex-wrap:wrap;gap:1
 .history-picker{position:relative}.history-phases{position:absolute;top:100%;left:0;z-index:20;min-width:290px;max-width:calc(100vw - 50px);padding:6px;background:#fff;border:1px solid #dce4e1;border-radius:5px;box-shadow:0 8px 24px #20303418}.history-phases button{display:flex;align-items:center;justify-content:space-between;gap:16px;width:100%;text-align:left;border:0;background:#fff;color:#344e54;padding:10px;font-weight:400;white-space:nowrap}.history-phases button:hover,.history-phases button:focus-visible{background:#f5f3eb;color:#786b43}.history-phases small{font-size:10px;color:#728486}
 @media(max-width:700px){.factor-group{grid-template-columns:1fr}.indicator-picker summary span{display:block;margin:5px 0 0 12px}}
 </style>
+

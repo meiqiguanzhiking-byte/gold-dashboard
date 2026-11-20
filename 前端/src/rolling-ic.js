@@ -1,4 +1,4 @@
-import { spreadPhases } from './spot-spread-statistics.js'
+import { buildSpreadPhases } from './spot-spread-statistics.js'
 
 const finite = value => typeof value === 'number' && Number.isFinite(value)
 export const IC_WINDOW = 252
@@ -61,6 +61,6 @@ export function buildRollingIC(data, targetId, factorId, pairing = 'next-change'
       count: values.length, excluded: rows.length - values.length }
   }
   return { curve, summary: [summarize(curve, '全样本', points[0]?.[0], points.at(-1)?.[0]),
-    ...spreadPhases.map(phase => summarize(curve.filter(point => point.date >= phase.start && (!phase.end || point.date <= phase.end)),
+    ...buildSpreadPhases(points).map(phase => summarize(curve.filter(point => point.date >= phase.start && (!phase.end || point.date <= phase.end)),
       phase.label, phase.start < (points[0]?.[0] || '') ? points[0][0] : phase.start, phase.end || points.at(-1)?.[0]))] }
 }

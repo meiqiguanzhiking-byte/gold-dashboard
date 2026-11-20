@@ -31,7 +31,7 @@ def factor_group(header):
     return None
 
 
-def read_spot_market(path=SOURCE):
+def read_spot_market(path=SOURCE, *, include_columns=None):
     columns = [{"id": key, "name": name, "unit": unit, "group": "研究对象"} for key, name, unit in COLUMNS]
     headers = [f"{name}（{unit}）" for _, name, unit in COLUMNS]
     points, seen = [], set()
@@ -41,6 +41,9 @@ def read_spot_market(path=SOURCE):
             raise ValueError("行情数据缺少日期或所需指标列")
         for header in reader.fieldnames:
             if header in headers or header == "日期" or "所属月份" in header:
+                continue
+            # 静态导出只读取显式获准字段；新增本地文本或研究字段不自动公开。
+            if include_columns is not None and header not in include_columns:
                 continue
             group = factor_group(header)
             if not group:

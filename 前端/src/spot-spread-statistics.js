@@ -1,13 +1,17 @@
-// 沿用参考图的人工分期，不根据统计结果自动寻找分界。
-export const spreadPhases = [
-  { start: '2012-09-01', end: '2019-12-31', label: '常态溢价', description: '以正溢价为主', color: '#e9eef4' },
-  { start: '2020-01-01', end: '2020-12-31', label: '持续折价', description: '持续深度折价', color: '#e0eee7' },
-  { start: '2021-01-01', end: '2022-07-31', label: '溢价恢复', description: '恢复温和溢价', color: '#e9eef4' },
-  { start: '2022-08-01', end: '2023-07-31', label: '溢价抬升', description: '溢价中枢抬升', color: '#f6eddb' },
-  { start: '2023-08-01', end: '2024-06-30', label: '高溢价', description: '持续高溢价', color: '#f4e1e1' },
-  { start: '2024-07-01', end: null, label: '零附近双向波动', description: '零附近双向波动', color: '#e7edf4' },
+// 用户确认的六段历史概括：参考月度中位数状态，人工合并相邻月份。
+const phaseTemplates = [
+  { start: '2012-10-01', end: '2020-02-29', label: '常态溢价与低溢价', description: '零附近、温和溢价为主', color: '#e9eef4' },
+  { start: '2020-03-01', end: '2020-12-31', label: '持续折价', description: '持续折价', color: '#e0eee7' },
+  { start: '2021-01-01', end: '2022-08-31', label: '溢价恢复', description: '零附近与温和溢价交替', color: '#e9eef4' },
+  { start: '2022-09-01', end: '2023-07-31', label: '溢价抬升', description: '较高溢价增多，期间有回落', color: '#f6eddb' },
+  { start: '2023-08-01', end: '2024-07-31', label: '高溢价及回落', description: '高溢价后逐步回落', color: '#f4e1e1' },
+  { start: '2024-08-01', end: null, label: '零附近双向波动', description: '折价、零附近与正溢价交替', color: '#e7edf4' },
 ]
 const valid = value => typeof value === 'number' && Number.isFinite(value)
+export function buildSpreadPhases(points = []) {
+  if (!points.length) return []
+  return phaseTemplates.filter(phase => points.some(point => point[0] >= phase.start && (!phase.end || point[0] <= phase.end))).map(phase => ({ ...phase }))
+}
 export function quantile(sorted, probability) {
   if (!sorted.length) return null
   const position = (sorted.length - 1) * probability, low = Math.floor(position), high = Math.ceil(position)
@@ -32,8 +36,9 @@ export function buildSpreadStatistics(points = []) {
     return window.every(valid) ? window.reduce((sum, value) => sum + value, 0) / 60 : null
   })
   return { summary: summarizeSpread(points), rolling,
-    phases: spreadPhases.map(phase => {
+    phases: buildSpreadPhases(points).map(phase => {
       const rows = points.filter(point => point[0] >= phase.start && (!phase.end || point[0] <= phase.end))
       return { ...phase, observedStart: rows[0]?.[0], observedEnd: rows.at(-1)?.[0], ...summarizeSpread(rows) }
     }) }
 }
+

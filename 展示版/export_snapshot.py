@@ -170,7 +170,7 @@ def export():
             raise ValueError("现价研究相关来源未获准公开；未覆盖快照")
         path = DATA_DIR / "现价量化数据表" / source
         before = path.read_bytes()
-        market = read_spot_market(path)
+        market = read_spot_market(path, include_columns=set(policy["spot_research_columns"]))
         if before != path.read_bytes():
             raise ValueError("现价研究文件读取期间发生变化；未覆盖快照")
         allowed_columns = set(policy["spot_research_columns"])
