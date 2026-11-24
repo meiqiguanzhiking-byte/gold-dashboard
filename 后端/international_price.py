@@ -8,6 +8,7 @@ from price import SOURCE as DOMESTIC_SOURCE
 SOURCE = "伦敦金现与汇率_北京时间1530收盘价.xlsx"
 SHEET = "北京时间1530"
 VOLATILITY_SOURCE = "黄金ETF波动率指数.csv"
+VIX_SOURCE = "VIX.csv"
 USD_INDEX_SOURCE = "美元指数.csv"
 TREASURY_SOURCE = "美债收益率.xlsx"
 GRAMS_PER_TROY_OUNCE = 31.1034768
@@ -55,6 +56,19 @@ def add_international_price_indicators(builder):
                        source_reference="https://www.cboe.com/us/indices/dashboard/gvz/", index_symbol="GVZ",
                        display_digits=2, change_unit="百分点", change_kind="absolute_and_percent",
                        warnings=["来源：Cboe 芝加哥期权交易所；按CSV原始日度数值展示，不插值、不前值填充。"])
+    finish_change(item)
+
+    vix = builder.tables.get((VIX_SOURCE, None))
+    vix_frame = vix.frame.rename(columns={"DATE": "日期"}).copy() if vix else pd.DataFrame(columns=["日期", "CLOSE"])
+    vix_frame["日期"] = pd.to_datetime(vix_frame["日期"], format="%m/%d/%Y", errors="coerce")
+    vix_values = pd.to_numeric(vix_frame["CLOSE"], errors="coerce") if "CLOSE" in vix_frame else pd.Series(float("nan"), index=vix_frame.index)
+    vix_values = vix_values.replace([float("inf"), -float("inf")], float("nan"))
+    item = builder.add("price", "vix", "标普500波动率指数（VIX）", "%", "日度", VIX_SOURCE,
+                       frame=vix_frame, column="CLOSE", values=vix_values,
+                       source_reference="https://www.cboe.com/tradable_products/vix/", index_symbol="VIX",
+                       display_digits=2, change_unit="百分点", change_kind="absolute_and_percent",
+                       warnings=["来源：Cboe 芝加哥期权交易所；采用VIX.csv的CLOSE日收盘值，保留美国观察日期。",
+                                 "DATE按月/日/年解析；不插值、不前值填充。"])
     finish_change(item)
 
     usd_index = builder.tables.get((USD_INDEX_SOURCE, None))

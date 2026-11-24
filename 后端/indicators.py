@@ -172,6 +172,17 @@ def build_indicators(tables):
         ("london_silver", "伦敦白银库存", "白银库存（吨）", "吨"),
     ])
     add_comex_indicators(b)
+    options_source = "COMEX黄金期权Delta当量总持仓.csv"
+    options = b.tables.get((options_source, None))
+    options_frame = options.frame.rename(columns={"持仓日期": "日期"}).copy() if options else pd.DataFrame(columns=["日期", "黄金期权Delta当量总持仓_张"])
+    options_values = pd.to_numeric(options_frame["黄金期权Delta当量总持仓_张"], errors="coerce") if "黄金期权Delta当量总持仓_张" in options_frame else pd.Series(float("nan"), index=options_frame.index)
+    options_values = options_values.where(options_values.ge(0)).replace([float("inf"), -float("inf")], float("nan"))
+    b.add("cftc", "comex_gold_options_delta_open_interest", "COMEX黄金期权Delta当量总持仓", "张", "周度", options_source,
+          column="黄金期权Delta当量总持仓_张", frame=options_frame, values=options_values, display_digits=0,
+          source_reference="https://www.cftc.gov/MarketReports/CommitmentsofTraders/index.htm",
+          method="CFTC Legacy Combined总持仓−Futures Only总持仓；直接采用CSV已计算值",
+          warnings=["来源：CFTC；单位为100金衡盎司标准黄金期货当量张数，已包含Delta折算，不再次乘Delta。",
+                    "横轴为原始持仓日期，非报告发布日期；保留周度观察值，不插值、不前值填充。"])
     b.columns("etf", "SPDR黄金ETF份额.xlsx", "SPDR黄金ETF行情", "日度", [
         ("spdr_gold_holdings", "SPDR 黄金持仓", "总持有黄金数（吨）", "吨"),
         ("spdr_close", "SPDR ETF 收盘价", "收盘价（美元/份）", "美元/份"),

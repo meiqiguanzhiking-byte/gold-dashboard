@@ -5,7 +5,7 @@ from datetime import date
 
 
 HISTORY_LIMITS = {
-    "au_td_close": 20, "london_gold_spot": 20, "usdcnh": 20, "usdcny": 20,
+    "au_td_close": 20, "au_td_close_1500": 20, "london_gold_spot": 20, "usdcnh": 20, "usdcny": 20,
     "gold_futures_daily_quotes": 20, "au_td_delivery_direction": 30,
     "gold_domestic_spread": 11, "gold_futures_spread": 11,
     "gold_futures_secondary_spread": 11, "gold_futures_spread_details": 11,
@@ -48,7 +48,7 @@ def compact_dashboard(state):
             start = latest.replace(year=year, day=min(latest.day, calendar.monthrange(year, latest.month)[1])).isoformat()
         points = [point for index, point in enumerate(history)
                   if index >= tail or (start and point["observation_date"] > start)
-                  or (key == "au_td_close" and point["observation_date"] in futures_dates)]
+                  or (key in ("au_td_close", "au_td_close_1500") and point["observation_date"] in futures_dates)]
         return {**item, "history": points, "returned_history_count": len(points)}
 
     result = {category: {"category": category, "loaded_at": state["meta"]["loaded_at"],

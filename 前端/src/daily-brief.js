@@ -139,14 +139,14 @@ function dailyFuturesData(items, reportDate) {
     ...(quotePoint.date ? [{ observation_date: quotePoint.date, value: main?.close ?? null }] : []),
   ] }, reportDate, main ? main.contract.replace(/^au/i, 'Au') : '合约名称暂缺', { unit: '元/克', kind: 'percent' })
   domestic.contractQuotes = { date: quotePoint.date, quotes: quotes.quotes || [] }
-  const spot = quotePoint.date ? briefPoint(byId.au_td_close, reportDate, quotePoint.date) : { value: null }
-  const basisRates = (quotes.quotes || []).map(quote => {
-    const previousSpot = quote.previous_date ? briefPoint(byId.au_td_close, reportDate, quote.previous_date).value : null
-    return annualizedBasisChange(quote, spot.value, quotePoint.date, previousSpot)
+  const spot = quotePoint.date ? briefPoint(byId.au_td_close_1500, reportDate, quotePoint.date) : { value: null }
+  const basisRates = (quotes.quotes || []).filter(quote => /^au\d{2}(02|04|06|08|10|12)$/i.test(quote.contract || '')).map(quote => {
+    const previousSpot = quote.previous_date ? briefPoint(byId.au_td_close_1500, reportDate, quote.previous_date).value : null
+    return annualizedBasisChange({ ...byId.gold_futures_daily_quotes?.metadata.contract_expiries?.[quote.contract], ...quote }, spot.value, quotePoint.date, previousSpot)
   })
   const mainBasis = basisRates.find(quote => quote.contract === quotes.main_contract)
   const premium = { label: '升贴水率', date: quotePoint.date, value: mainBasis?.value ?? null, unit: '%',
-    valueText: numberText(mainBasis?.value), source: [domestic.source, sourceLabel(byId.au_td_close?.metadata)].filter(Boolean).join('；'),
+    valueText: numberText(mainBasis?.value), source: [domestic.source, sourceLabel(byId.au_td_close_1500?.metadata)].filter(Boolean).join('；'),
     previousValue: mainBasis?.previousValue ?? null, previousDate: mainBasis?.previousDate || null, change: mainBasis?.change ?? null,
     changeText: isNumber(mainBasis?.change) ? `${signedText(mainBasis.change)} 个百分点` : '变化暂不可计算',
     comparisonText: isNumber(mainBasis?.change) ? `较 ${mainBasis.previousDate}` : '无有效比较基准',

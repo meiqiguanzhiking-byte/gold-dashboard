@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { chromium } from 'playwright'
 import { annualizedBasis, annualizedBasisChange } from '../src/futures-basis.js'
+import { basisHistory } from '../src/futures-basis-history.js'
 import { buildDailyBrief, beijingDate, numberText } from '../src/daily-brief.js'
 import { expandSnapshot } from '../src/static-source.js'
 import { buildPagesData } from '../pages-data.mjs'
@@ -32,26 +33,36 @@ const card = model.cards.find(card => card.id === 'domestic-futures')
 assert.equal(card.rows.length, 2)
 const rate = card.rows[1]
 const quotes = JSON.parse(items.find(item => item.metadata.indicator_id === 'gold_futures_daily_quotes').history.at(-1).value)
+const evenQuotes = quotes.quotes.filter(quote => /^au\d{2}(02|04|06|08|10|12)$/i.test(quote.contract || ''))
 const main = quotes.quotes.find(quote => quote.contract === quotes.main_contract)
-const spot = items.find(item => item.metadata.indicator_id === 'au_td_close').history.find(point => point.observation_date === card.rows[0].date)
+const spot15 = items.find(item => item.metadata.indicator_id === 'au_td_close_1500')
+const spot = spot15.history.find(point => point.observation_date === card.rows[0].date)
+const tradingClose = items.find(item => item.metadata.indicator_id === 'au_td_close').history.find(point => point.observation_date === card.rows[0].date)
+assert.notEqual(spot.value, tradingClose.value, '样本日可区分15点收盘价与交易日收盘价')
 const expected = (main.close - spot.value) / spot.value * (365 / ((Date.parse(main.expiry_date) - Date.parse(card.rows[0].date)) / 86400000)) * 100
 assert.ok(Math.abs(rate.value - expected) < 1e-12)
 assert.equal(rate.date, spot.observation_date)
-const previousSpot = items.find(item => item.metadata.indicator_id === 'au_td_close').history.find(point => point.observation_date === main.previous_date)
+const previousSpot = spot15.history.find(point => point.observation_date === main.previous_date)
 const previousExpected = (main.previous_close - previousSpot.value) / previousSpot.value * 365 / ((Date.parse(main.expiry_date) - Date.parse(main.previous_date)) / 86400000) * 100
 assert.ok(Math.abs(rate.change - (expected - previousExpected)) < 1e-12)
 assert.equal(rate.previousDate, main.previous_date)
 assert.equal(rate.previousValue, previousExpected)
 assert.ok(rate.changeText.includes('个百分点'))
-assert.equal(rate.basisRates.quotes.length, quotes.quotes.length)
+assert.equal(rate.basisRates.quotes.length, evenQuotes.length)
+const domesticRows = basisHistory(items.find(item => item.metadata.indicator_id === 'gold_futures_daily_quotes'), spot15)
+  .find(day => day.observation_date === rate.date).quotes.filter(quote => /^au\d{2}(02|04|06|08|10|12)$/i.test(quote.contract || ''))
+assert.deepEqual(rate.basisRates.quotes.map(({ contract, value, spot, days }) => ({ contract, value, spot, days })),
+  domesticRows.map(({ contract, value, spot, days }) => ({ contract, value, spot, days })), '每日卡片与国内表逐合约计算一致')
 assert.ok(rate.detailText.includes(main.contract.replace(/^au/i, 'Au')))
 assert.deepEqual(buildDailyBrief(flatten(expandSnapshot(buildPagesData(snapshot).bootstrap.snapshot)), date), model)
-const missingSpot = items.map(item => item.metadata.indicator_id === 'au_td_close' ? { ...item, history: item.history.filter(point => point.observation_date !== rate.date) } : item)
+const missingSpot = items.map(item => item.metadata.indicator_id === 'au_td_close_1500' ? { ...item, history: item.history.filter(point => point.observation_date !== rate.date) } : item)
 assert.equal(buildDailyBrief(missingSpot, date).cards.find(card => card.id === 'domestic-futures').rows[1].value, null, '现货不同日时不取其他日期替代')
-const missingPreviousSpot = items.map(item => item.metadata.indicator_id === 'au_td_close' ? { ...item, history: item.history.filter(point => point.observation_date !== main.previous_date) } : item)
+const missingPreviousSpot = items.map(item => item.metadata.indicator_id === 'au_td_close_1500' ? { ...item, history: item.history.filter(point => point.observation_date !== main.previous_date) } : item)
 const noBaseline = buildDailyBrief(missingPreviousSpot, date).cards.find(card => card.id === 'domestic-futures').rows[1]
 assert.equal(noBaseline.value, rate.value)
 assert.equal(noBaseline.change, null, '上一交易观察日现货缺失时不跨期找基准')
+
+if (process.argv.includes('--model-only')) { console.log(JSON.stringify({ passed: true, spot: rate.basisRates.spot, rate: rate.valueText, contracts: evenQuotes.length })); process.exit(0) }
 
 const browser = await chromium.launch({ channel: 'msedge', headless: true, args: ['--disable-breakpad', '--disable-logging'] })
 try {
@@ -73,7 +84,7 @@ try {
     await trigger.hover()
     const popup = element.locator('.basis-popup')
     await popup.waitFor({ state: 'visible' })
-    assert.equal(await popup.locator('.basis-quote').count(), quotes.quotes.length)
+    assert.equal(await popup.locator('.basis-quote').count(), evenQuotes.length)
     for (const quote of rate.basisRates.quotes) {
       const row = popup.locator('.basis-quote').filter({ hasText: quote.contract.replace(/^au/i, 'Au') })
       assert.ok((await row.textContent()).includes(numberText(quote.value)))

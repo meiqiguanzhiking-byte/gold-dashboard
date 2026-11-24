@@ -13,7 +13,7 @@ export const palette = ['#207c88', '#b59b64', '#6d83ab', '#8c6ca0', '#668e6f', '
 const healthSourceGroups = [
   ['伦敦金现与汇率_北京时间1530收盘价.xlsx'],
   ['COMEX黄金与汇率期货.csv'],
-  ['黄金ETF波动率指数.csv'],
+  ['黄金ETF波动率指数.csv', 'VIX.csv'],
   ['美元指数.csv'],
   ['美债收益率.xlsx'],
   ['央行购金.xlsx'],
@@ -26,6 +26,7 @@ const healthSourceGroups = [
   ['SPDR黄金ETF份额.xlsx'],
   ['伦敦金银库存.xlsx'],
   ['COMEX金银库存.xlsx'],
+  ['COMEX黄金期权Delta当量总持仓.csv'],
   ['全球黄金ETF流量.xlsx'],
   ['全球央行购金.csv'],
 ]

@@ -62,7 +62,9 @@ async function draw() {
     ...axisTransition,
     textStyle: { fontFamily: 'Segoe UI, Microsoft YaHei, sans-serif' },
     grid: { left: 18, right: axisCount > 1 ? 30 : 22, top: 54, bottom: 58, containLabel: true },
-    legend: { type: 'scroll', top: 2, left: 0, right: 0, selected: prior?.legend?.[0]?.selected || {}, textStyle: { color: '#667579', fontSize: 10 }, icon: 'roundRect', itemWidth: 12, itemHeight: 5 },
+    legend: { type: 'scroll', top: 2, left: 0, right: 0,
+      selected: prior?.legend?.[0]?.selected ?? Object.fromEntries(available.value.map(s => [s.name || s.item.metadata.indicator_name, s.defaultVisible !== false])),
+      textStyle: { color: '#667579', fontSize: 10 }, icon: 'roundRect', itemWidth: 12, itemHeight: 5 },
     tooltip: { ...tooltipStyle, trigger: 'axis', formatter(params) {
       const rows = params.map(p => {
         const s = available.value[p.seriesIndex]

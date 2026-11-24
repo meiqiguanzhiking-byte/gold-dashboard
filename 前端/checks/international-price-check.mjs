@@ -50,7 +50,8 @@ async function read(page, title, actions = [], seriesIndex = 0) {
     const o = c.getOption()
     const date = o.xAxis[0].data.at(-1)
     return { dates: o.xAxis[0].data, unit: o.yAxis[0].name, min: o.yAxis[0].min, max: o.yAxis[0].max,
-      names: o.series.map(s => s.name),
+      names: o.series.map(s => s.name), selected: o.legend[0].selected,
+      types: o.series.map(s => s.type), areas: o.series.map(s => Boolean(s.areaStyle)),
       smooth: o.series[seriesIndex].smooth, connectNulls: o.series[seriesIndex].connectNulls, values: o.series[seriesIndex].data,
       tooltip: o.tooltip[0].formatter([{ seriesIndex, axisValue: date, color: o.series[seriesIndex].itemStyle.color }]),
     }
@@ -101,6 +102,16 @@ try {
     if (showPrices) {
       assert.equal(await page.locator('#overseas-price canvas').count(), 2)
       assert.equal(await page.locator('#gold-etf-volatility canvas').count(), 1)
+      const fxChart = await read(page, '美元兑人民币汇率', [], 0)
+      assert.deepEqual(fxChart.names, ['美元兑离岸人民币－美元兑在岸人民币', '美元兑离岸人民币', '美元兑在岸人民币'])
+      assert.deepEqual(fxChart.types, ['line', 'line', 'line'])
+      assert.deepEqual(fxChart.areas, [true, false, false])
+      assert.deepEqual(fxChart.axes, [1, 0, 0])
+      assert.notEqual(fxChart.selected[fxChart.names[0]], false)
+      assert.equal(fxChart.selected[fxChart.names[1]], false)
+      assert.equal(fxChart.selected[fxChart.names[2]], false)
+      const selectableLine = await read(page, '美元兑人民币汇率', [{ type: 'legendSelect', name: '美元兑离岸人民币' }], 1)
+      assert.equal(selectableLine.selected['美元兑离岸人民币'], true)
       const gvzChart = await read(page, '黄金ETF波动率指数（GVZ，%）')
       assert.equal(gvzChart.unit, '%')
       const volatilityHistory = new Map(volatilityItem.history.map(point => [point.observation_date, point.value]))
@@ -111,11 +122,11 @@ try {
         for (const range of ['1M', '3M', '1Y', '5Y', 'ALL']) {
           await page.getByLabel(title + '时间区间').selectOption(range)
           await page.waitForTimeout(100)
-          const c = await read(page, title, [], id === 'usdcny' ? 1 : 0)
+          const c = await read(page, title, [], id === 'usdcnh' ? 1 : id === 'usdcny' ? 2 : 0)
           const values = new Map(sourceItems[id].history.map(p => [p.observation_date, p.value]))
           c.dates.forEach((d, index) => assert.equal(c.values[index], values.get(d)))
           assert.equal(c.unit, id.startsWith('usdc') ? 'CNH/美元 / CNY/美元' : sourceItems[id].metadata.unit)
-          if (id.startsWith('usdc')) assert.deepEqual(c.names, ['美元兑离岸人民币', '美元兑在岸人民币'])
+          if (id.startsWith('usdc')) assert.deepEqual(c.names, ['美元兑离岸人民币－美元兑在岸人民币', '美元兑离岸人民币', '美元兑在岸人民币'])
           assert.equal(c.smooth, false); assert.equal(c.connectNulls, id === 'gold_domestic_spread')
           if (id === 'gold_domestic_spread') assert.equal(sourceItems[id].metadata.observation_time, '15:30')
           assert.ok(c.tooltip.includes(c.dates.at(-1)))

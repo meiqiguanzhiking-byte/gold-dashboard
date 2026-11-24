@@ -41,7 +41,7 @@ export function buildPagesData(snapshot) {
     })
   }
   // 日报固定20期现货统计、同合约期货比较；保留空值及期限结构所需历史。
-  const briefHistoryLimits = { au_td_close: 20, london_gold_spot: 20, usdcnh: 20, usdcny: 20, gold_futures_daily_quotes: 20,
+  const briefHistoryLimits = { au_td_close: 20, au_td_close_1500: 20, london_gold_spot: 20, usdcnh: 20, usdcny: 20, gold_futures_daily_quotes: 20,
     au_td_delivery_direction: 30, gold_domestic_spread: 11, gold_futures_spread: 11, gold_futures_secondary_spread: 11, gold_futures_spread_details: 11 }
   const percentileIds = new Set(dailyThresholdGroups.filter(group => percentileGroups.has(group.id)).flatMap(group => group.indicators.map(indicator => indicator.id)))
   const futuresDates = new Set((snapshot.groups.price?.find(item => item.metadata.indicator_id === 'gold_futures_daily_quotes')?.points || []).slice(-2).flatMap(point => {
@@ -49,7 +49,7 @@ export function buildPagesData(snapshot) {
     try { quotes = JSON.parse(point[1])?.quotes || [] } catch { /* 保留缺失明细，不另取价格基准。 */ }
     return [point[0], ...quotes.map(quote => quote.previous_date).filter(Boolean)]
   }))
-  const briefPoints = item => item.metadata.indicator_id === 'au_td_close'
+  const briefPoints = item => ['au_td_close', 'au_td_close_1500'].includes(item.metadata.indicator_id)
     ? item.points.filter((point, index) => index >= item.points.length - briefHistoryLimits.au_td_close || futuresDates.has(point[0]))
     : percentileIds.has(item.metadata.indicator_id)
       ? item.points.filter((point, index) => index >= item.points.length - (briefHistoryLimits[item.metadata.indicator_id] || 2) || point[0] > yearStart(item.points.at(-1)?.[0]))
