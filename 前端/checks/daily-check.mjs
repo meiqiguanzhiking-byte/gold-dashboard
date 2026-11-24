@@ -33,7 +33,7 @@ try {
     const index = Object.fromEntries(items.map(i => [i.metadata.indicator_id, i]))
     const model = buildDailyBrief(items, today)
     assert.equal(model.cards.length, 25)
-    assert.deepEqual(model.groups.map(group => group.title), ['价差', '现期', '远期', '风险波动', '宏观', 'ETF份额', '交易与持仓', '库存与交割'])
+    assert.deepEqual(model.groups.map(group => group.title), ['价差', '现货', '远期', '风险波动', '宏观', 'ETF份额', '交易与持仓', '央行存储', '库存'])
     assert.equal(dailyThresholdGroups.length, 7)
     assert.deepEqual(dailyThresholdGroups.map(group => group.id), ['spread', 'price', 'volatility', 'rates', 'shares', 'volume', 'position'])
     assert.deepEqual(dailyThresholdGroups.find(group => group.id === 'rates').indicators.map(row => row.id), ['ust_10y_yield', 'ust_2y_yield', 'ust_10y_2y_spread', 'ust_10y_breakeven_inflation'])
@@ -191,7 +191,7 @@ try {
       if (width >= 1280) {
         const macro = await p.locator('[data-daily-group="macro"] .daily-card').evaluateAll(cards => cards.map(card => Math.round(card.getBoundingClientRect().top)))
         assert.equal(new Set(macro).size, 1, '四项宏观指标同排显示')
-        assert.equal(await p.locator('[data-daily-group]').count(), 8)
+        assert.equal(await p.locator('[data-daily-group]').count(), 9)
       }
     }
     await p.setViewportSize({ width: 1440, height: 1000 })

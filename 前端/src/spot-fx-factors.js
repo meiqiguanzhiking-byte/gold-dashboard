@@ -17,14 +17,14 @@ export function simplifyFxFactors(source) {
   }
   const ratios = definitions.map(([id, name, path]) => ({ id, name, group: '外汇供求', unit: '%',
     inputs: ['差额', '结汇', '售汇'].map(field => indexOf(`银行结售汇 · ${path} · ${field}`)),
-    formula: '同一项目差额 ÷（结汇＋售汇）×100%；使用亿美元原值，分母须大于0。' }))
+    formula: '同一项目差额 ÷（结汇＋售汇）×100%；使用亿美元原值，分母须大于0。' })).filter(column => column.inputs.every(index => index != null))
   const deltaIndex = indexOf('银行结售汇 · 未到期期权Delta净敞口 · 净敞口')
   const monthlyDelta = new Map()
   if (deltaIndex != null) for (const point of source.points) {
     if (finite(point[deltaIndex])) monthlyDelta.set(monthIndex(point[0]), point[deltaIndex])
   }
-  const derived = [...ratios, { id: 'fx_option_delta_change', name: '期权 Delta 净敞口变化', group: '外汇供求', unit: '亿美元',
-    formula: '当月未到期期权Delta净敞口−上一自然月原值；首月或相邻月份缺失则留空，沿用原字段符号。' }]
+  const derived = [...ratios, ...(deltaIndex == null ? [] : [{ id: 'fx_option_delta_change', name: '期权 Delta 净敞口变化', group: '外汇供求', unit: '亿美元',
+    formula: '当月未到期期权Delta净敞口−上一自然月原值；首月或相邻月份缺失则留空，沿用原字段符号。' }])]
   const points = source.points.map(point => {
     const ratioValues = ratios.map(({ inputs }) => {
       const [net, buy, sell] = inputs.map(index => index == null ? null : point[index])
@@ -33,7 +33,7 @@ export function simplifyFxFactors(source) {
     const current = deltaIndex == null ? null : point[deltaIndex]
     const previous = monthlyDelta.get(monthIndex(point[0]) - 1)
     const change = finite(current) && finite(previous) ? current - previous : null
-    return [point[0], ...retained.map(({ index }) => point[index]), ...ratioValues, change]
+    return [point[0], ...retained.map(({ index }) => point[index]), ...ratioValues, ...(deltaIndex == null ? [] : [change])]
   })
   const columns = [...retained.map(({ column }) => column), ...derived.map(({ inputs, ...column }) => column)]
   for (let i = retained.length; i < columns.length; i++) {

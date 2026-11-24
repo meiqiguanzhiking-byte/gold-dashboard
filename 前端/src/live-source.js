@@ -5,7 +5,11 @@ export async function request(path, options = {}) {
   const timer = setTimeout(() => controller.abort(), path === 'daily-report' ? 395000 : path === 'reload' ? 180000 : 45000)
   try {
     const response = await fetch('/api/' + path, { ...options, signal: options.signal ? AbortSignal.any([options.signal, controller.signal]) : controller.signal })
-    if (!response.ok) throw new Error('HTTP ' + response.status + '，请检查后端服务')
+    if (!response.ok) {
+      const body = await response.json().catch(() => null)
+      const detail = typeof body?.detail === 'string' ? body.detail : '请检查后端服务'
+      throw new Error('HTTP ' + response.status + '，' + detail)
+    }
     return await response.json()
   } catch (error) {
     throw new Error(error.name === 'AbortError' ? '请求超时，请稍后重试' : error.message || '无法连接数据服务')

@@ -6,7 +6,7 @@ from datetime import datetime
 
 from config import DATA_DIR
 
-SOURCE = DATA_DIR / "现价量化数据表" / "境内外现价价差_全历史.csv"
+SOURCE = DATA_DIR / "现价量化数据表" / "原表" / "境内外现价价差_全历史.csv"
 COLUMNS = [
     ("spread", "境内外现价价差", "元/克"),
     ("gold", "黄金现价", "元/克"),
@@ -34,7 +34,7 @@ def factor_group(header):
 def read_spot_market(path=SOURCE, *, include_columns=None):
     columns = [{"id": key, "name": name, "unit": unit, "group": "研究对象"} for key, name, unit in COLUMNS]
     headers = [f"{name}（{unit}）" for _, name, unit in COLUMNS]
-    points, seen = [], set()
+    points, seen, excluded = [], set(), []
     with path.open(encoding="utf-8-sig", newline="") as stream:
         reader = csv.DictReader(stream)
         if not {"日期", *headers}.issubset(reader.fieldnames or []):
@@ -47,10 +47,12 @@ def read_spot_market(path=SOURCE, *, include_columns=None):
                 continue
             group = factor_group(header)
             if not group:
-                raise ValueError(f"未配置因子分组：{header}")
+                excluded.append(header)
+                continue
             match = re.match(r"^(.*)（([^（）]+)）$", header)
             if not match:
-                raise ValueError(f"未配置因子单位：{header}")
+                excluded.append(header)
+                continue
             columns.append({"id": "factor_" + str(len(columns)), "name": match[1], "unit": match[2], "group": group})
             headers.append(header)
         for row in reader:
@@ -73,5 +75,6 @@ def read_spot_market(path=SOURCE, *, include_columns=None):
         valid = [point[0] for point in points if point[index] is not None]
         column.update(missing=sum(point[index] is None for point in points),
                       start=valid[0] if valid else None, end=valid[-1] if valid else None)
-    return {"source": path.name, "columns": columns, "points": points,
+    return {"source": path.name, "source_location": "现价量化数据表/原表/" + path.name,
+            "excluded_columns": excluded, "columns": columns, "points": points,
             "start": points[0][0] if points else None, "end": points[-1][0] if points else None}

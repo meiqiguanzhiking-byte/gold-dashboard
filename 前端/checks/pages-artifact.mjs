@@ -163,7 +163,7 @@ if (policy.include_spot_research) {
   assert.deepEqual(points.map(row => row[0]), points.map(row => row[0]).sort())
   assert.ok(points.every(row => row.length === market.columns.length + 1 && row.slice(1).every(v => v === null || typeof v === 'number' && Number.isFinite(v))))
   const displayed = simplifyFxFactors(market)
-  assert.equal(displayed.columns.filter(c => c.group === '外汇供求').length, 5)
+  assert.equal(displayed.columns.filter(c => c.group === '外汇供求').length, market.columns.some(c => c.group === '外汇供求') ? 5 : 0, '原表缺少结售汇字段时不应生成空的外汇供求因子')
   assert.deepEqual(displayed.points.map(row => row.slice(0, 5)), market.points.map(row => row.slice(0, 5)), '研究对象与统计输入必须保持原值及空值')
   assert.equal(republished.bootstrap.spotMarket, prepared.bootstrap.spotMarket)
 }

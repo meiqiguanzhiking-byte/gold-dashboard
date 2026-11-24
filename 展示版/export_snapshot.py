@@ -17,7 +17,7 @@ from indicators import build_indicators
 from deliveries import build_deliveries, SOURCE as DELIVERY_SOURCE
 from public_report import build_public_report
 from daily_news import public_news
-from spot_research import read_spot_market
+from spot_research import read_spot_market, SOURCE as SPOT_RESEARCH_SOURCE
 
 METADATA_FIELDS = (
     "indicator_id", "indicator_name", "unit", "frequency", "source", "sheet", "updated_at",
@@ -179,7 +179,7 @@ def export(*, preserve_spot_research=False):
         dependencies = [source, *policy["spot_research_sources"]]
         if any(policy["source_permissions"].get(name) != "approved" or name in policy["withheld_sources"] for name in dependencies):
             raise ValueError("现价研究相关来源未获准公开；未覆盖快照")
-        path = DATA_DIR / "现价量化数据表" / source
+        path = SPOT_RESEARCH_SOURCE
         before = path.read_bytes()
         market = read_spot_market(path, include_columns=set(policy["spot_research_columns"]))
         if before != path.read_bytes():

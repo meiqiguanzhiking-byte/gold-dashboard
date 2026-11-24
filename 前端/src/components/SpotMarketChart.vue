@@ -136,7 +136,9 @@ onBeforeUnmount(() => { controller.abort(); axes?.dispose(); chart?.dispose() })
         </fieldset>
       </details>
     </details>
-    <p class="axis-note">外汇供求仅展示五项：前四项为差额÷（结汇＋售汇），以百分比表示；期权 Delta 净敞口变化为相邻自然月差分（亿美元），沿用原字段符号。缺项、分母非正或缺少上月数据时留空。</p>
+    <p v-if="data && !groups.find(group => group.name === '外汇供求')?.items.length" class="axis-note">当前原表未包含结售汇计算所需字段，外汇供求因子暂不可用。</p>
+    <p v-else class="axis-note">外汇供求仅展示五项：前四项为差额÷（结汇＋售汇），以百分比表示；期权 Delta 净敞口变化为相邻自然月差分（亿美元），沿用原字段符号。缺项、分母非正或缺少上月数据时留空。</p>
+    <details v-if="data?.excluded_columns?.length" class="axis-note"><summary>{{ data.excluded_columns.length }} 个新增字段尚未配置分组与单位，暂未纳入筛选</summary>{{ data.excluded_columns.join('、') }}</details>
     <div class="selected-indicators"><span v-if="!visible.length">尚未选择指标</span><label v-for="item in visible" :key="item.id" :style="{ '--series-color': item.color }"><input v-model="selected" type="checkbox" :value="item.id" /><i aria-hidden="true" />{{ item.name }}</label></div>
     <div class="date-filter" role="group" aria-label="行情走势日期筛选">
       <label>开始日期<input v-model="startDate" type="date" :min="data?.start" :max="data?.end" :disabled="!data" :aria-invalid="!!dateError" /></label>
@@ -166,7 +168,7 @@ onBeforeUnmount(() => { controller.abort(); axes?.dispose(); chart?.dispose() })
       </div>
     </div>
     </div>
-    <p v-if="data" class="source-note">来源：{{ data.source }}。按文件观察日展示，缺失保留断点，不补零、不前值填充。
+    <p v-if="data" class="source-note">来源：{{ data.source_location || data.source }}。按文件观察日展示，缺失保留断点，不补零、不前值填充。
       <span v-for="column in data.columns.filter(item => selected.includes(item.id) && item.missing)" :key="column.id">{{ column.name }}缺失 {{ column.missing }} 个观察日。 </span>
     </p>
   </article>

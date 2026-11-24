@@ -11,7 +11,8 @@ const dailyIds = {
   macro: ['ust_10y_yield', 'ust_2y_yield', 'ust_10y_2y_spread', 'ust_10y_breakeven_inflation'],
   etf: ['domestic_etf_total_shares', 'spdr_gold_holdings', 'global_etf_weekly_total_tonnes', 'global_etf_monthly_total_tonnes'],
   trading: ['futures_volume', 'futures_open_interest', 'au_td_volume', 'au_td_open_interest', 'cftc_long', 'cftc_short', 'cftc_net_long', 'cftc_net_long_ratio'],
-  inventory: ['central_bank_reserves', 'london_gold', 'comex_gold_registered', 'comex_gold_pledged', 'comex_gold_eligible', 'comex_gold_total'],
+  'central-bank': ['central_bank_reserves'],
+  inventory: ['london_gold', 'comex_gold_registered', 'comex_gold_pledged', 'comex_gold_eligible', 'comex_gold_total'],
 }
 export const crossGroup = id => Object.keys(dailyIds).find(group => dailyIds[group].includes(id)) || null
 

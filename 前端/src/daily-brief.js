@@ -8,13 +8,14 @@ const signedText = (value, digits = 2) => isNumber(value) ? (value > 0 ? '+' : '
 const thresholdOrder = ['spread', 'price', 'volatility', 'rates', 'shares', 'volume', 'position']
 export const dailyIndicatorGroups = [
   ['spread', '价差', ['spread', 'futures-spread']],
-  ['spot', '现期', ['domestic-price', 'international-price', 'usdcnh']],
+  ['spot', '现货', ['domestic-price', 'international-price', 'usdcnh']],
   ['forward', '远期', ['domestic-futures', 'international-futures', 'fx-futures']],
   ['risk', '风险波动', ['volatility', 'gvz']],
   ['macro', '宏观', ['treasury-10y', 'treasury-2y', 'treasury-spread', 'treasury-bei']],
   ['etf', 'ETF份额', ['domestic-etf', 'spdr', 'global-etf-weekly', 'global-etf-monthly']],
   ['trading', '交易与持仓', ['futures-volume', 'futures', 'autd', 'cftc']],
-  ['inventory', '库存与交割', ['central-bank', 'london-inventory', 'comex']],
+  ['central-bank', '央行存储', ['central-bank']],
+  ['inventory', '库存', ['london-inventory', 'comex']],
 ].map(([id, title, cards]) => ({ id, title, cards }))
 export const dailyThresholdGroups = [
   { id: 'price', label: '价格阈值', max: 5, step: 0.05, initial: 1, indicators: [

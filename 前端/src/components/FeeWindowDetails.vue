@@ -33,7 +33,7 @@ function leaveFocus(event) {
 .fee-detail-row { display:flex; justify-content:space-between; gap:12px; padding:4px 0; border-top:1px solid #edf1ef; font-variant-numeric:tabular-nums; }
 .fee-detail-row > span:first-child { white-space:nowrap; }
 .fee-detail-row > span:last-child { text-align:right; overflow-wrap:anywhere; }
-.direction-long { color:#b64d45; }
-.direction-short { color:#32805b; }
+.direction-long { color:#32805b; }
+.direction-short { color:#b64d45; }
 .fee-detail-note { display:block; margin-top:6px; color:#879795; font-size:10px; }
 </style>

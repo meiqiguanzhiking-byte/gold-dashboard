@@ -15,7 +15,7 @@ const days = (w, side) => w.valid ? w[side] : '数据暂缺'
 
 <template>
   <article class="chart-panel autd-fee-panel" aria-labelledby="autd-fee-title">
-    <header class="panel-header"><div><div class="fee-title-row"><h3 id="autd-fee-title">Au(T+D) 延期费情况</h3><span class="fee-today" :title="'最新观察日：' + (windows[0].end || '未提供')">今日方向：<strong :class="{ 'direction-green': todayDirection === '空支付给多', 'direction-red': todayDirection === '多支付给空' }">{{ todayDirection }}</strong></span></div><p>最近7个、30个交易观测日 · 支付方向天数</p></div><StatusBadge :status="status" /></header>
+    <header class="panel-header"><div><div class="fee-title-row"><h3 id="autd-fee-title">Au(T+D) 延期费情况</h3><span class="fee-today" :title="'最新观察日：' + (windows[0].end || '未提供')">今日方向：<strong :class="{ 'direction-red': todayDirection === '空支付给多', 'direction-green': todayDirection === '多支付给空' }">{{ todayDirection }}</strong></span></div><p>最近7个、30个交易观测日 · 支付方向天数</p></div><StatusBadge :status="status" /></header>
     <p class="fee-asof">截至最新观察日：{{ windows[0].end || '未提供' }}</p>
     <div v-if="message" class="fee-message" role="status">{{ message }}</div>
     <template v-else>
