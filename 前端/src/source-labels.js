@@ -27,6 +27,8 @@ const sourceLabels = {
   'COMEX黄金期权Delta当量总持仓.csv': 'CFTC 美国商品期货交易委员会',
   '全球黄金ETF流量.xlsx': 'WGC 世界黄金协会',
   '全球央行购金.csv': 'WGC 世界黄金协会',
+  'COFER_全球币种份额.csv': 'IMF 国际货币基金组织（COFER）',
+  '全球黄金季度供需分项.xlsx': 'WGC 世界黄金协会',
   '伦敦金现与汇率_北京时间1530收盘价.xlsx': 'Barchart 官网',
   '黄金ETF波动率指数.csv': 'Cboe 芝加哥期权交易所',
   'VIX.csv': 'Cboe 芝加哥期权交易所',

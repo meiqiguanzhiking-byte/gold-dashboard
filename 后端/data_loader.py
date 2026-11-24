@@ -35,7 +35,7 @@ def read_csv(path):
 
 
 def describe_frame(frame, sheet):
-    date_col = next((name for name in ("时间", "日期", "Date", "DATE", "持仓日期") if name in frame.columns), None)
+    date_col = next((name for name in ("时间", "日期", "Date", "DATE", "持仓日期", "季度末日期") if name in frame.columns), None)
     dates = (pd.to_datetime(frame[date_col], format="%m/%d/%Y", errors="coerce") if date_col == "DATE"
              else parse_dates(frame[date_col]) if date_col else pd.Series(dtype="datetime64[ns]"))
     start, end = dates.min(), dates.max()
@@ -76,6 +76,9 @@ def load_tables(directory: Path):
             if before.st_mtime_ns != after.st_mtime_ns or before.st_size != after.st_size:
                 raise ValueError("读取时文件发生变化，请等待更新完成后重新加载")
             for sheet, frame in frames.items():
+                if path.name == "全球黄金季度供需分项.xlsx" and sheet == "季度供需" and "日期" in frame:
+                    # 表尾含说明文字，只读取季度观察行。
+                    frame = frame.loc[parse_dates(frame["日期"]).notna()].copy()
                 if path.name == "金银珠宝零售.xlsx":
                     frame = frame.rename(columns={"指标名称": "日期"})
                 tables[(path.name, sheet)] = Table(path.name, sheet, frame, item["updated_at"])

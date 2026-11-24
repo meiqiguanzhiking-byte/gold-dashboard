@@ -78,6 +78,8 @@ const healthModuleRules = [
   { id: 'global-central-bank', title: '全球央行购金', sources: ['全球央行购金.csv'] },
   { id: 'comex-inventory', title: 'COMEX 金银库存与结构', sources: ['COMEX金银库存.xlsx'] },
   { id: 'comex-options-delta', title: 'COMEX黄金期权Delta当量总持仓', sources: ['COMEX黄金期权Delta当量总持仓.csv'] },
+  { id: 'cofer', title: '全球已分配外汇储备币种份额', sources: ['COFER_全球币种份额.csv'] },
+  { id: 'gold-supply-demand', title: '全球黄金供给需求分项', sources: ['全球黄金季度供需分项.xlsx'] },
   { id: 'comex-delivery', title: 'COMEX实物交割', fileSources: ['黄金交割.xlsx'] },
 ]
 const healthPickerOptions = healthModuleRules.map(({ id, title }) => ({ id, title }))
@@ -99,6 +101,15 @@ const countStatus = s => allMetadata.value.filter(m => m.status === s || m.statu
 const missingCount = computed(() => countStatus('数据缺失'))
 const automationStatusLabel = status => status === '未确认' ? '每日17点更新' : status
 function line(id, name, color, rest = {}) { return { item: item(id), name, color, ...rest } }
+const coferSeries = computed(() => [
+  ['usd', '美元', '#244c99'], ['eur', '欧元', '#2faaf0'], ['jpy', '日元', '#f45c68'],
+  ['gbp', '英镑', '#e5a134'], ['cny', '人民币', '#8076b5'], ['cad', '加元', '#2ab488'],
+  ['aud', '澳元', '#8bd8ed'], ['chf', '瑞士法郎', '#8a9bac'], ['other', '其他货币', '#19396b'],
+].map(([code, name, color], index) => line('cofer_' + code + '_share', name, color, {
+  yAxisIndex: index ? 1 : 0, axisName: index ? '其他币种份额 %' : '美元份额 %',
+  lineStyle: { width: index ? 1.5 : 2.5, type: index > 4 ? 'dashed' : 'solid' },
+  ...(index ? {} : { areaStyle: { color, opacity: 0.05 } }),
+})))
 const goldPremiumSeries = computed(() => [
   ['gold_premium_cnh', '沪金溢价（相对离岸）', '#ad945b'],
   ['gold_premium_cny', '沪金溢价（相对在岸）', '#6d83ab'],
@@ -419,8 +430,23 @@ onMounted(loadAll)
         </div>
       </DashboardSection>
 
+      <DashboardSection id="cofer" title="全球已分配外汇储备币种份额">
+        <div class="section-heading"><div><span class="section-number">16</span><h2>全球已分配外汇储备币种份额</h2></div><span>IMF COFER · 季度</span></div>
+        <div class="chart-grid">
+          <ChartPanel title="全球已分配外汇储备币种份额（%）" description="左轴：美元份额；右轴：其他币种份额；图例可独立开关各币种" :series="coferSeries" range="ALL" :loading="blocks['central-bank'].loading" :error="blocks['central-bank'].error" note="来源：IMF COFER；早期未单列币种留空。1999年为旧已分配口径，2000Q1起为新版追溯插补的全球口径；不含黄金、SDR及IMF储备头寸。" />
+        </div>
+      </DashboardSection>
+
+      <DashboardSection id="gold-supply-demand" title="全球黄金供给需求分项">
+        <div class="section-heading"><div><span class="section-number">17</span><h2>全球黄金供给需求分项</h2></div><span>WGC · 季度 · 吨</span></div>
+        <div class="chart-grid">
+          <ChartPanel title="全球黄金供给分项（吨）" description="矿产金供给、生产商净套保、回收金供给；单季度原值" :series="[line('gold_supply_mine', '矿产金供给', '#ad945b'), line('gold_supply_hedging', '生产商净套保', '#287985'), line('gold_supply_recycled', '回收金供给', '#6d83ab')]" range="5Y" :loading="blocks['central-bank'].loading" :error="blocks['central-bank'].error" note="来源：WGC 世界黄金协会；生产商净套保保留正负值，缺失不补零" />
+          <ChartPanel title="全球黄金需求分项（吨）" description="首饰制造、科技、投资、央行净购金需求；单季度原值" :series="[line('gold_demand_jewellery', '首饰制造需求', '#ad945b'), line('gold_demand_technology', '科技需求', '#287985'), line('gold_demand_investment', '投资需求', '#6d83ab'), line('gold_demand_central_banks', '央行净购金需求', '#b77964')]" range="5Y" :loading="blocks['central-bank'].loading" :error="blocks['central-bank'].error" note="来源：WGC 世界黄金协会；首饰采用制造口径，央行净购金保留正负值" />
+        </div>
+      </DashboardSection>
+
       <DashboardSection id="global-etf" title="全球黄金 ETF 流量">
-        <div class="section-heading"><div><span class="section-number">16</span><h2>全球黄金 ETF 流量</h2></div><span>周度与月度分开展示</span></div>
+        <div class="section-heading"><div><span class="section-number">18</span><h2>全球黄金 ETF 流量</h2></div><span>周度与月度分开展示</span></div>
         <div class="tab-row" role="tablist" aria-label="全球 ETF 观察频率"><button v-for="tab in [{ id: 'weekly', name: '全球流量 · 周度' }, { id: 'monthly', name: '全球流量 · 月度' }]" :key="tab.id" role="tab" :aria-selected="etfTab === tab.id" :class="{ selected: etfTab === tab.id }" @click="etfTab = tab.id">{{ tab.name }}</button></div>
         <div class="filter-bar"><span>地区筛选</span><label v-for="r in regions" :key="r.id"><input v-model="selectedRegions" type="checkbox" :value="r.id"><i class="region-dot" :style="{ background: regionColors[r.id] }"></i>{{ r.name }}</label><label class="unit-select">统计口径<select v-model="flowUnit" aria-label="全球ETF流量口径"><option value="tonnes">吨数流量</option><option value="usd">美元资金流</option></select></label></div>
         <div class="chart-grid">
@@ -431,7 +457,7 @@ onMounted(loadAll)
       </DashboardSection>
 
       <DashboardSection id="global-central-bank" title="全球央行购金">
-        <div class="section-heading"><div><span class="section-number">17</span><h2>全球央行购金</h2></div><StatusBadge status="月度" /></div>
+        <div class="section-heading"><div><span class="section-number">19</span><h2>全球央行购金</h2></div><StatusBadge status="月度" /></div>
         <div class="filter-bar country-filter"><label>数据月份<select v-model="countryMonth" aria-label="央行购金排名月份"><option v-for="month in countryMonths" :key="month" :value="month">{{ month }}</option></select></label><span class="central-report-count">纳入机构数：{{ format(reportedCount, 0) }} / {{ centralScope?.included_entities.length || '未提供' }}</span><span>机构缺失或空值按0处理</span></div>
         <p class="central-month-summary">{{ countryMonth || '数据月份暂缺' }} · 买入量 {{ format(centralPoint('global_central_bank_gross_purchases')) }} 吨 · 卖出量 {{ format(centralPoint('global_central_bank_gross_sales')) }} 吨 · 净买入 {{ format(centralPoint('global_central_bank_net_purchases')) }} 吨</p>
         <div class="chart-grid">
@@ -452,7 +478,7 @@ onMounted(loadAll)
       <DashboardPage page="quant" label="量化研究" :pickable="false"><QuantResearch /></DashboardPage>
       <DashboardPage page="research" label="研报复现" :pickable="false"><ResearchReplication /></DashboardPage>
       <DashboardPage page="health" label="数据健康度" :picker-options="healthPickerOptions" :picker-selected="selectedHealthModules" @picker-update="updateHealthModules">
-      <DashboardSection id="health" title="数据健康度"><div class="section-heading"><div><span class="section-number">19</span><h2>数据健康度</h2></div><span>{{ allMetadata.length }} 个指标 · {{ meta?.files.length || '—' }} 个文件</span></div><div class="health-filters"><input v-model="healthSearch" placeholder="搜索指标或来源文件" aria-label="搜索数据健康度"><select v-model="healthFrequency" aria-label="健康度频率筛选"><option>全部</option><option>日度</option><option>周度</option><option>月度</option><option>未提供</option></select><select v-model="healthStatus" aria-label="健康度状态筛选"><option>全部</option><option>正常</option><option>滞后</option><option>短历史</option><option>仅最新值</option><option>人工接入</option><option value="未确认">每日17点更新</option><option>数据缺失</option></select><span>数据更新计划：每日17点</span></div>
+      <DashboardSection id="health" title="数据健康度"><div class="section-heading"><div><span class="section-number">21</span><h2>数据健康度</h2></div><span>{{ allMetadata.length }} 个指标 · {{ meta?.files.length || '—' }} 个文件</span></div><div class="health-filters"><input v-model="healthSearch" placeholder="搜索指标或来源文件" aria-label="搜索数据健康度"><select v-model="healthFrequency" aria-label="健康度频率筛选"><option>全部</option><option>日度</option><option>周度</option><option>月度</option><option>季度</option><option>未提供</option></select><select v-model="healthStatus" aria-label="健康度状态筛选"><option>全部</option><option>正常</option><option>滞后</option><option>短历史</option><option>仅最新值</option><option>人工接入</option><option value="未确认">每日17点更新</option><option>数据缺失</option></select><span>数据更新计划：每日17点</span></div>
         <div v-if="blocks.meta.loading" class="table-message">正在读取元数据…</div><div v-else-if="blocks.meta.error" class="alert caution">元信息接口失败，使用已成功接口的指标元数据；文件级信息暂不可用。</div>
         <div class="health-table"><table><thead><tr><th>数据项 / 来源</th><th>更新频率</th><th>最新观察期</th><th>历史起始</th><th>文件最近更新</th><th>数据延迟</th><th>自动化状态</th><th>数据状态</th></tr></thead><tbody><tr v-for="m in visibleHealth" :key="m.indicator_id"><td><strong>{{ m.indicator_name }}</strong><small>{{ sourceLabel(m) }}{{ m.indicator_id.startsWith('file:') && m.sheet ? ' · ' + m.sheet : '' }}</small></td><td>{{ m.frequency }}</td><td>{{ m.coverage_end || '未提供' }}</td><td>{{ m.coverage_start || '未提供' }}</td><td>{{ localTime(m.updated_at) }}</td><td>{{ m.delay_days == null ? '未提供' : m.delay_days + ' 天' }}</td><td><StatusBadge :status="automationStatusLabel(m.automation_status)" /></td><td><StatusBadge :status="m.status" /><span v-if="m.status !== '滞后' && m.statuses?.includes('滞后')" class="secondary-status">滞后</span></td></tr><tr v-if="!visibleHealth.length"><td colspan="8" class="table-message">{{ pending ? '读取中…' : '没有符合筛选条件的数据项' }}</td></tr></tbody></table></div>
         <div class="pagination"><span>共 {{ healthRows.length }} 项 · 第 {{ healthPage }} / {{ healthPages }} 页</span><button :disabled="healthPage <= 1" @click="healthPage--">上一页</button><button :disabled="healthPage >= healthPages" @click="healthPage++">下一页</button></div>

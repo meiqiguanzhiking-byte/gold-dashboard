@@ -76,7 +76,7 @@ async function draw() {
       return rows + (details ? '<div class="tooltip-item">' + escapeHtml(details) + '</div>' : '')
     } },
     xAxis: { type: 'category', data: dates.value, boundaryGap: available.value.some(s => s.type === 'bar'), axisTick: { show: false }, axisLine: { lineStyle: { color: '#d8e0e0' } }, axisLabel },
-    yAxis: Array.from({ length: axisCount }, (_, index) => ({ type: 'value', name: [...new Set(available.value.filter(s => (s.yAxisIndex || 0) === index).map(s => s.item.metadata.unit))].join(' / '), position: index ? 'right' : 'left', nameTextStyle: { color: '#718082', fontSize: 10, align: index ? 'right' : 'left' }, nameLocation: 'end', axisLabel: { ...axisLabel, show: true, hideOverlap: false }, splitLine: { show: index === 0, lineStyle: { color: '#edf1f0' } }, axisLine: { show: true, onZero: true, lineStyle: { color: '#adbdbd' } } })),
+    yAxis: Array.from({ length: axisCount }, (_, index) => ({ type: 'value', name: [...new Set(available.value.filter(s => (s.yAxisIndex || 0) === index).map(s => s.axisName || s.item.metadata.unit))].join(' / '), position: index ? 'right' : 'left', nameTextStyle: { color: '#718082', fontSize: 10, align: index ? 'right' : 'left' }, nameLocation: 'end', axisLabel: { ...axisLabel, show: true, hideOverlap: false }, splitLine: { show: index === 0, lineStyle: { color: '#edf1f0' } }, axisLine: { show: true, onZero: true, lineStyle: { color: '#adbdbd' } } })),
     dataZoom: zoom,
     series,
   }, true)

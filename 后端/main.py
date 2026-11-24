@@ -146,7 +146,7 @@ def research_dual_anchor():
 def category_handler(category):
     def endpoint(
         indicator_id: str | None = Query(None, description="按指标 ID 筛选"),
-        frequency: str | None = Query(None, description="日度 / 周度 / 月度 / 未提供；不同频率独立返回"),
+        frequency: str | None = Query(None, description="日度 / 周度 / 月度 / 季度 / 未提供；不同频率独立返回"),
         start_date: date | None = Query(None), end_date: date | None = Query(None),
         include_history: bool = Query(True),
     ):
@@ -159,7 +159,7 @@ def category_handler(category):
             if not items:
                 raise HTTPException(404, "该分类中没有此指标")
         if frequency is not None:
-            if frequency not in ("日度", "周度", "月度", "未提供"):
+            if frequency not in ("日度", "周度", "月度", "季度", "未提供"):
                 raise HTTPException(422, "无效频率")
             items = [item for item in items if item["metadata"]["frequency"] == frequency]
         output = []

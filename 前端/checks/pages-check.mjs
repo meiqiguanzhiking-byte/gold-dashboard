@@ -131,7 +131,7 @@ try {
   await page.getByRole('tab', { name: '国外' }).click()
   await loaded()
   await page.waitForTimeout(250)
-  for (const id of ['usd-index', 'positions', 'spdr', 'london', 'comex', 'global-etf']) {
+  for (const id of ['usd-index', 'positions', 'spdr', 'london', 'comex', 'cofer', 'gold-supply-demand', 'global-etf']) {
     await waitForInk('#' + id + ' canvas')
     assert.ok(await chartInk('#' + id + ' canvas') > 15, id + ' 图表应包含真实绘制内容')
   }

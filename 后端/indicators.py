@@ -15,6 +15,8 @@ from domestic_futures import add_domestic_futures
 from central_banks import add_central_bank_changes
 from bank_fx import add_bank_fx_indicators
 from gold_silver_retail import add_gold_silver_retail
+from cofer import add_cofer_indicators
+from gold_supply_demand import add_gold_supply_demand
 
 CATEGORIES = ("central-bank", "etf", "inventory", "futures", "cftc", "au-td", "price")
 
@@ -149,6 +151,8 @@ def build_indicators(tables):
     add_international_futures(b)
     add_domestic_futures(b)
     add_bank_fx_indicators(b)
+    add_cofer_indicators(b)
+    add_gold_supply_demand(b)
     b.columns("au-td", "AuTD.csv", None, "日度", [
         ("au_td_open_interest", "Au(T+D) 持仓量", "持仓量（吨）", "吨"),
         ("au_td_volume", "Au(T+D) 成交量", "交易量（吨）", "吨"),

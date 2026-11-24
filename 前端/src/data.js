@@ -27,6 +27,8 @@ const healthSourceGroups = [
   ['伦敦金银库存.xlsx'],
   ['COMEX金银库存.xlsx'],
   ['COMEX黄金期权Delta当量总持仓.csv'],
+  ['COFER_全球币种份额.csv'],
+  ['全球黄金季度供需分项.xlsx'],
   ['全球黄金ETF流量.xlsx'],
   ['全球央行购金.csv'],
 ]
