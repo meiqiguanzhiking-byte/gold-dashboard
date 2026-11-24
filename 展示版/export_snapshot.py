@@ -1,4 +1,5 @@
 """复用既有只读处理逻辑，按页面白名单输出一个可公开审阅的精简快照。"""
+import argparse
 import json
 import re
 import shutil
@@ -43,7 +44,7 @@ def validate_public(value):
         raise ValueError("快照包含不适合发布的信息；未写入数据")
 
 
-def export():
+def export(*, preserve_spot_research=False):
     policy = json.loads((ROOT / "展示版" / "公开范围.json").read_text(encoding="utf-8"))
     tables, files, _ = load_tables(DATA_DIR)
     groups = build_indicators(tables)
@@ -163,7 +164,17 @@ def export():
     }
     if deliveries is not None:
         snapshot["deliveries"] = deliveries
-    if policy.get("include_spot_research"):
+    if policy.get("include_spot_research") and preserve_spot_research:
+        # 定向修复行情时明确保留已发布研究快照，避免研究源结构变更扩大本次发布范围。
+        previous = json.loads((ROOT / "展示版/数据/data/snapshot.json").read_text(encoding="utf-8"))
+        market = previous.get("spot_market")
+        dependencies = ["境内外现价价差_全历史.csv", *policy["spot_research_sources"]]
+        if not market or market.get("publication_scope") != "public_only" or any(
+            policy["source_permissions"].get(name) != "approved" or name in policy["withheld_sources"] for name in dependencies
+        ) or [f'{column["name"]}（{column["unit"]}）' for column in market["columns"]] != policy["spot_research_columns"]:
+            raise ValueError("不能保留未获准或不完整的研究快照")
+        snapshot["spot_market"] = market
+    elif policy.get("include_spot_research"):
         source = "境内外现价价差_全历史.csv"
         dependencies = [source, *policy["spot_research_sources"]]
         if any(policy["source_permissions"].get(name) != "approved" or name in policy["withheld_sources"] for name in dependencies):
@@ -202,8 +213,11 @@ def export():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--preserve-spot-research", action="store_true", help="定向发布行情时保留上次已公开的研究快照")
+    args = parser.parse_args()
     try:
-        export()
+        export(preserve_spot_research=args.preserve_spot_research)
     except (ValueError, OSError, KeyError) as error:
         print("展示快照生成失败：" + str(error).splitlines()[0], file=sys.stderr)
         sys.exit(1)
