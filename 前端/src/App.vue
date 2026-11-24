@@ -253,7 +253,6 @@ onMounted(loadAll)
     <header class="topbar"><div class="brand"><span class="brand-mark">Au</span><div><strong>黄金家族·goldfamily</strong><span>{{ isStatic ? 'GOLD MARKET / STATIC SNAPSHOT' : 'GOLD MARKET / LOCAL DATA' }}</span></div></div><span class="environment"><i></i>{{ isStatic ? '静态展示版 · 真实数据快照' : '本地真实数据 · 只读接入' }}</span></header>
     <main>
       <section class="page-intro"><div><p class="eyebrow">PRECIOUS METALS / 黄金研究</p><h1><span class="family-title">黄金家族</span>黄金市场指标看板</h1><p class="intro-note">从交易、持仓与资金流观察黄金市场</p></div><button class="refresh-button" :disabled="refreshing || pending" @click="refresh"><span aria-hidden="true" :class="{ spinning: refreshing }">↻</span>{{ refreshing ? '正在重新加载…' : isStatic ? '重新加载展示数据' : '刷新真实数据' }}</button></section>
-      <p v-if="isStatic" class="static-notice">静态展示版：数据不会随电脑中的文件自动更新。重新加载仅读取已发布的快照；观察日期和口径以各指标标注为准。网页中的真实数值和历史序列可被访问或下载。</p>
       <div class="data-summary"><span>数据截至 <strong>{{ asOf }}</strong><small>各来源频率不同</small></span><span v-if="isStatic">快照生成 <strong>{{ localTime(meta?.generated_at) }}</strong><small>北京时间</small></span><span>{{ isStatic ? '页面读取' : '最近刷新' }} <strong>{{ localTime(clientRefreshedAt) }}</strong></span><span class="summary-status"><i :class="{ warning: failures.length || missingCount }"></i>{{ pending ? '读取中' : failures.length ? failures.length + (isStatic ? ' 个区域读取异常' : ' 个接口异常') : isStatic ? '展示数据已载入' : '接口已连接' }}<small v-if="!pending">{{ missingCount }} 项数据缺失 · {{ countStatus('滞后') }} 项滞后{{ isStatic ? '（快照生成时）' : '' }}</small></span></div>
       <DashboardPages @select="loadPage">
       <div v-if="reloadError" class="alert error" role="alert">{{ reloadError }}</div><div v-else-if="notice" class="alert success" role="status">{{ notice }}</div>
@@ -358,7 +357,7 @@ onMounted(loadAll)
       </DashboardSection>
       </DashboardPage>
 
-      <DashboardPage page="foreign" label="国外">
+      <DashboardPage page="foreign" label="国外" :default-hidden="isStatic ? ['comex-options-delta', 'cofer'] : []">
 
       <DashboardSection id="overseas-price" title="伦敦金现与汇率">
         <div class="section-heading"><div><span class="section-number">现价</span><h2>伦敦金现与汇率</h2></div><span>北京时间15:30 · 半小时K线收盘价</span></div>
@@ -492,7 +491,6 @@ onMounted(loadAll)
 
 <style scoped>
 .family-title { color:#aa965e; display:inline-block; margin-right:.5em; }
-.static-notice { margin:16px 0 0; padding:10px 12px; border-left:2px solid #b69b64; background:#f7f4eb; color:#867348; font-size:11px; line-height:1.8; }
 .chart-grid > :only-child { grid-column: 1 / -1; }
 .trade-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .central-month-summary { font-size:11px; color:#536970; line-height:1.8; }

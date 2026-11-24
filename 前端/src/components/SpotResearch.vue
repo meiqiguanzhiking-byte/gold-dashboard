@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue'
+import { isStatic } from '../data.js'
 import SpotMarketChart from './SpotMarketChart.vue'
 import SpotSpreadStatistics from './SpotSpreadStatistics.vue'
 import SpotRollingIC from './SpotRollingIC.vue'
@@ -10,7 +11,7 @@ const pages = [
   { id: 'backtest', name: '回测' },
   { id: 'live', name: '实盘' },
 ]
-const activePage = ref('factors')
+const activePage = ref(isStatic ? 'backtest' : 'factors')
 </script>
 
 <template>

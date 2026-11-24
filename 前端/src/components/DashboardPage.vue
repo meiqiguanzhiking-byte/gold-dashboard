@@ -1,20 +1,20 @@
 <script setup>
 import { computed, inject, nextTick, onMounted, onBeforeUnmount, provide, ref, shallowRef, watch } from 'vue'
 import SectionPicker from './SectionPicker.vue'
-const props = defineProps({ page: String, label: String, pickable: { type: Boolean, default: true }, pickerOptions: { type: Array, default: null }, pickerSelected: { type: Array, default: null } })
+const props = defineProps({ page: String, label: String, pickable: { type: Boolean, default: true }, pickerOptions: { type: Array, default: null }, pickerSelected: { type: Array, default: null }, defaultHidden: { type: Array, default: () => [] } })
 defineEmits(['picker-update'])
 const activePage = inject('dashboardActivePage')
 const visible = computed(() => activePage.value === props.page)
 const visited = ref(visible.value)
 watch(visible, value => { if (value) visited.value = true }, { flush: 'sync' })
 provide('dashboardContentVisible', visible)
-const storageKey = `gold-dashboard:sections:v1:${props.page}`
+const storageKey = `gold-dashboard:sections:${props.defaultHidden.length ? 'v2' : 'v1'}:${props.page}`
 const sections = shallowRef([])
-const hidden = ref([])
+const hidden = ref([...props.defaultHidden])
 try {
   const saved = JSON.parse(localStorage.getItem(storageKey))
   if (Array.isArray(saved?.hidden) && saved.hidden.every(id => typeof id === 'string')) hidden.value = saved.hidden
-} catch { /* 存储不可用或记录损坏时默认全选，仍可在本次打开期间操作。 */ }
+} catch { /* 存储不可用或记录损坏时使用页面默认选择，仍可在本次打开期间操作。 */ }
 function setHidden(ids) {
   hidden.value = [...new Set(ids)]
   try { localStorage.setItem(storageKey, JSON.stringify({ hidden: hidden.value })) } catch { /* 不阻断页面使用。 */ }

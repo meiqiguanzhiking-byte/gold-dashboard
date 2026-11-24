@@ -68,7 +68,7 @@ try {
   await loaded()
   assert.equal(await page.evaluate(() => document.characterSet.toUpperCase()), 'UTF-8')
   assert.ok((await page.locator('.environment').textContent()).includes('静态展示版'))
-  assert.ok((await page.locator('.static-notice').textContent()).includes('不会随电脑中的文件自动更新'))
+  assert.equal(await page.locator('.static-notice').count(), 0)
   const generatedDate = snapshot.generated_at.slice(0, 10).split('-').map(Number).join('/')
   assert.ok((await page.locator('.data-summary').textContent()).includes(generatedDate))
   assert.equal(await page.getByRole('button', { name: '刷新真实数据', exact: true }).count(), 0)
@@ -77,6 +77,8 @@ try {
   assert.ok(!requests.some(r => r.url.includes('/data/spot-market-')), '首屏不得提前下载现价研究数据')
   assert.deepEqual(await page.locator('.page-tabs > .page-tab-entry > button[role="tab"]').allTextContents(), ['每日速递⌄', '每周速递⌄', '国内', '国外', '交叉展示', '量化研究⌄', '研报复现⌄', '数据健康度'])
   await page.getByRole('tab', { name: '量化研究', exact: true }).click()
+  assert.equal(await page.getByRole('tab', { name: '回测', exact: true }).getAttribute('aria-selected'), 'true')
+  await page.getByRole('tab', { name: '因子数据概况', exact: true }).click()
   if (snapshot.spot_market) {
     await waitForInk('[data-chart-title="行情走势"] canvas')
     const market = page.locator('.spot-market')
@@ -102,6 +104,7 @@ try {
       await rolling.getByRole('combobox', { name: /^配对方式/ }).selectOption('next-change')
     }
   }
+  await page.getByRole('tab', { name: '量化研究', exact: true }).click()
   await page.getByRole('button', { name: '期货研究', exact: true }).click()
   await page.locator('#page-panel-quant .quant-empty').waitFor()
   await page.getByRole('tab', { name: '研报复现' }).click()
@@ -131,6 +134,10 @@ try {
   await page.getByRole('tab', { name: '国外' }).click()
   await loaded()
   await page.waitForTimeout(250)
+  for (const name of ['COMEX黄金期权Delta当量总持仓', '全球已分配外汇储备币种份额']) {
+    assert.equal(await page.getByRole('checkbox', { name, exact: true }).isChecked(), false)
+  }
+  await page.getByRole('checkbox', { name: '全球已分配外汇储备币种份额', exact: true }).check()
   for (const id of ['usd-index', 'positions', 'spdr', 'london', 'comex', 'cofer', 'gold-supply-demand', 'global-etf']) {
     await waitForInk('#' + id + ' canvas')
     assert.ok(await chartInk('#' + id + ' canvas') > 15, id + ' 图表应包含真实绘制内容')
@@ -204,7 +211,8 @@ try {
   assert.ok((await page.locator('#comex .comex-comparison').textContent()).includes(target90))
   await page.getByLabel('COMEX 金属', { exact: true }).selectOption('gold')
   await page.getByLabel('COMEX 时间范围').selectOption('30')
-  assert.ok((await page.locator('#comex .comex-definition').textContent()).includes('待核实'))
+  assert.equal(await page.locator('#comex .comex-definition').count(), 0)
+  assert.ok((await page.locator('#comex .comex-notes details').textContent()).includes('待核实'))
   // 通过真实鼠标检验图例开关及两个 COMEX 悬浮提示，读取像素而不保存截图。
   const chart = page.locator('[data-chart-title="COMEX 库存结构"]')
   await chart.scrollIntoViewIfNeeded()
