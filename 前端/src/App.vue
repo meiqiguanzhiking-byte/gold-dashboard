@@ -26,6 +26,7 @@ const WeeklyBrief = defineAsyncComponent(() => import('./components/WeeklyBrief.
 const CrossDisplay = defineAsyncComponent(() => import('./components/CrossDisplay.vue'))
 const ResearchReplication = defineAsyncComponent(() => import('./components/ResearchReplication.vue'))
 const QuantResearch = defineAsyncComponent(() => import('./components/QuantResearch.vue'))
+const StrategyLines = defineAsyncComponent(() => import('./components/StrategyLines.vue'))
 
 const { blocks, meta, all, dailyItems, dailyBlocks, item, refreshing, reloadError, clientRefreshedAt, notice, loadAll, loadPage, refresh, loadBlock } = useDashboard()
 const futuresPriceMode = ref('adjusted')
@@ -475,6 +476,7 @@ onMounted(loadAll)
 
       <DashboardPage page="cross" label="交叉展示" :pickable="false"><CrossDisplay :items="all" :blocks="blocks" /></DashboardPage>
       <DashboardPage page="quant" label="量化研究" :pickable="false"><QuantResearch /></DashboardPage>
+      <DashboardPage page="strategy" label="策略线"><StrategyLines /></DashboardPage>
       <DashboardPage page="research" label="研报复现" :pickable="false"><ResearchReplication /></DashboardPage>
       <DashboardPage page="health" label="数据健康度" :picker-options="healthPickerOptions" :picker-selected="selectedHealthModules" @picker-update="updateHealthModules">
       <DashboardSection id="health" title="数据健康度"><div class="section-heading"><div><span class="section-number">21</span><h2>数据健康度</h2></div><span>{{ allMetadata.length }} 个指标 · {{ meta?.files.length || '—' }} 个文件</span></div><div class="health-filters"><input v-model="healthSearch" placeholder="搜索指标或来源文件" aria-label="搜索数据健康度"><select v-model="healthFrequency" aria-label="健康度频率筛选"><option>全部</option><option>日度</option><option>周度</option><option>月度</option><option>季度</option><option>未提供</option></select><select v-model="healthStatus" aria-label="健康度状态筛选"><option>全部</option><option>正常</option><option>滞后</option><option>短历史</option><option>仅最新值</option><option>人工接入</option><option value="未确认">每日17点更新</option><option>数据缺失</option></select><span>数据更新计划：每日17点</span></div>
@@ -484,12 +486,17 @@ onMounted(loadAll)
         <details class="source-details"><summary>查看文件读取状态与数据口径</summary><div v-for="file in healthFiles" :key="file.source" class="file-row"><strong>{{ file.source }}</strong><span>{{ file.coverage_start || '未提供' }} — {{ file.latest_date || '未提供' }}</span><StatusBadge :status="file.status" /><small>{{ file.warnings.join('；') }}</small></div><p>缺失保持空值；真实零值显示为 0。日/周/月延迟阈值为后端配置的提示阈值，不代表发布日历。交割观察期仅计有有效报告值的月份，月频延迟按北京时间当日减去最新观察月月末计算。原始发布日期未提供，数据健康度显示“未提供”。</p></details>
       </DashboardSection>
       </DashboardPage>
-      </DashboardPages><footer class="page-footer"><span>黄金市场指标看板 · {{ isStatic ? '静态展示版' : '本地真实文件' }}</span><span>不插值 · 不前值填充 · 不生成虚构数据</span></footer>
+      </DashboardPages><footer class="page-footer"><span>黄金市场指标看板 · {{ isStatic ? '静态展示版' : '本地真实文件' }}</span><span>不插值 · 不前值填充 · 不生成虚构数据</span><div class="footer-contact"><p>联系人：苗康</p><p>联系方式：<a href="mailto:miaokang@xyzq.com.cn">miaokang@xyzq.com.cn</a></p></div></footer>
     </main>
   </div>
 </template>
 
 <style scoped>
+.page-footer { flex-wrap:wrap; }
+.footer-contact { flex-basis:100%; font-size:11px; line-height:1.8; color:#728486; overflow-wrap:anywhere; }
+.footer-contact p { margin:0; }
+.footer-contact a { color:inherit; text-decoration:none; }
+.footer-contact a:hover { text-decoration:underline; }
 .family-title { color:#aa965e; display:inline-block; margin-right:.5em; }
 .chart-grid > :only-child { grid-column: 1 / -1; }
 .trade-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }

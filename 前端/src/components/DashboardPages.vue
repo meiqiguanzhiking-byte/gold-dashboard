@@ -16,7 +16,7 @@ function closeQuantMenu(event) {
 }
 onMounted(() => document.addEventListener('pointerdown', closeQuantMenu))
 onBeforeUnmount(() => document.removeEventListener('pointerdown', closeQuantMenu))
-const pages = [{ id: 'daily', name: '每日速递' }, { id: 'weekly', name: '每周速递' }, { id: 'domestic', name: '国内' }, { id: 'foreign', name: '国外' }, { id: 'cross', name: '交叉展示' }, { id: 'quant', name: '量化研究' }, { id: 'research', name: '研报复现' }, { id: 'health', name: '数据健康度' }]
+const pages = [{ id: 'daily', name: '每日速递' }, { id: 'weekly', name: '每周速递' }, { id: 'domestic', name: '国内' }, { id: 'foreign', name: '国外' }, { id: 'cross', name: '交叉展示' }, { id: 'quant', name: '量化研究' }, { id: 'strategy', name: '策略线' }, { id: 'research', name: '研报复现' }, { id: 'health', name: '数据健康度' }]
 provide('dashboardQuantSection', quantSection)
 async function selectQuant(section) {
   quantSection.value = section
