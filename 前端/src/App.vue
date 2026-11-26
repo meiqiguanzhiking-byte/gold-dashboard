@@ -486,17 +486,12 @@ onMounted(loadAll)
         <details class="source-details"><summary>查看文件读取状态与数据口径</summary><div v-for="file in healthFiles" :key="file.source" class="file-row"><strong>{{ file.source }}</strong><span>{{ file.coverage_start || '未提供' }} — {{ file.latest_date || '未提供' }}</span><StatusBadge :status="file.status" /><small>{{ file.warnings.join('；') }}</small></div><p>缺失保持空值；真实零值显示为 0。日/周/月延迟阈值为后端配置的提示阈值，不代表发布日历。交割观察期仅计有有效报告值的月份，月频延迟按北京时间当日减去最新观察月月末计算。原始发布日期未提供，数据健康度显示“未提供”。</p></details>
       </DashboardSection>
       </DashboardPage>
-      </DashboardPages><footer class="page-footer"><span>黄金市场指标看板 · {{ isStatic ? '静态展示版' : '本地真实文件' }}</span><div class="footer-contact"><p>联系人：苗康</p><p>联系方式：<a href="mailto:miaokang@xyzq.com.cn">miaokang@xyzq.com.cn</a></p></div></footer>
+      </DashboardPages><footer class="page-footer"><span>黄金市场指标看板 · {{ isStatic ? '静态展示版' : '本地真实文件' }}</span></footer>
     </main>
   </div>
 </template>
 
 <style scoped>
-.page-footer { flex-wrap:wrap; }
-.footer-contact { flex-basis:100%; font-size:11px; line-height:1.8; color:#728486; overflow-wrap:anywhere; }
-.footer-contact p { margin:0; }
-.footer-contact a { color:inherit; text-decoration:none; }
-.footer-contact a:hover { text-decoration:underline; }
 .family-title { color:#aa965e; display:inline-block; margin-right:.5em; }
 .chart-grid > :only-child { grid-column: 1 / -1; }
 .trade-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }

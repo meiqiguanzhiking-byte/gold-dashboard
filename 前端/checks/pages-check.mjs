@@ -80,7 +80,7 @@ try {
   await page.locator('#strategy-layout .strategy-card').first().waitFor()
   assert.equal(await page.locator('#strategy-layout .strategy-card').count(), 3)
   assert.ok((await page.locator('#page-panel-strategy').textContent()).includes('黄金绝对收益'))
-  assert.equal(await page.locator('.footer-contact a').getAttribute('href'), 'mailto:miaokang@xyzq.com.cn')
+  assert.equal(await page.locator('.footer-contact').count(), 0)
   await page.getByRole('tab', { name: '量化研究', exact: true }).click()
   assert.equal(await page.getByRole('tab', { name: '回测', exact: true }).getAttribute('aria-selected'), 'true')
   await page.getByRole('tab', { name: '因子数据概况', exact: true }).click()
